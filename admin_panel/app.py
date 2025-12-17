@@ -217,6 +217,26 @@ def get_template_context(request: Request, **kwargs):
     return context
 
 
+def get_backup_dir() -> Path:
+    """Get writable backup directory, prioritizing /var/backups"""
+    # Try system backup dir first
+    var_dir = Path("/var/backups/admin-bots-platform")
+    try:
+        if not var_dir.exists():
+            var_dir.mkdir(parents=True, exist_ok=True)
+        # Check if writable
+        test_file = var_dir / ".write_test"
+        test_file.touch()
+        test_file.unlink()
+        return var_dir
+    except (PermissionError, Exception):
+        # Fallback to local backups dir
+        local_dir = BASE_DIR / "backups"
+        local_dir.mkdir(exist_ok=True)
+        return local_dir
+
+
+
 # === Bot Switching ===
 
 @app.post("/bot/switch/{bot_id}")
@@ -1200,18 +1220,11 @@ async def create_raffle(request: Request, prize_name: str = Form(...), winner_co
 # === Backups ===
 @app.get("/backups", response_class=HTMLResponse)
 async def backups_list(request: Request, user: Dict = Depends(require_superadmin)):
-    # Backups are global functionality usually, or per-bot? 
-    # Current backup script dumps database. So it's global.
-    from pathlib import Path
-    import os
     import shutil
     
-    backup_dir = Path("/var/backups/admin-bots-platform")
-    if not backup_dir.exists():
-        backup_dir = BASE_DIR / "backups"
-        backup_dir.mkdir(exist_ok=True)
-
+    backup_dir = get_backup_dir()
     backups = []
+    
     if backup_dir.exists():
         for file in sorted(backup_dir.glob("backup_*.sql.gz"), reverse=True):
             stat = file.stat()
@@ -1228,7 +1241,8 @@ async def backups_list(request: Request, user: Dict = Depends(require_superadmin
     
     return templates.TemplateResponse("backups/list.html", get_template_context(
         request, user=user, title="Резервные копии",
-        backups=backups, total_size_mb=total_size_mb, disk_free_mb=disk_free_mb
+        backups=backups, total_size_mb=total_size_mb, disk_free_mb=disk_free_mb,
+        backup_path=str(backup_dir)
     ))
 
 
@@ -1237,17 +1251,11 @@ async def create_backup_handler(request: Request, user: str = Depends(get_curren
     """Trigger backup script"""
     import subprocess
     
-    # Determine backup dir (same logic as GET)
-    backup_dir = Path("/var/backups/admin-bots-platform")
-    if not backup_dir.exists() or not os.access(str(backup_dir), os.W_OK):
-        backup_dir = BASE_DIR / "backups"
-        backup_dir.mkdir(exist_ok=True)
-    
+    backup_dir = get_backup_dir()
     script_path = BASE_DIR / "scripts" / "backup.sh"
     
     try:
         # Run script with backup_dir as argument
-        # Use 'bash' explicitly
         result = subprocess.run(
             ["bash", str(script_path), str(backup_dir)],
             capture_output=True,
@@ -1535,7 +1543,35 @@ async def domain_setup(
         return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
 
 
+# === Logs Viewer ===
+
+@app.get("/settings/logs", response_class=HTMLResponse)
+async def logs_page(request: Request, service: str = "admin_bots", user: Dict = Depends(require_superadmin)):
+    """View systemd logs"""
+    import subprocess
+    
+    if service not in ["admin_bots", "admin_panel"]:
+        service = "admin_bots"
+        
+    try:
+        result = subprocess.run(
+            ["sudo", "journalctl", "-n", "100", "-u", service, "--no-pager"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        logs = result.stdout
+    except Exception as e:
+        logs = f"Error fetching logs (maybe sudo required): {e}"
+        
+    return templates.TemplateResponse("settings/logs.html", get_template_context(
+        request, user=user, title="Логи системы",
+        logs=logs, active_service=service
+    ))
+
+
 # === Server Migration Guide (SuperAdmin only) ===
+
 
 @app.get("/migration", response_class=HTMLResponse)
 async def migration_page(request: Request, user: Dict = Depends(require_superadmin)):

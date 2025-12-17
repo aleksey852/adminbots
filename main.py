@@ -139,9 +139,9 @@ async def pg_listener():
                                 # This requires implementing a custom PollingManager or restarting the process.
                                 # Since I cannot easily restart process from here (unless I exit), I will just Log.
                                 logger.warning("🔄 New bot detected. Restarting for polling...")
-                                # Graceful shutdown before restart
-                                # await on_shutdown() # Optional: if you want clean close inside same loop
-                                os.execv(sys.executable, ['python'] + sys.argv)
+                                # Use sudo systemctl restart if running as service?
+                                # But for now, just restart the process.
+                                os.execv(sys.executable, [sys.executable] + sys.argv)
                                 
                         except Exception as e:
                             logger.error(f"Error processing notification {channel}: {e}")
