@@ -3,10 +3,10 @@
 {% block content %}
 <div class="container-fluid">
     <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
+        <div class="col-md-10 col-lg-8">
             <div class="d-flex align-items-center mb-4">
                 <a href="/" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i> Назад</a>
-                <h1 class="page-title mb-0">🤖 Добавить бота</h1>
+                <h1 class="page-title mb-0">🤖 Конструктор бота</h1>
             </div>
 
             <div class="card shadow-sm">
@@ -20,29 +20,129 @@
                     <form method="POST" action="/bots/create">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-                        <div class="mb-3">
-                            <label for="name" class="form-label">Название бота (для админки)</label>
-                            <input type="text" class="form-control" id="name" name="name" required
-                                placeholder="Например: Promo Bot 2025" value="{{ form__name if form__name else '' }}">
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="token" class="form-label">Bot Token (из @BotFather)</label>
-                            <input type="text" class="form-control font-monospace" id="token" name="token" required
-                                placeholder="123456789:ABCdefGHIjklMNOpqrs..."
-                                value="{{ form__token if form__token else '' }}">
-                            <div class="form-text">Токен можно получить или отозвать в @BotFather</div>
-                        </div>
-
+                        <!-- Step 1: Basic Info -->
                         <div class="mb-4">
-                            <label for="type" class="form-label">Тип кампании</label>
-                            <select class="form-select" id="type" name="type" required>
-                                <option value="receipt" {% if form__type=='receipt' %}selected{% endif %}>🧾 Регистрация
-                                    чеков</option>
-                                <option value="promo" {% if form__type=='promo' %}selected{% endif %}>🎁 Промо-коды
-                                </option>
-                            </select>
-                            <div class="form-text">Определяет логику работы бота (обработка чеков или кодов)</div>
+                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-1-circle me-2"></i>Основные настройки</h5>
+                            
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Название бота (для админки)</label>
+                                <input type="text" class="form-control" id="name" name="name" required
+                                    placeholder="Например: Promo Bot 2025" value="{{ form__name if form__name else '' }}">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="token" class="form-label">Bot Token (из @BotFather)</label>
+                                <input type="text" class="form-control font-monospace" id="token" name="token" required
+                                    placeholder="123456789:ABCdefGHIjklMNOpqrs..."
+                                    value="{{ form__token if form__token else '' }}">
+                                <div class="form-text">Токен можно получить или отозвать в @BotFather</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="type" class="form-label">Тип кампании</label>
+                                <select class="form-select" id="type" name="type" required onchange="updateModules()">
+                                    <option value="receipt" {% if form__type=='receipt' %}selected{% endif %}>🧾 Регистрация чеков</option>
+                                    <option value="promo" {% if form__type=='promo' %}selected{% endif %}>🎁 Промо-коды</option>
+                                </select>
+                                <div class="form-text">Определяет основную логику работы бота</div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Admin IDs -->
+                        <div class="mb-4">
+                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-2-circle me-2"></i>Администраторы</h5>
+                            
+                            <div class="mb-3">
+                                <label for="admin_ids" class="form-label">Telegram ID администраторов</label>
+                                <input type="text" class="form-control" id="admin_ids" name="admin_ids"
+                                    placeholder="123456789, 987654321"
+                                    value="{{ form__admin_ids if form__admin_ids else '' }}">
+                                <div class="form-text">
+                                    Через запятую. Узнать свой ID: <code>@userinfobot</code><br>
+                                    Эти пользователи получат доступ к админ-командам бота.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Modules -->
+                        <div class="mb-4">
+                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-3-circle me-2"></i>Модули</h5>
+                            <p class="text-muted small mb-3">Выберите функции, которые будут активированы для этого бота:</p>
+                            
+                            <div class="row">
+                                <!-- Core modules -->
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="modules" value="registration" id="mod_registration" checked disabled>
+                                        <label class="form-check-label" for="mod_registration">
+                                            <strong>📝 registration</strong> <span class="badge bg-secondary">обязательный</span><br>
+                                            <small class="text-muted">Регистрация пользователей (имя, телефон)</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="modules" value="user_profile" id="mod_user_profile" checked>
+                                        <label class="form-check-label" for="mod_user_profile">
+                                            <strong>👤 user_profile</strong><br>
+                                            <small class="text-muted">Профиль, статистика, история</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Type-specific modules -->
+                                <div class="col-md-6 mb-2" id="module_receipts_wrapper">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="modules" value="receipts" id="mod_receipts" checked>
+                                        <label class="form-check-label" for="mod_receipts">
+                                            <strong>🧾 receipts</strong><br>
+                                            <small class="text-muted">Загрузка и проверка чеков</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-2" id="module_promo_wrapper" style="display: none;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="modules" value="promo" id="mod_promo">
+                                        <label class="form-check-label" for="mod_promo">
+                                            <strong>🎁 promo</strong><br>
+                                            <small class="text-muted">Ввод промо-кодов</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Info modules -->
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="modules" value="faq" id="mod_faq" checked>
+                                        <label class="form-check-label" for="mod_faq">
+                                            <strong>❓ faq</strong><br>
+                                            <small class="text-muted">Часто задаваемые вопросы</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="modules" value="support" id="mod_support" checked>
+                                        <label class="form-check-label" for="mod_support">
+                                            <strong>💬 support</strong><br>
+                                            <small class="text-muted">Контакты поддержки</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="modules" value="admin" id="mod_admin" checked>
+                                        <label class="form-check-label" for="mod_admin">
+                                            <strong>⚙️ admin</strong><br>
+                                            <small class="text-muted">Админ-команды (рассылки, розыгрыши)</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="d-grid gap-2">
@@ -53,7 +153,43 @@
                     </form>
                 </div>
             </div>
+            
+            <div class="card mt-4">
+                <div class="card-header"><i class="bi bi-info-circle me-1"></i> Что дальше?</div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        <li>После создания бот появится в списке слева</li>
+                        <li>Перейдите в <strong>Настройки</strong> чтобы настроить тексты и параметры</li>
+                        <li>Перезапустите сервис бота для применения изменений</li>
+                    </ol>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+function updateModules() {
+    const type = document.getElementById('type').value;
+    const receiptsWrapper = document.getElementById('module_receipts_wrapper');
+    const promoWrapper = document.getElementById('module_promo_wrapper');
+    const receiptsCheck = document.getElementById('mod_receipts');
+    const promoCheck = document.getElementById('mod_promo');
+    
+    if (type === 'receipt') {
+        receiptsWrapper.style.display = 'block';
+        promoWrapper.style.display = 'none';
+        receiptsCheck.checked = true;
+        promoCheck.checked = false;
+    } else {
+        receiptsWrapper.style.display = 'none';
+        promoWrapper.style.display = 'block';
+        receiptsCheck.checked = false;
+        promoCheck.checked = true;
+    }
+}
+
+// Init on page load
+document.addEventListener('DOMContentLoaded', updateModules);
+</script>
 {% endblock %}

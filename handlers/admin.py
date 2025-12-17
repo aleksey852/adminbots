@@ -17,6 +17,7 @@ from database import (
     get_total_users_count
 )
 from utils.config_manager import config_manager
+from bot_manager import bot_manager
 import config
 
 logger = logging.getLogger(__name__)
@@ -77,10 +78,13 @@ async def start_broadcast(message: Message, state: FSMContext, bot_id: int = Non
 
 
 @router.message(AdminBroadcast.content)
-async def process_broadcast_content(message: Message, state: FSMContext, bot: Bot):
+async def process_broadcast_content(message: Message, state: FSMContext, bot: Bot, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     content = {}
@@ -113,9 +117,12 @@ async def broadcast_edit(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(AdminBroadcast.preview, F.data == "broadcast_cancel")
-async def broadcast_cancel(callback: CallbackQuery, state: FSMContext):
+async def broadcast_cancel(callback: CallbackQuery, state: FSMContext, bot_id: int = None):
     await state.clear()
-    await callback.message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+    await callback.message.answer(
+        "Отменено",
+        reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+    )
     await callback.answer()
 
 
@@ -131,22 +138,31 @@ async def process_broadcast_schedule(message: Message, state: FSMContext, bot_id
     if not bot_id: return
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     data = await state.get_data()
     scheduled_for = None
+    scheduled_for_text = None
     
     if message.text != "🚀 Сейчас":
         dt = config.parse_scheduled_time(message.text)
-        if not dt or dt < config.get_now():
+        now_local = config.get_now().replace(tzinfo=None)
+        if not dt or dt < now_local:
             await message.answer("Неверная дата. Формат: 2025-01-15 18:00")
             return
-        scheduled_for = message.text
+        scheduled_for = dt
+        scheduled_for_text = message.text
     
     campaign_id = await add_campaign("broadcast", data["content"], bot_id, scheduled_for)
-    msg = f"✅ Рассылка #{campaign_id} " + (f"запланирована на {scheduled_for}" if scheduled_for else "начнётся через минуту")
-    await message.answer(msg, reply_markup=get_main_keyboard(is_admin=True))
+    msg = f"✅ Рассылка #{campaign_id} " + (f"запланирована на {scheduled_for_text}" if scheduled_for else "начнётся через минуту")
+    await message.answer(
+        msg,
+        reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+    )
     await state.clear()
 
 
@@ -160,7 +176,10 @@ async def start_raffle(message: Message, state: FSMContext, bot_id: int = None):
     
     participants = await get_participants_count(bot_id)
     if participants == 0:
-        await message.answer("Нет участников", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Нет участников",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     await message.answer(f"🎁 Розыгрыш\n\nУчастников: {participants}\n\nНазвание приза:", reply_markup=get_cancel_keyboard())
@@ -168,10 +187,13 @@ async def start_raffle(message: Message, state: FSMContext, bot_id: int = None):
 
 
 @router.message(AdminRaffle.prize_name)
-async def raffle_prize(message: Message, state: FSMContext):
+async def raffle_prize(message: Message, state: FSMContext, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     await state.update_data(prize=message.text)
@@ -183,7 +205,10 @@ async def raffle_prize(message: Message, state: FSMContext):
 async def raffle_count(message: Message, state: FSMContext, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     if not message.text or not message.text.isdigit():
@@ -203,10 +228,13 @@ async def raffle_count(message: Message, state: FSMContext, bot_id: int = None):
 
 
 @router.message(AdminRaffle.winner_message)
-async def raffle_win_msg(message: Message, state: FSMContext):
+async def raffle_win_msg(message: Message, state: FSMContext, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     content = {"photo": message.photo[-1].file_id, "caption": message.caption} if message.photo else {"text": message.text}
@@ -216,10 +244,13 @@ async def raffle_win_msg(message: Message, state: FSMContext):
 
 
 @router.message(AdminRaffle.loser_message)
-async def raffle_lose_msg(message: Message, state: FSMContext):
+async def raffle_lose_msg(message: Message, state: FSMContext, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     content = {"photo": message.photo[-1].file_id, "caption": message.caption} if message.photo else {"text": message.text}
@@ -232,24 +263,31 @@ async def raffle_lose_msg(message: Message, state: FSMContext):
 async def raffle_schedule(message: Message, state: FSMContext, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     scheduled_for = None
+    scheduled_for_text = None
     if message.text != "🚀 Сейчас":
         dt = config.parse_scheduled_time(message.text)
-        if not dt or dt < config.get_now():
+        now_local = config.get_now().replace(tzinfo=None)
+        if not dt or dt < now_local:
             await message.answer("Неверная дата")
             return
-        scheduled_for = message.text
+        scheduled_for = dt
+        scheduled_for_text = message.text
     
-    await state.update_data(scheduled_for=scheduled_for)
+    await state.update_data(scheduled_for=scheduled_for, scheduled_for_text=scheduled_for_text)
     data = await state.get_data()
     participants = await get_participants_count(bot_id) if bot_id else 0
+    schedule_label = scheduled_for_text or "Сейчас"
     
     await message.answer(
         f"⚠️ Подтверждение\n\nПриз: {data['prize']}\nПобедителей: {data['count']}\n"
-        f"Участников: {participants}\nВремя: {scheduled_for or 'Сейчас'}\n\nПодтвердить?",
+        f"Участников: {participants}\nВремя: {schedule_label}\n\nПодтвердить?",
         reply_markup=get_confirm_keyboard()
     )
     await state.set_state(AdminRaffle.confirm)
@@ -260,7 +298,10 @@ async def raffle_confirm(message: Message, state: FSMContext, bot_id: int = None
     if not bot_id: return
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     if message.text != "✅ Подтвердить":
@@ -273,8 +314,12 @@ async def raffle_confirm(message: Message, state: FSMContext, bot_id: int = None
         "win_msg": data["win_msg"], "lose_msg": data["lose_msg"]
     }, bot_id, data.get("scheduled_for"))
     
-    msg = f"✅ Розыгрыш #{campaign_id} " + (f"запланирован на {data.get('scheduled_for')}" if data.get("scheduled_for") else "начнётся через минуту")
-    await message.answer(msg, reply_markup=get_main_keyboard(is_admin=True))
+    schedule_label = data.get("scheduled_for_text")
+    msg = f"✅ Розыгрыш #{campaign_id} " + (f"запланирован на {schedule_label}" if schedule_label else "начнётся через минуту")
+    await message.answer(
+        msg,
+        reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+    )
     await state.clear()
 
 
@@ -360,7 +405,10 @@ async def start_manual_receipt(message: Message, state: FSMContext):
 async def process_manual_user(message: Message, state: FSMContext, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     if not bot_id: return
@@ -393,7 +441,10 @@ async def process_manual_user(message: Message, state: FSMContext, bot_id: int =
 async def confirm_manual_receipt(message: Message, state: FSMContext, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Отменено", reply_markup=get_main_keyboard(is_admin=True))
+        await message.answer(
+            "Отменено",
+            reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+        )
         return
     
     if not bot_id: return
@@ -420,5 +471,8 @@ async def confirm_manual_receipt(message: Message, state: FSMContext, bot_id: in
         product_name="Ручное добавление"
     )
     
-    await message.answer(f"✅ Чек #{receipt_id} добавлен!", reply_markup=get_main_keyboard(is_admin=True))
+    await message.answer(
+        f"✅ Чек #{receipt_id} добавлен!",
+        reply_markup=get_main_keyboard(is_admin=True, bot_type=bot_manager.bot_types.get(bot_id, 'receipt'))
+    )
     await state.clear()

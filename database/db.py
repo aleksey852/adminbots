@@ -95,7 +95,7 @@ async def _create_schema():
             return
         
         try:
-            # 1. Create bots table
+            # 1. Create bots table with modular architecture support
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS bots (
                     id SERIAL PRIMARY KEY,
@@ -103,6 +103,10 @@ async def _create_schema():
                     name TEXT NOT NULL,
                     type TEXT NOT NULL DEFAULT 'receipt',
                     is_active BOOLEAN DEFAULT TRUE,
+                    admin_ids BIGINT[] DEFAULT '{}',
+                    enabled_modules TEXT[] DEFAULT '{"registration", "user_profile", "faq", "support"}',
+                    archived_at TIMESTAMP,
+                    archived_by TEXT,
                     created_at TIMESTAMP DEFAULT NOW()
                 );
             """)
@@ -357,7 +361,10 @@ async def _create_schema():
                 CREATE OR REPLACE FUNCTION notify_new_campaign() 
                 RETURNS TRIGGER AS $$
                 BEGIN
-                    PERFORM pg_notify('new_campaign', NEW.id::text);
+                    -- Do not notify future campaigns; scheduler will pick them up when due.
+                    IF NEW.scheduled_for IS NULL OR NEW.scheduled_for <= NOW() THEN
+                        PERFORM pg_notify('new_campaign', NEW.id::text);
+                    END IF;
                     RETURN NEW;
                 END;
                 $$ LANGUAGE plpgsql;
@@ -393,6 +400,37 @@ async def _create_schema():
                 );
             """)
             
+            # Bot Admins table (per-bot admin management)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS bot_admins (
+                    id SERIAL PRIMARY KEY,
+                    bot_id INTEGER REFERENCES bots(id) ON DELETE CASCADE,
+                    telegram_id BIGINT NOT NULL,
+                    role TEXT DEFAULT 'admin',
+                    added_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(bot_id, telegram_id)
+                );
+            """)
+            
+            # Data Migrations log table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS data_migrations (
+                    id SERIAL PRIMARY KEY,
+                    source_bot_id INTEGER REFERENCES bots(id),
+                    target_bot_id INTEGER REFERENCES bots(id),
+                    users_migrated INTEGER DEFAULT 0,
+                    receipts_migrated INTEGER DEFAULT 0,
+                    migrated_at TIMESTAMP DEFAULT NOW(),
+                    migrated_by TEXT
+                );
+            """)
+            
+            # Add new columns to bots table if they don't exist (migration)
+            await add_column_safe("bots", "admin_ids", "BIGINT[] DEFAULT '{}'")
+            await add_column_safe("bots", "enabled_modules", "TEXT[] DEFAULT '{\"registration\", \"user_profile\", \"faq\", \"support\"}'")
+            await add_column_safe("bots", "archived_at", "TIMESTAMP")
+            await add_column_safe("bots", "archived_by", "TEXT")
+            
             # Indexes
             indexes = [
                 "CREATE INDEX IF NOT EXISTS idx_users_telegram_bot ON users(telegram_id, bot_id)",
@@ -401,6 +439,9 @@ async def _create_schema():
                 "CREATE INDEX IF NOT EXISTS idx_campaigns_bot ON campaigns(bot_id)",
                 "CREATE INDEX IF NOT EXISTS idx_campaigns_pending ON campaigns(is_completed, scheduled_for)",
                 "CREATE INDEX IF NOT EXISTS idx_module_settings_bot ON module_settings(bot_id)",
+                "CREATE INDEX IF NOT EXISTS idx_bot_admins_bot ON bot_admins(bot_id)",
+                "CREATE INDEX IF NOT EXISTS idx_bot_admins_telegram ON bot_admins(telegram_id)",
+                "CREATE INDEX IF NOT EXISTS idx_bots_active ON bots(is_active) WHERE archived_at IS NULL",
             ]
             for idx in indexes:
                 try:

@@ -42,7 +42,167 @@ async def get_bot_config(bot_id: int) -> Dict:
         rows = await db.fetch("SELECT key, value FROM settings WHERE bot_id = $1", bot_id)
         return {r['key']: r['value'] for r in rows}
 
-# === Users ===
+
+# === Bot Admins ===
+
+async def get_bot_admins(bot_id: int) -> List[int]:
+    """Get list of admin telegram_ids for a bot"""
+    async with get_connection() as db:
+        # First check bot's admin_ids array
+        bot = await db.fetchrow("SELECT admin_ids FROM bots WHERE id = $1", bot_id)
+        admin_ids = list(bot['admin_ids']) if bot and bot['admin_ids'] else []
+        
+        # Also get from bot_admins table (more flexible management)
+        rows = await db.fetch("SELECT telegram_id FROM bot_admins WHERE bot_id = $1", bot_id)
+        for row in rows:
+            if row['telegram_id'] not in admin_ids:
+                admin_ids.append(row['telegram_id'])
+        
+        return admin_ids
+
+
+async def add_bot_admin(bot_id: int, telegram_id: int, role: str = 'admin') -> bool:
+    """Add admin to a bot"""
+    async with get_connection() as db:
+        try:
+            await db.execute("""
+                INSERT INTO bot_admins (bot_id, telegram_id, role)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (bot_id, telegram_id) DO UPDATE SET role = $3
+            """, bot_id, telegram_id, role)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add bot admin: {e}")
+            return False
+
+
+async def remove_bot_admin(bot_id: int, telegram_id: int) -> bool:
+    """Remove admin from a bot"""
+    async with get_connection() as db:
+        result = await db.execute(
+            "DELETE FROM bot_admins WHERE bot_id = $1 AND telegram_id = $2",
+            bot_id, telegram_id
+        )
+        return "DELETE 1" in result
+
+
+async def is_bot_admin(telegram_id: int, bot_id: int) -> bool:
+    """Check if user is admin for specific bot"""
+    # First check super admins from config
+    if telegram_id in config.ADMIN_IDS:
+        return True
+    
+    admins = await get_bot_admins(bot_id)
+    return telegram_id in admins
+
+
+# === Bot Lifecycle (Archive, Migrate) ===
+
+async def archive_bot(bot_id: int, archived_by: str) -> bool:
+    """Archive a bot (soft delete)"""
+    async with get_connection() as db:
+        result = await db.execute("""
+            UPDATE bots 
+            SET is_active = FALSE, archived_at = NOW(), archived_by = $2
+            WHERE id = $1 AND archived_at IS NULL
+        """, bot_id, archived_by)
+        return "UPDATE 1" in result
+
+
+async def restore_bot(bot_id: int) -> bool:
+    """Restore an archived bot"""
+    async with get_connection() as db:
+        result = await db.execute("""
+            UPDATE bots 
+            SET is_active = TRUE, archived_at = NULL, archived_by = NULL
+            WHERE id = $1 AND archived_at IS NOT NULL
+        """, bot_id)
+        return "UPDATE 1" in result
+
+
+async def migrate_bot_data(source_bot_id: int, target_bot_id: int, migrated_by: str) -> Dict:
+    """Migrate user data from one bot to another"""
+    async with get_connection() as db:
+        async with db.conn.transaction():
+            # Get counts before migration
+            users_count = await db.fetchval(
+                "SELECT COUNT(*) FROM users WHERE bot_id = $1", source_bot_id
+            )
+            receipts_count = await db.fetchval(
+                "SELECT COUNT(*) FROM receipts WHERE bot_id = $1", source_bot_id
+            )
+            
+            # Migrate users (update bot_id, handle conflicts)
+            await db.execute("""
+                UPDATE users SET bot_id = $2 
+                WHERE bot_id = $1 
+                AND telegram_id NOT IN (SELECT telegram_id FROM users WHERE bot_id = $2)
+            """, source_bot_id, target_bot_id)
+            
+            # Migrate receipts
+            await db.execute("""
+                UPDATE receipts SET bot_id = $2 
+                WHERE bot_id = $1
+            """, source_bot_id, target_bot_id)
+            
+            # Log migration
+            await db.execute("""
+                INSERT INTO data_migrations 
+                (source_bot_id, target_bot_id, users_migrated, receipts_migrated, migrated_by)
+                VALUES ($1, $2, $3, $4, $5)
+            """, source_bot_id, target_bot_id, users_count, receipts_count, migrated_by)
+            
+            return {
+                "users_migrated": users_count,
+                "receipts_migrated": receipts_count
+            }
+
+
+async def get_bot_enabled_modules(bot_id: int) -> List[str]:
+    """Get list of enabled modules for a bot"""
+    async with get_connection() as db:
+        bot = await db.fetchrow("SELECT enabled_modules FROM bots WHERE id = $1", bot_id)
+        if bot and bot['enabled_modules']:
+            return list(bot['enabled_modules'])
+        return ['registration', 'user_profile', 'faq', 'support']  # defaults
+
+
+async def update_bot_modules(bot_id: int, modules: List[str]) -> bool:
+    """Update enabled modules for a bot"""
+    async with get_connection() as db:
+        result = await db.execute(
+            "UPDATE bots SET enabled_modules = $2 WHERE id = $1",
+            bot_id, modules
+        )
+        return "UPDATE 1" in result
+
+
+async def update_bot_admins_array(bot_id: int, admin_ids: List[int]) -> bool:
+    """Update admin_ids array for a bot"""
+    async with get_connection() as db:
+        result = await db.execute(
+            "UPDATE bots SET admin_ids = $2 WHERE id = $1",
+            bot_id, admin_ids
+        )
+        return "UPDATE 1" in result
+
+
+async def get_all_bots(include_archived: bool = False) -> List[Dict]:
+    """Get all bots, optionally including archived"""
+    async with get_connection() as db:
+        if include_archived:
+            return await db.fetch("SELECT * FROM bots ORDER BY created_at DESC")
+        return await db.fetch(
+            "SELECT * FROM bots WHERE archived_at IS NULL ORDER BY created_at DESC"
+        )
+
+
+async def get_active_bots() -> List[Dict]:
+    """Get only active (non-archived) bots"""
+    async with get_connection() as db:
+        return await db.fetch(
+            "SELECT * FROM bots WHERE is_active = TRUE AND archived_at IS NULL"
+        )
 
 async def add_user(telegram_id: int, username: str, full_name: str, phone: str, bot_id: int) -> int:
     async with get_connection() as db:
@@ -589,6 +749,16 @@ async def block_user(user_id: int, blocked: bool = True):
     async with get_connection() as db:
         await db.execute("UPDATE users SET is_blocked = $1 WHERE id = $2", blocked, user_id)
 
+async def block_user_by_telegram_id(telegram_id: int, bot_id: int, blocked: bool = True):
+    """Block or unblock user by (telegram_id, bot_id) pair"""
+    async with get_connection() as db:
+        await db.execute(
+            "UPDATE users SET is_blocked = $1 WHERE telegram_id = $2 AND bot_id = $3",
+            blocked,
+            telegram_id,
+            bot_id,
+        )
+
 async def update_user_fields(user_id: int, *, full_name: Optional[str] = None, phone: Optional[str] = None, username: Optional[str] = None):
     """Update selected user fields"""
     fields = []
@@ -711,6 +881,22 @@ async def get_active_jobs(bot_id: int) -> List[Dict]:
             WHERE bot_id = $1 AND status IN ('pending', 'processing')
             ORDER BY created_at DESC
         """, bot_id)
+
+async def get_job(job_id: int, bot_id: int) -> Optional[Dict]:
+    async with get_connection() as db:
+        return await db.fetchrow("""
+            SELECT * FROM jobs
+            WHERE id = $1 AND bot_id = $2
+        """, job_id, bot_id)
+
+async def get_recent_jobs(bot_id: int, limit: int = 20) -> List[Dict]:
+    async with get_connection() as db:
+        return await db.fetch("""
+            SELECT * FROM jobs
+            WHERE bot_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2
+        """, bot_id, limit)
 
 
 async def get_promo_code(code: str, bot_id: int) -> Optional[Dict]:

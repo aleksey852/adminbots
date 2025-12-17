@@ -227,18 +227,41 @@ async def create_bot(
     token: str = Form(...),
     name: str = Form(...),
     type: str = Form(...),
+    admin_ids: str = Form(""),
     user: str = Depends(get_current_user)
 ):
     from database import get_connection
+    
+    # Get modules from form (checkboxes return list)
+    form = await request.form()
+    modules = form.getlist('modules')
+    
+    # Always include registration as required
+    if 'registration' not in modules:
+        modules.append('registration')
     
     # 1. Validate token (basic check)
     if not token or ":" not in token:
         return templates.TemplateResponse("bots/new.html", get_template_context(
             request, user=user, title="Добавить бота", error="Неверный формат токена", 
-            form__token=token, form__name=name, form__type=type
+            form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
         ))
     
-    # 2. Insert into DB
+    # 2. Parse admin IDs
+    parsed_admin_ids = []
+    if admin_ids.strip():
+        for aid in admin_ids.replace(' ', '').split(','):
+            try:
+                if aid.strip():
+                    parsed_admin_ids.append(int(aid.strip()))
+            except ValueError:
+                return templates.TemplateResponse("bots/new.html", get_template_context(
+                    request, user=user, title="Добавить бота", 
+                    error=f"Неверный формат Admin ID: {aid}",
+                    form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
+                ))
+    
+    # 3. Insert into DB
     try:
         async with get_connection() as db:
             # Check unique token
@@ -246,14 +269,22 @@ async def create_bot(
             if exists:
                 return templates.TemplateResponse("bots/new.html", get_template_context(
                     request, user=user, title="Добавить бота", error="Бот с таким токеном уже существует",
-                    form__token=token, form__name=name, form__type=type
+                    form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
                 ))
             
             bot_id = await db.fetchval("""
-                INSERT INTO bots (token, name, type, is_active)
-                VALUES ($1, $2, $3, TRUE)
+                INSERT INTO bots (token, name, type, is_active, admin_ids, enabled_modules)
+                VALUES ($1, $2, $3, TRUE, $4, $5)
                 RETURNING id
-            """, token, name, type)
+            """, token, name, type, parsed_admin_ids, modules)
+            
+            # Also add admin entries to bot_admins table for easier management
+            for aid in parsed_admin_ids:
+                await db.execute("""
+                    INSERT INTO bot_admins (bot_id, telegram_id, role)
+                    VALUES ($1, $2, 'admin')
+                    ON CONFLICT DO NOTHING
+                """, bot_id, aid)
             
             # Send notification to main process to reload bots
             await db.execute("NOTIFY new_bot")
@@ -267,11 +298,167 @@ async def create_bot(
         logger.error(f"Failed to create bot: {e}")
         return templates.TemplateResponse("bots/new.html", get_template_context(
             request, user=user, title="Добавить бота", error=f"Ошибка: {e}",
-            form__token=token, form__name=name, form__type=type
+            form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
         ))
 
 
-# === Auth ===
+@app.get("/bots/{bot_id}/edit", response_class=HTMLResponse)
+async def edit_bot_page(request: Request, bot_id: int, user: str = Depends(get_current_user), msg: str = None):
+    """Bot edit page"""
+    from database import get_stats
+    
+    edit_bot = await get_bot(bot_id)
+    if not edit_bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    
+    stats = await get_stats(bot_id)
+    
+    return templates.TemplateResponse("bots/edit.html", get_template_context(
+        request, user=user, title=f"Редактирование: {edit_bot['name']}",
+        edit_bot=edit_bot, stats=stats, message=msg
+    ))
+
+
+@app.post("/bots/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
+async def update_bot(
+    request: Request, 
+    bot_id: int, 
+    name: str = Form(...), 
+    type: str = Form(...),
+    user: str = Depends(get_current_user)
+):
+    """Update bot basic info"""
+    from database import get_connection
+    
+    async with get_connection() as db:
+        await db.execute(
+            "UPDATE bots SET name = $2, type = $3 WHERE id = $1",
+            bot_id, name, type
+        )
+    
+    return RedirectResponse(
+        url=f"/bots/{bot_id}/edit?msg=Изменения+сохранены", 
+        status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@app.post("/bots/{bot_id}/admins", dependencies=[Depends(verify_csrf_token)])
+async def update_bot_admins(
+    request: Request, 
+    bot_id: int, 
+    admin_ids: str = Form(""),
+    user: str = Depends(get_current_user)
+):
+    """Update bot admin IDs"""
+    from database import update_bot_admins_array, get_connection
+    
+    # Parse admin IDs
+    parsed_ids = []
+    if admin_ids.strip():
+        for aid in admin_ids.replace(' ', '').split(','):
+            try:
+                if aid.strip():
+                    parsed_ids.append(int(aid.strip()))
+            except ValueError:
+                pass
+    
+    await update_bot_admins_array(bot_id, parsed_ids)
+    
+    # Sync with bot_admins table
+    async with get_connection() as db:
+        await db.execute("DELETE FROM bot_admins WHERE bot_id = $1", bot_id)
+        for aid in parsed_ids:
+            await db.execute("""
+                INSERT INTO bot_admins (bot_id, telegram_id, role)
+                VALUES ($1, $2, 'admin')
+                ON CONFLICT DO NOTHING
+            """, bot_id, aid)
+    
+    return RedirectResponse(
+        url=f"/bots/{bot_id}/edit?msg=Админы+обновлены",
+        status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@app.post("/bots/{bot_id}/modules", dependencies=[Depends(verify_csrf_token)])
+async def update_bot_modules_route(
+    request: Request,
+    bot_id: int,
+    user: str = Depends(get_current_user)
+):
+    """Update bot enabled modules"""
+    from database import update_bot_modules
+    
+    form = await request.form()
+    modules = list(form.getlist('modules'))
+    
+    # Always include registration
+    if 'registration' not in modules:
+        modules.append('registration')
+    
+    await update_bot_modules(bot_id, modules)
+    
+    return RedirectResponse(
+        url=f"/bots/{bot_id}/edit?msg=Модули+обновлены",
+        status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@app.post("/bots/{bot_id}/archive", dependencies=[Depends(verify_csrf_token)])
+async def archive_bot_route(
+    request: Request,
+    bot_id: int,
+    user: str = Depends(get_current_user)
+):
+    """Archive a bot (soft delete)"""
+    from database import archive_bot
+    
+    await archive_bot(bot_id, user)
+    
+    # Clear active bot if it was archived
+    if request.session.get("active_bot_id") == bot_id:
+        request.session.pop("active_bot_id", None)
+    
+    return RedirectResponse(url="/?msg=Бот+архивирован", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/bots/{bot_id}/migrate", response_class=HTMLResponse)
+async def migrate_bot_page(request: Request, bot_id: int, user: str = Depends(get_current_user)):
+    """Migration page"""
+    from database import get_all_bots, get_stats
+    
+    source_bot = await get_bot(bot_id)
+    if not source_bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    
+    # Get all other bots as potential targets
+    all_bots = await get_all_bots()
+    target_bots = [b for b in all_bots if b['id'] != bot_id]
+    
+    stats = await get_stats(bot_id)
+    
+    return templates.TemplateResponse("bots/migrate.html", get_template_context(
+        request, user=user, title=f"Миграция: {source_bot['name']}",
+        source_bot=source_bot, target_bots=target_bots, stats=stats
+    ))
+
+
+@app.post("/bots/{bot_id}/migrate", dependencies=[Depends(verify_csrf_token)])
+async def migrate_bot_route(
+    request: Request,
+    bot_id: int,
+    target_bot_id: int = Form(...),
+    user: str = Depends(get_current_user)
+):
+    """Execute migration"""
+    from database import migrate_bot_data
+    
+    result = await migrate_bot_data(bot_id, target_bot_id, user)
+    
+    return RedirectResponse(
+        url=f"/bots/{target_bot_id}/edit?msg=Мигрировано+{result['users_migrated']}+пользователей",
+        status_code=status.HTTP_303_SEE_OTHER
+    )
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -425,14 +612,61 @@ async def messages_page(request: Request, user: str = Depends(get_current_user),
     
     messages = await config_manager.get_all_messages(bot['id'])
     
+    # Format: (key, description, default_text)
     default_messages = [
-        ("welcome_back", "С возвращением, {name}! 👋\n\nВаших билетов: {count}"),
-        ("welcome_new", "🎉 Добро пожаловать в {promo_name}!\n\nПризы: {prizes}"),
-        ("receipt_valid", "✅ Чек принят!\n\nВсего билетов: {count} 🎯"),
-        ("receipt_first", "🎉 Поздравляем с первым чеком!"),
-        ("receipt_duplicate", "ℹ️ Этот чек уже загружен"),
-        ("receipt_no_product", "😔 В чеке нет акционных товаров"),
-        ("no_receipts", "📋 У вас пока нет чеков"),
+        # Registration
+        ("welcome_new", "Приветствие нового пользователя (при /start)", 
+         "🎉 Добро пожаловать в {promo_name}!\n\nПризы: {prizes}"),
+        ("welcome_back", "Приветствие при возврате (повторный /start)", 
+         "С возвращением, {name}! 👋\n\nВаших билетов: {count}"),
+        ("reg_phone_prompt", "Запрос телефона при регистрации",
+         "Отлично, {name}! 👋\n\nОтправьте номер телефона:"),
+        ("reg_success", "Успешная регистрация",
+         "✅ Регистрация завершена!"),
+        ("reg_cancel", "Отмена регистрации",
+         "Хорошо! Возвращайтесь 👋"),
+        
+        # Receipts
+        ("upload_instruction", "Инструкция при загрузке чека",
+         "📸 Отправьте фото QR-кода с чека\n\nВаших билетов: {count}"),
+        ("receipt_valid", "Чек успешно принят",
+         "✅ Чек принят!\n\nВсего билетов: {count} 🎯"),
+        ("receipt_first", "Первый чек пользователя",
+         "🎉 Поздравляем с первым чеком!\n\nВы в розыгрыше! Загружайте ещё 🎯"),
+        ("receipt_duplicate", "Чек уже был загружен",
+         "ℹ️ Этот чек уже загружен"),
+        ("receipt_no_product", "Нет акционных товаров в чеке",
+         "😔 В чеке нет акционных товаров"),
+        ("scan_failed", "Не удалось распознать QR-код",
+         "🔍 Не удалось распознать чек\n\n• Сфотографируйте ближе\n• Улучшите освещение"),
+        
+        # Promo codes
+        ("promo_prompt", "Приглашение ввести промокод",
+         "🔑 Введите промокод из 12 символов\n\n💡 Пример: ABCD12345678"),
+        ("promo_activated", "Промокод успешно активирован",
+         "✅ Промокод активирован!\n\n🎟 Получено билетов: {tickets}\n📊 Всего билетов: {total}"),
+        ("promo_not_found", "Промокод не найден",
+         "❌ Промокод не найден\n\nПроверьте правильность ввода"),
+        ("promo_already_used", "Промокод уже использован",
+         "⚠️ Этот промокод уже был использован"),
+        ("promo_wrong_format", "Неверный формат промокода",
+         "⚠️ Промокод должен содержать ровно 12 символов"),
+        
+        # Profile & history
+        ("profile", "Профиль пользователя (кнопка 👤)",
+         "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков: {total}\n🎫 Билетов: {tickets}"),
+        ("no_receipts", "У пользователя нет чеков",
+         "📋 У вас пока нет чеков\n\nНажмите «🧾 Загрузить чек»"),
+        
+        # FAQ
+        ("faq_how", "FAQ: Как участвовать",
+         "🎯 Как участвовать?\n\n1. Купите акционные товары\n2. Сфотографируйте QR-код\n3. Загрузите в бот"),
+        ("faq_win", "FAQ: Как узнать о выигрыше",
+         "🏆 Как узнать о выигрыше?\n\nМы пришлём сообщение в этот бот!"),
+        
+        # Support
+        ("support_msg", "Сообщение при нажатии 🆘 Поддержка",
+         "🆘 Нужна помощь?\n\nНапишите нам!"),
     ]
     
     return templates.TemplateResponse("settings/messages.html", get_template_context(
@@ -763,6 +997,28 @@ async def get_active_jobs_api(request: Request, user: str = Depends(get_current_
             "created_at": j['created_at'].isoformat() if j['created_at'] else None
         } for j in jobs
     ])
+
+@app.get("/api/jobs/{job_id}")
+async def get_job_api(job_id: int, request: Request, user: str = Depends(get_current_user)):
+    from database import get_job
+    bot = request.state.bot
+    if not bot:
+        return JSONResponse({"detail": "Bot not found"}, status_code=400)
+
+    job = await get_job(job_id, bot['id'])
+    if not job:
+        return JSONResponse({"detail": "Job not found"}, status_code=404)
+
+    details = json.loads(job['details']) if isinstance(job['details'], str) else job['details']
+    return JSONResponse({
+        "id": job['id'],
+        "type": job['type'],
+        "status": job['status'],
+        "progress": job['progress'],
+        "details": details,
+        "created_at": job['created_at'].isoformat() if job['created_at'] else None,
+        "updated_at": job['updated_at'].isoformat() if job['updated_at'] else None,
+    })
 
 # === Raffle ===
 

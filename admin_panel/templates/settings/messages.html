@@ -58,18 +58,19 @@
     <div class="card-body">
         <p class="text-muted mb-3">Выберите тип сообщения и введите текст:</p>
 
-        {% for key, default_text in default_messages %}
+        {% for key, description, default_text in default_messages %}
         <form method="post" action="/settings/messages/update" class="mb-3 pb-3 border-bottom">
             <div class="row align-items-start">
                 <div class="col-md-3">
-                    <label class="form-label fw-bold">{{ key }}</label>
+                    <label class="form-label fw-bold"><code>{{ key }}</code></label>
+                    <div class="text-muted small">{{ description }}</div>
                     <input type="hidden" name="key" value="{{ key }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 </div>
                 <div class="col-md-7">
-                    <textarea name="text" class="form-control" rows="2"
+                    <textarea name="text" class="form-control" rows="3"
                         placeholder="{{ default_text }}">{% for msg in messages %}{% if msg.key == key %}{{ msg.text }}{% endif %}{% endfor %}</textarea>
-                    <small class="text-muted">По умолчанию: {{ default_text[:80] }}{% if default_text|length > 80
+                    <small class="text-muted">По умолчанию: {{ default_text[:100] }}{% if default_text|length > 100
                         %}...{% endif %}</small>
                 </div>
                 <div class="col-md-2">

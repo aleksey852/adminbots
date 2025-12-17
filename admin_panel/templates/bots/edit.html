@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8">
+            <div class="d-flex align-items-center mb-4">
+                <a href="/" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i> Назад</a>
+                <h1 class="page-title mb-0">⚙️ Редактирование бота</h1>
+            </div>
+
+            {% if message %}
+            <div class="alert alert-success mb-4">
+                <i class="bi bi-check-circle me-2"></i> {{ message }}
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="alert alert-danger mb-4">
+                <i class="bi bi-exclamation-circle me-2"></i> {{ error }}
+            </div>
+            {% endif %}
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="bi bi-info-circle me-1"></i> Информация о боте</div>
+                <div class="card-body">
+                    <form method="POST" action="/bots/{{ edit_bot.id }}/update">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Название</label>
+                                <input type="text" class="form-control" name="name" value="{{ edit_bot.name }}"
+                                    required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Тип</label>
+                                <select class="form-select" name="type">
+                                    <option value="receipt" {% if edit_bot.type=='receipt' %}selected{% endif %}>🧾 Чеки
+                                    </option>
+                                    <option value="promo" {% if edit_bot.type=='promo' %}selected{% endif %}>🎁 Промо
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Token</label>
+                            <input type="text" class="form-control font-monospace" value="{{ edit_bot.token[:20] }}..."
+                                disabled>
+                            <div class="form-text">Токен нельзя изменить. Создайте нового бота для нового токена.</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save me-1"></i> Сохранить изменения
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Admin IDs -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="bi bi-people me-1"></i> Администраторы</div>
+                <div class="card-body">
+                    <form method="POST" action="/bots/{{ edit_bot.id }}/admins">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label class="form-label">Telegram ID администраторов</label>
+                            <input type="text" class="form-control" name="admin_ids"
+                                value="{{ edit_bot.admin_ids | join(', ') if edit_bot.admin_ids else '' }}"
+                                placeholder="123456789, 987654321">
+                            <div class="form-text">Через запятую. Эти пользователи получат доступ к админ-командам.
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save me-1"></i> Обновить админов
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Modules -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="bi bi-puzzle me-1"></i> Модули</div>
+                <div class="card-body">
+                    <form method="POST" action="/bots/{{ edit_bot.id }}/modules">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="row">
+                            {% set enabled_modules = edit_bot.enabled_modules or [] %}
+
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="modules" value="registration"
+                                        checked disabled>
+                                    <label class="form-check-label">
+                                        <strong>📝 registration</strong> <span
+                                            class="badge bg-secondary">обязательный</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="modules" value="user_profile"
+                                        {% if 'user_profile' in enabled_modules %}checked{% endif %}>
+                                    <label class="form-check-label"><strong>👤 user_profile</strong></label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="modules" value="receipts" {%
+                                        if 'receipts' in enabled_modules %}checked{% endif %}>
+                                    <label class="form-check-label"><strong>🧾 receipts</strong></label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="modules" value="promo" {%
+                                        if 'promo' in enabled_modules %}checked{% endif %}>
+                                    <label class="form-check-label"><strong>🎁 promo</strong></label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="modules" value="faq" {%
+                                        if 'faq' in enabled_modules %}checked{% endif %}>
+                                    <label class="form-check-label"><strong>❓ faq</strong></label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="modules" value="support" {%
+                                        if 'support' in enabled_modules %}checked{% endif %}>
+                                    <label class="form-check-label"><strong>💬 support</strong></label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="modules" value="admin" {%
+                                        if 'admin' in enabled_modules %}checked{% endif %}>
+                                    <label class="form-check-label"><strong>⚙️ admin</strong></label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save me-1"></i> Сохранить модули
+                            </button>
+                        </div>
+
+                        <div class="alert alert-warning mt-3 mb-0">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>Внимание:</strong> Изменения модулей требуют перезапуска бота.
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Статистика</div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="h4 mb-0">{{ stats.total_users or 0 }}</div>
+                            <small class="text-muted">Пользователей</small>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="h4 mb-0">{{ stats.valid_receipts or 0 }}</div>
+                            <small class="text-muted">Чеков</small>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="h4 mb-0">{{ stats.total_tickets or 0 }}</div>
+                            <small class="text-muted">Билетов</small>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="h4 mb-0">{{ stats.total_winners or 0 }}</div>
+                            <small class="text-muted">Победителей</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Danger Zone -->
+            <div class="card shadow-sm border-danger">
+                <div class="card-header bg-danger text-white"><i class="bi bi-exclamation-triangle me-1"></i> Опасная
+                    зона</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <h6>Архивировать бота</h6>
+                            <p class="text-muted small">Бот перестанет работать, но данные сохранятся.</p>
+                            <form method="POST" action="/bots/{{ edit_bot.id }}/archive"
+                                onsubmit="return confirm('Архивировать бота {{ edit_bot.name }}?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-outline-warning">
+                                    <i class="bi bi-archive me-1"></i> Архивировать
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6>Миграция данных</h6>
+                            <p class="text-muted small">Перенести пользователей в другого бота.</p>
+                            <a href="/bots/{{ edit_bot.id }}/migrate" class="btn btn-outline-info">
+                                <i class="bi bi-box-arrow-right me-1"></i> Мигрировать
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

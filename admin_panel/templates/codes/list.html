@@ -134,7 +134,101 @@
 </div>
 
 <script>
+    let jobPollTimer = null;
+
+    function stopJobPolling() {
+        if (jobPollTimer) {
+            clearTimeout(jobPollTimer);
+            jobPollTimer = null;
+        }
+    }
+
+    function trackJob(jobId) {
+        stopJobPolling();
+
+        const btn = document.getElementById('btnUpload');
+        const progressContainer = document.getElementById('uploadProgressContainer');
+        const progressBar = document.getElementById('uploadProgressBar');
+        const statusText = document.getElementById('uploadStatusText');
+        const resultAlert = document.getElementById('uploadResult');
+        const closeBtn = document.getElementById('btnCloseUpload');
+
+        progressContainer.classList.remove('d-none');
+        closeBtn.disabled = false;
+
+        const poll = () => {
+            fetch(`/api/jobs/${jobId}`)
+                .then(async (resp) => {
+                    const data = await resp.json().catch(() => null);
+                    if (data === null) {
+                        throw new Error("Сессия истекла или сервер вернул не-JSON");
+                    }
+                    if (!resp.ok) {
+                        throw new Error(data.detail || `HTTP ${resp.status}`);
+                    }
+                    if (typeof data.id !== 'number') {
+                        throw new Error("Некорректный ответ сервера");
+                    }
+                    return data;
+                })
+                .then((job) => {
+                    const details = job.details || {};
+
+                    if (typeof job.progress === 'number') {
+                        progressBar.style.width = job.progress + '%';
+                        progressBar.innerText = job.progress + '%';
+                    }
+
+                    let detailsTxt = '';
+                    if (typeof details.processed === 'number' && typeof details.total_lines === 'number') {
+                        detailsTxt = `${details.processed} / ${details.total_lines}`;
+                    }
+                    const addedTxt = typeof details.added === 'number' ? `, добавлено: ${details.added}` : '';
+
+                    statusText.innerText = `Импорт #${job.id}: ${job.status}${detailsTxt ? ` (${detailsTxt}${addedTxt})` : addedTxt}`;
+
+                    if (job.status === 'completed') {
+                        resultAlert.className = 'alert alert-success mt-3';
+                        resultAlert.innerText = `✅ Импорт #${job.id} завершен${typeof details.added === 'number' ? `. Добавлено: ${details.added}` : ''}`;
+                        resultAlert.classList.remove('d-none');
+                        btn.disabled = true;
+                        closeBtn.disabled = false;
+                        jobPollTimer = setTimeout(() => {
+                            const modalEl = document.getElementById('uploadModal');
+                            if (modalEl && modalEl.classList.contains('show')) {
+                                location.reload();
+                            }
+                        }, 1500);
+                        return;
+                    }
+
+                    if (job.status === 'failed') {
+                        resultAlert.className = 'alert alert-danger mt-3';
+                        resultAlert.innerText = `❌ Импорт #${job.id} завершился ошибкой: ${details.error || 'unknown error'}`;
+                        resultAlert.classList.remove('d-none');
+                        btn.disabled = false;
+                        closeBtn.disabled = false;
+                        return;
+                    }
+
+                    jobPollTimer = setTimeout(poll, 1000);
+                })
+                .catch((err) => {
+                    console.error(err);
+                    resultAlert.className = 'alert alert-warning mt-3';
+                    resultAlert.innerText = `Не удалось получить статус импорта #${jobId}: ${err.message}. Обновите страницу.`;
+                    resultAlert.classList.remove('d-none');
+                    btn.disabled = false;
+                    closeBtn.disabled = false;
+                });
+        };
+
+        poll();
+    }
+
     function uploadFiles() {
+        stopJobPolling();
+
         const fileInput = document.getElementById('uploadFileInput');
         const file = fileInput.files[0];
         if (!file) return;
@@ -184,9 +278,10 @@
                     setTimeout(() => {
                         if (!responded) {
                             resultAlert.className = 'alert alert-info mt-3';
-                            resultAlert.innerText = "Файл принят. Проверяем очередь импортов...";
+                            resultAlert.innerText = "Файл загружен. Сервер долго отвечает — проверьте блок 'Активные задачи' или обновите страницу.";
                             resultAlert.classList.remove('d-none');
-                            location.reload();
+                            btn.disabled = false;
+                            closeBtn.disabled = false;
                         }
                     }, 10000);
                 } else {
@@ -205,16 +300,18 @@
                     resultAlert.innerText = response.message || "Успешно!";
                     resultAlert.classList.remove('d-none');
 
-                    // Close after 2 seconds
-                    setTimeout(() => {
-                        location.reload();
-                    }, 2000);
+                    if (response.job_id) {
+                        trackJob(response.job_id);
+                    } else {
+                        closeBtn.disabled = false;
+                    }
                 } catch (e) {
                     console.error("JSON Parse Error:", e);
                     resultAlert.className = 'alert alert-warning mt-3';
-                    resultAlert.innerText = "Файл загружен, но ответ сервера некорректен. Проверьте 'Активные задачи'.";
+                    resultAlert.innerText = "Ответ сервера не JSON. Возможно, сессия истекла — обновите страницу и попробуйте ещё раз.";
                     resultAlert.classList.remove('d-none');
-                    setTimeout(() => { location.reload(); }, 3000);
+                    btn.disabled = false;
+                    closeBtn.disabled = false;
                 }
             } else {
                 resultAlert.className = 'alert alert-danger mt-3';
@@ -224,7 +321,7 @@
                 } else {
                     try {
                         const response = JSON.parse(xhr.responseText);
-                        resultAlert.innerText = "Ошибка: " + (response.message || xhr.statusText);
+                        resultAlert.innerText = "Ошибка: " + (response.message || response.detail || xhr.statusText);
                     } catch (e) {
                         console.error("Error response is not JSON:", xhr.responseText);
                         resultAlert.innerText = "Ошибка загрузки (" + xhr.status + "): " + xhr.statusText;
@@ -250,9 +347,10 @@
         xhr.addEventListener('timeout', function () {
             responded = true;
             resultAlert.className = 'alert alert-warning mt-3';
-            resultAlert.innerText = "Сервер долго обрабатывает файл. Обновляем страницу для проверки очереди импортов.";
+            resultAlert.innerText = "Сервер долго обрабатывает файл. Проверьте блок 'Активные задачи' или обновите страницу.";
             resultAlert.classList.remove('d-none');
-            setTimeout(() => location.reload(), 1000);
+            btn.disabled = false;
+            closeBtn.disabled = false;
         });
 
         xhr.send(formData);
@@ -260,6 +358,11 @@
 
     // Job Polling
     document.addEventListener('DOMContentLoaded', function () {
+        const uploadModalEl = document.getElementById('uploadModal');
+        if (uploadModalEl) {
+            uploadModalEl.addEventListener('hidden.bs.modal', stopJobPolling);
+        }
+
         pollJobs();
         setInterval(pollJobs, 2000);
     });
@@ -279,7 +382,11 @@
                 container.classList.remove('d-none');
                 list.innerHTML = jobs.map(job => {
                     let detailsTxt = '';
-                    if (job.details && job.details.processed && job.details.total_lines) {
+                    if (
+                        job.details
+                        && typeof job.details.processed === 'number'
+                        && typeof job.details.total_lines === 'number'
+                    ) {
                         detailsTxt = `${job.details.processed} / ${job.details.total_lines}`;
                     }
 

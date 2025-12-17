@@ -79,26 +79,38 @@ class ModuleLoader:
         return list(self.modules.values())
     
     async def load_enabled_modules(self, bot_id: int):
-        """Load enabled modules for a specific bot from database."""
+        """Load enabled modules for a specific bot from database.
+        
+        Uses bots.enabled_modules as primary source, falls back to module_settings.
+        """
         from database.db import get_connection
         
         async with get_connection() as db:
-            rows = await db.fetch("""
-                SELECT module_name, is_enabled, settings 
-                FROM module_settings 
-                WHERE bot_id = $1
-            """, bot_id)
+            # First try to get from bots.enabled_modules (new approach)
+            bot = await db.fetchrow(
+                "SELECT enabled_modules FROM bots WHERE id = $1", bot_id
+            )
             
-            enabled = set()
-            for row in rows:
-                if row['is_enabled']:
-                    enabled.add(row['module_name'])
-            
-            # If no settings exist, use default_enabled from modules
-            if not rows:
-                for module in self.modules.values():
-                    if module.default_enabled:
-                        enabled.add(module.name)
+            if bot and bot['enabled_modules']:
+                enabled = set(bot['enabled_modules'])
+            else:
+                # Fallback to module_settings table (legacy)
+                rows = await db.fetch("""
+                    SELECT module_name, is_enabled 
+                    FROM module_settings 
+                    WHERE bot_id = $1
+                """, bot_id)
+                
+                enabled = set()
+                for row in rows:
+                    if row['is_enabled']:
+                        enabled.add(row['module_name'])
+                
+                # If still no settings, use defaults
+                if not rows:
+                    for module in self.modules.values():
+                        if module.default_enabled:
+                            enabled.add(module.name)
             
             self._enabled_modules[bot_id] = enabled
             logger.info(f"Bot {bot_id}: enabled modules = {enabled}")

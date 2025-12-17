@@ -97,6 +97,7 @@ async def command_start(message: Message, state: FSMContext, bot_id: int = None)
 @router.message(F.text == "👤 Мой профиль")
 async def show_profile(message: Message, bot_id: int = None):
     if not bot_id: return
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
     user = await get_user_with_stats(message.from_user.id, bot_id)
     if not user:
         await message.answer("Вы не зарегистрированы. Нажмите /start")
@@ -114,18 +115,19 @@ async def show_profile(message: Message, bot_id: int = None):
     days_text = f"\n\nДо конца акции: {days} дн." if days > 0 else ""
     
     tickets_count = user.get('total_tickets', user['valid_receipts'])
-    
-    profile_msg = config_manager.get_message(
-        'profile',
-        "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков загружено: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}",
-        bot_id=bot_id
-    ).format(
+
+    default_profile = (
+        "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Активаций: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}"
+        if bot_type == 'promo'
+        else "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков загружено: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}"
+    )
+    profile_msg = config_manager.get_message('profile', default_profile, bot_id=bot_id).format(
         name=user['full_name'],
         phone=user['phone'],
         total=user['valid_receipts'],
         tickets=tickets_count,
         wins_text=wins_text,
-        days_text=days_text
+        days_text=days_text,
     )
     
     await message.answer(profile_msg)
@@ -133,11 +135,13 @@ async def show_profile(message: Message, bot_id: int = None):
 
 @router.message(Command("help"))
 async def command_help(message: Message, bot_id: int = None):
-    help_msg = config_manager.get_message(
-        'help',
-        "🤖 Что умеет бот:\n\n🧾 Загрузить чек — отправьте QR-код\n👤 Мой профиль — ваша статистика\n📋 Мои чеки — история загрузок\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel",
-        bot_id=bot_id
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
+    default_help = (
+        "🤖 Что умеет бот:\n\n🔑 Ввести промокод — отправьте код сообщением\n👤 Мой профиль — ваша статистика\n📋 Мои активации — история промокодов\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel"
+        if bot_type == 'promo'
+        else "🤖 Что умеет бот:\n\n🧾 Загрузить чек — отправьте QR-код\n👤 Мой профиль — ваша статистика\n📋 Мои чеки — история загрузок\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel"
     )
+    help_msg = config_manager.get_message('help', default_help, bot_id=bot_id)
     await message.answer(
         help_msg,
         reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_manager.bot_types.get(bot_id, 'receipt'))
@@ -169,8 +173,10 @@ async def command_status(message: Message, bot_id: int = None):
 
 
 @router.message(F.text == "📋 Мои чеки")
+@router.message(F.text == "📋 Мои активации")
 async def show_receipts(message: Message, bot_id: int = None):
     if not bot_id: return
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
     user = await get_user_with_stats(message.from_user.id, bot_id)
     if not user:
         await message.answer("Вы не зарегистрированы. /start")
@@ -178,9 +184,14 @@ async def show_receipts(message: Message, bot_id: int = None):
     
     total = user['total_receipts']
     if total == 0:
+        default_no_receipts = (
+            "📋 У вас пока нет активаций\n\nНажмите «🔑 Ввести промокод» или отправьте код сообщением"
+            if bot_type == 'promo'
+            else "📋 У вас пока нет чеков\n\nНажмите «🧾 Загрузить чек»"
+        )
         no_receipts_msg = config_manager.get_message(
             'no_receipts',
-            "📋 У вас пока нет чеков\n\nНажмите «🧾 Загрузить чек»",
+            default_no_receipts,
             bot_id=bot_id
         )
         await message.answer(no_receipts_msg)
@@ -220,7 +231,9 @@ async def receipts_current_page(callback: CallbackQuery):
 
 
 def _format_receipts(receipts: list, page: int, total: int, bot_id: int = None) -> str:
-    header = config_manager.get_message('receipts_list', "📋 Ваши чеки ({total})\n", bot_id=bot_id).format(total=total)
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt') if bot_id else 'receipt'
+    default_header = "📋 Ваши активации ({total})\n" if bot_type == 'promo' else "📋 Ваши чеки ({total})\n"
+    header = config_manager.get_message('receipts_list', default_header, bot_id=bot_id).format(total=total)
     lines = [header]
     for r in receipts:
         status = "✅" if r['status'] == 'valid' else "❌"
@@ -238,14 +251,20 @@ def _format_receipts(receipts: list, page: int, total: int, bot_id: int = None) 
 @router.message(F.text == "ℹ️ FAQ")
 async def show_faq(message: Message, bot_id: int = None):
     faq_title = config_manager.get_message('faq_title', "❓ Частые вопросы\n\nВыберите тему:", bot_id=bot_id)
-    await message.answer(faq_title, reply_markup=get_faq_keyboard())
+    await message.answer(faq_title, reply_markup=get_faq_keyboard(bot_manager.bot_types.get(bot_id, 'receipt')))
 
 
 @router.callback_query(F.data == "faq_how")
 async def faq_how(callback: CallbackQuery, bot_id: int = None):
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
+    default_text = (
+        "🎯 Как участвовать?\n\n1. Получите промокод\n2. Отправьте промокод сообщением в этот бот\n3. Получите билеты и ждите розыгрыша!\n\n💡 Чем больше билетов — тем выше шансы"
+        if bot_type == 'promo'
+        else "🎯 Как участвовать?\n\n1. Купите чипсы +VIBE\n2. Сохраните чек\n3. Сфотографируйте QR-код\n4. Отправьте фото в бот\n5. Ждите розыгрыша!\n\n💡 Каждая пачка = 1 билет!\nБольше пачек — выше шансы на выигрыш!"
+    )
     text = config_manager.get_message(
         'faq_how',
-        "🎯 Как участвовать?\n\n1. Купите чипсы +VIBE\n2. Сохраните чек\n3. Сфотографируйте QR-код\n4. Отправьте фото в бот\n5. Ждите розыгрыша!\n\n💡 Каждая пачка = 1 билет!\nБольше пачек — выше шансы на выигрыш!",
+        default_text,
         bot_id=bot_id
     )
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
@@ -254,9 +273,15 @@ async def faq_how(callback: CallbackQuery, bot_id: int = None):
 
 @router.callback_query(F.data == "faq_limit")
 async def faq_limit(callback: CallbackQuery, bot_id: int = None):
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
+    default_text = (
+        "🔢 Сколько промокодов можно активировать?\n\nОграничений нет!\n\nВажно:\n• Каждый промокод — один раз\n• Вводите код без лишних пробелов\n• Если код не принимается — проверьте символы"
+        if bot_type == 'promo'
+        else "🧾 Сколько чеков можно загрузить?\n\nОграничений нет!\n\nВажно:\n• Каждый чек — один раз\n• Нужны акционные товары\n• Чек не старше 30 дней"
+    )
     text = config_manager.get_message(
         'faq_limit',
-        "🧾 Сколько чеков можно загрузить?\n\nОграничений нет!\n\nВажно:\n• Каждый чек — один раз\n• Нужны акционные товары\n• Чек не старше 30 дней",
+        default_text,
         bot_id=bot_id
     )
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
@@ -276,9 +301,15 @@ async def faq_win(callback: CallbackQuery, bot_id: int = None):
 
 @router.callback_query(F.data == "faq_reject")
 async def faq_reject(callback: CallbackQuery, bot_id: int = None):
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
+    default_text = (
+        "❌ Почему промокод не принят?\n\n• Код введён с ошибкой\n• Код уже использован\n• Код не относится к акции\n• Акция завершена\n\n💡 Если уверены, что код верный — напишите в поддержку"
+        if bot_type == 'promo'
+        else "❌ Почему чек не принят?\n\n• QR-код нечёткий\n• Нет акционных товаров\n• Чек старше 30 дней\n• Уже загружен\n\n💡 Свежий чек? Подождите 5-10 минут"
+    )
     text = config_manager.get_message(
         'faq_reject',
-        "❌ Почему чек не принят?\n\n• QR-код нечёткий\n• Нет акционных товаров\n• Чек старше 30 дней\n• Уже загружен\n\n💡 Свежий чек? Подождите 5-10 минут",
+        default_text,
         bot_id=bot_id
     )
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
@@ -301,9 +332,15 @@ async def faq_dates(callback: CallbackQuery, bot_id: int = None):
 
 @router.callback_query(F.data == "faq_prizes")
 async def faq_prizes(callback: CallbackQuery, bot_id: int = None):
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
+    default_text = (
+        "🎁 Призы\n\n{prizes}\n\nБольше билетов = выше шансы!"
+        if bot_type == 'promo'
+        else "🎁 Призы\n\n{prizes}\n\nБольше чеков = выше шансы!"
+    )
     text = config_manager.get_message(
         'faq_prizes',
-        "🎁 Призы\n\n{prizes}\n\nБольше чеков = выше шансы!",
+        default_text,
         bot_id=bot_id
     ).format(prizes=config.PROMO_PRIZES)
     
@@ -314,7 +351,10 @@ async def faq_prizes(callback: CallbackQuery, bot_id: int = None):
 @router.callback_query(F.data == "faq_back")
 async def faq_back(callback: CallbackQuery, bot_id: int = None):
     faq_title = config_manager.get_message('faq_title', "❓ Частые вопросы\n\nВыберите тему:", bot_id=bot_id)
-    await callback.message.edit_text(faq_title, reply_markup=get_faq_keyboard())
+    await callback.message.edit_text(
+        faq_title,
+        reply_markup=get_faq_keyboard(bot_manager.bot_types.get(bot_id, 'receipt'))
+    )
     await callback.answer()
 
 

@@ -8,6 +8,7 @@ from utils.states import Registration
 from keyboards import get_contact_keyboard, get_main_keyboard, get_start_keyboard
 from database import add_user
 from utils.config_manager import config_manager
+from bot_manager import bot_manager
 import config
 
 router = Router()
@@ -79,13 +80,18 @@ async def process_phone(message: Message, state: FSMContext, bot_id: int = None)
     )
     
     await state.clear()
-    reg_success_msg = config_manager.get_message(
-        'reg_success',
-        "✅ Регистрация завершена!\n\n1. Купите акционные товары\n2. Сфотографируйте QR-код\n3. Загрузите сюда\n\nАкция: {start} — {end}\n\n👇 Загрузите первый чек",
-        bot_id=bot_id
-    ).format(start=config.PROMO_START_DATE, end=config.PROMO_END_DATE)
+    bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
+    default_success = (
+        "✅ Регистрация завершена!\n\nОтправьте промокод сообщением в этот чат.\n\nАкция: {start} — {end}\n\n👇 Введите промокод"
+        if bot_type == 'promo'
+        else "✅ Регистрация завершена!\n\n1. Купите акционные товары\n2. Сфотографируйте QR-код\n3. Загрузите сюда\n\nАкция: {start} — {end}\n\n👇 Загрузите первый чек"
+    )
+    reg_success_msg = config_manager.get_message('reg_success', default_success, bot_id=bot_id).format(
+        start=config.PROMO_START_DATE,
+        end=config.PROMO_END_DATE,
+    )
     
     await message.answer(
         reg_success_msg,
-        reply_markup=get_main_keyboard(config.is_admin(message.from_user.id))
+        reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_type)
     )

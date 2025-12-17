@@ -85,7 +85,7 @@
                                 <i class="bi bi-clipboard"></i> Копировать
                             </button>
                             <input type="hidden" id="restore_{{ loop.index }}"
-                                value="sudo systemctl stop buster_bot buster_admin && gunzip -c {{ backup.path }} | sudo -u postgres psql buster_bot && sudo systemctl start buster_bot buster_admin">
+                                value="sudo systemctl stop admin_bots admin_panel && gunzip -c {{ backup.path }} | sudo -u postgres psql admin_bots && sudo systemctl start admin_bots admin_panel">
                         </td>
                     </tr>
                     {% endfor %}
@@ -100,8 +100,8 @@
     <ul class="mb-0">
         <li><strong>Автоматические бэкапы:</strong> каждый день в 3:00 AM</li>
         <li><strong>Срок хранения:</strong> 14 дней</li>
-        <li><strong>Расположение:</strong> <code>/var/backups/buster-vibe-bot/</code></li>
-        <li><strong>Логи:</strong> <code>tail -f /var/log/buster-backup.log</code></li>
+        <li><strong>Расположение:</strong> <code>/var/backups/admin-bots-platform/</code></li>
+        <li><strong>Логи:</strong> <code>sudo journalctl -u admin_panel -f</code></li>
     </ul>
 </div>
 

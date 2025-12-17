@@ -10,9 +10,11 @@ import signal
 import sys
 import random
 import time
+from datetime import datetime
 from typing import Dict, List, Optional
 import orjson
 from aiogram import Dispatcher
+from aiogram.types import FSInputFile
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.client.bot import Bot
 from redis.asyncio import Redis
@@ -40,21 +42,44 @@ notification_queue = asyncio.Queue()
 
 # === Helper Functions ===
 
-async def send_message_with_retry(bot: Bot, user_id: int, content: dict, max_retries: int = 3):
-    """Send message with exponential backoff. Supports photo by file_id or path."""
+async def send_message_with_retry(
+    bot: Bot,
+    telegram_id: int,
+    content: dict,
+    *,
+    db_user_id: Optional[int] = None,
+    bot_db_id: Optional[int] = None,
+    max_retries: int = 3,
+):
+    """Send message with exponential backoff. Supports photos by file_id or local path."""
     for attempt in range(max_retries):
         try:
             if "photo" in content:
-                await bot.send_photo(user_id, content["photo"], caption=content.get("caption"))
+                await bot.send_photo(telegram_id, content["photo"], caption=content.get("caption"))
+            elif "photo_path" in content:
+                await bot.send_photo(
+                    telegram_id,
+                    FSInputFile(content["photo_path"]),
+                    caption=content.get("caption"),
+                )
             else:
-                await bot.send_message(user_id, content.get("text", ""))
+                text = content.get("text") or ""
+                if not text.strip():
+                    raise ValueError("Empty text message")
+                await bot.send_message(telegram_id, text)
             return True
         except Exception as e:
             if "blocked" in str(e).lower():
-                await methods.block_user(user_id)
+                try:
+                    if db_user_id is not None:
+                        await methods.block_user(db_user_id)
+                    elif bot_db_id is not None:
+                        await methods.block_user_by_telegram_id(telegram_id, bot_db_id)
+                except Exception as block_err:
+                    logger.warning(f"Failed to mark user blocked ({telegram_id}): {block_err}")
                 return False
             if attempt == max_retries - 1:
-                logger.error(f"Failed to send to {user_id}: {e}")
+                logger.error(f"Failed to send to {telegram_id}: {e}")
                 return False
             await asyncio.sleep(0.5 * (2 ** attempt)) # Exponential backoff
 
@@ -87,6 +112,14 @@ async def pg_listener():
                                 logger.info(f"🔔 Notification: Campaign #{campaign_id}")
                                 campaign = await methods.get_campaign(campaign_id)
                                 if campaign:
+                                    scheduled_for = campaign.get("scheduled_for")
+                                    if scheduled_for and isinstance(scheduled_for, datetime):
+                                        now_local = config.get_now().replace(tzinfo=None)
+                                        if scheduled_for > now_local:
+                                            logger.info(
+                                                f"⏳ Campaign #{campaign_id} scheduled for {scheduled_for}, skipping notification run"
+                                            )
+                                            continue
                                     await process_campaign(campaign)
                             
                             elif channel == "new_bot":
@@ -201,7 +234,13 @@ async def execute_broadcast(bot: Bot, campaign_id: int, content: dict):
             if shutdown_event.is_set():
                 return
                 
-            success = await send_message_with_retry(bot, user['telegram_id'], content)
+            success = await send_message_with_retry(
+                bot,
+                user['telegram_id'],
+                content,
+                db_user_id=user.get('id'),
+                bot_db_id=bot_id,
+            )
             if success:
                 sent += 1
             else:
@@ -229,9 +268,14 @@ async def execute_broadcast(bot: Bot, campaign_id: int, content: dict):
 
 async def execute_single_message(bot: Bot, campaign_id: int, content: dict):
     """Send message to a single user"""
-    user_id = content.get("user_id")
-    if user_id:
-        success = await send_message_with_retry(bot, user_id, content)
+    telegram_id = content.get("user_id")
+    if telegram_id:
+        success = await send_message_with_retry(
+            bot,
+            telegram_id,
+            content,
+            bot_db_id=bot_manager.get_db_id(bot.id),
+        )
         await methods.mark_campaign_completed(campaign_id, 1 if success else 0, 0 if success else 1)
 
 
@@ -299,7 +343,13 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
         if not msg:
             msg = {"text": f"🎉 Поздравляем! Вы выиграли: {prize}!"}
         
-        if await send_message_with_retry(bot, w['telegram_id'], msg):
+        if await send_message_with_retry(
+            bot,
+            w['telegram_id'],
+            msg,
+            db_user_id=w.get('user_id'),
+            bot_db_id=bot_id,
+        ):
             sent_win += 1
     
     db_winners = await methods.get_campaign_winners(campaign_id)
@@ -315,7 +365,12 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
         losers = await methods.get_raffle_losers(campaign_id)
         for loser in losers:
              if shutdown_event.is_set(): break
-             if await send_message_with_retry(bot, loser['telegram_id'], lose_msg):
+             if await send_message_with_retry(
+                 bot,
+                 loser['telegram_id'],
+                 lose_msg,
+                 bot_db_id=bot_id,
+             ):
                  sent_lose += 1
              await asyncio.sleep(config.MESSAGE_DELAY_SECONDS)
     
@@ -364,6 +419,12 @@ async def on_startup():
     
     # Add Middleware
     dp.update.middleware(BotMiddleware())
+    
+    # Preload enabled modules for all bots (populates cache for middleware)
+    from utils.bot_middleware import get_enabled_modules
+    for bot_id in bot_manager.bots.keys():
+        await get_enabled_modules(bot_id)
+        logger.info(f"Preloaded modules for bot {bot_id}")
     
     # Start Scheduler
     asyncio.create_task(scheduler())

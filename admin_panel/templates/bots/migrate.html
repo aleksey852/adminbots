@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="d-flex align-items-center mb-4">
+                <a href="/bots/{{ source_bot.id }}/edit" class="btn btn-outline-secondary me-3">
+                    <i class="bi bi-arrow-left"></i> Назад
+                </a>
+                <h1 class="page-title mb-0">📦 Миграция данных</h1>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="bi bi-info-circle me-1"></i> Исходный бот</div>
+                <div class="card-body">
+                    <h5>{{ source_bot.name }}</h5>
+                    <div class="row text-center mt-3">
+                        <div class="col-4">
+                            <div class="h5 mb-0">{{ stats.total_users or 0 }}</div>
+                            <small class="text-muted">Пользователей</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h5 mb-0">{{ stats.valid_receipts or 0 }}</div>
+                            <small class="text-muted">Чеков</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h5 mb-0">{{ stats.total_tickets or 0 }}</div>
+                            <small class="text-muted">Билетов</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-box-arrow-right me-1"></i> Перенести в</div>
+                <div class="card-body">
+                    {% if target_bots %}
+                    <form method="POST" action="/bots/{{ source_bot.id }}/migrate"
+                        onsubmit="return confirm('Вы уверены? Все пользователи и чеки будут перенесены в выбранного бота.')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label class="form-label">Целевой бот</label>
+                            <select class="form-select" name="target_bot_id" required>
+                                <option value="">-- Выберите бота --</option>
+                                {% for bot in target_bots %}
+                                <option value="{{ bot.id }}">{{ bot.name }} ({{ bot.type }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>Внимание:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Пользователи будут перенесены только если их нет в целевом боте</li>
+                                <li>Чеки переносятся полностью</li>
+                                <li>Операция необратима</li>
+                            </ul>
+                        </div>
+
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-box-arrow-right me-1"></i> Начать миграцию
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Нет доступных ботов для миграции. Сначала создайте нового бота.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

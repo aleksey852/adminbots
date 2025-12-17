@@ -47,11 +47,10 @@ def get_main_keyboard(is_admin: bool = False, bot_type: str = 'receipt'):
     if bot_type == 'receipt':
         buttons.append("🧾 Загрузить чек")
     else:
-        # For promo bots, maybe just text prompt or different button?
-        # For now, just remove the upload button.
-        pass
+        buttons.append("🔑 Ввести промокод")
 
-    buttons.extend(["👤 Мой профиль", "📋 Мои чеки", "ℹ️ FAQ", "🆘 Поддержка"])
+    history_btn = "📋 Мои чеки" if bot_type == 'receipt' else "📋 Мои активации"
+    buttons.extend(["👤 Мой профиль", history_btn, "ℹ️ FAQ", "🆘 Поддержка"])
     
     if is_admin:
         buttons.extend([
@@ -71,16 +70,26 @@ def get_support_keyboard():
     return b.as_markup()
 
 
-def get_faq_keyboard():
+def get_faq_keyboard(bot_type: str = 'receipt'):
     b = InlineKeyboardBuilder()
-    items = [
-        ("🎯 Как участвовать?", "faq_how"),
-        ("🧾 Сколько чеков?", "faq_limit"),
-        ("🏆 Как узнать о выигрыше?", "faq_win"),
-        ("❌ Чек не принят?", "faq_reject"),
-        ("📅 Сроки акции", "faq_dates"),
-        ("🎁 Какие призы?", "faq_prizes"),
-    ]
+    if bot_type == 'promo':
+        items = [
+            ("🎯 Как участвовать?", "faq_how"),
+            ("🔢 Сколько промокодов?", "faq_limit"),
+            ("🏆 Как узнать о выигрыше?", "faq_win"),
+            ("❌ Код не принят?", "faq_reject"),
+            ("📅 Сроки акции", "faq_dates"),
+            ("🎁 Какие призы?", "faq_prizes"),
+        ]
+    else:
+        items = [
+            ("🎯 Как участвовать?", "faq_how"),
+            ("🧾 Сколько чеков?", "faq_limit"),
+            ("🏆 Как узнать о выигрыше?", "faq_win"),
+            ("❌ Чек не принят?", "faq_reject"),
+            ("📅 Сроки акции", "faq_dates"),
+            ("🎁 Какие призы?", "faq_prizes"),
+        ]
     for text, data in items:
         b.add(InlineKeyboardButton(text=text, callback_data=data))
     b.adjust(2)
