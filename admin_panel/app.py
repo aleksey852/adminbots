@@ -295,7 +295,10 @@ async def logout():
 async def dashboard(request: Request, user: str = Depends(get_current_user)):
     bot = request.state.bot
     if not bot:
-        return templates.TemplateResponse("dashboard.html", get_template_context(request, user=user, error="No active bot"))
+        return templates.TemplateResponse("dashboard.html", get_template_context(
+            request, user=user, error="No active bot",
+            stats={}, participants=0, daily_stats=[], recent_campaigns=[], title="Dashboard"
+        ))
 
     bot_id = bot['id']
     stats = await get_stats(bot_id)
