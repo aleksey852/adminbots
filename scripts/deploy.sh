@@ -174,7 +174,8 @@ server {
     listen 80 default_server;
     server_name _;
     
-    client_max_body_size 500M;
+    # Принимаем большие файлы (импорт промокодов)
+    client_max_body_size 1G;
     
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -185,7 +186,10 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_read_timeout 300;
+        proxy_read_timeout 600;
+        proxy_send_timeout 600;
+        proxy_request_buffering off;
+        proxy_buffering off;
     }
 }
 EOF

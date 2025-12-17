@@ -23,6 +23,8 @@ from database import methods
 from handlers import registration, user, receipts, admin, promo
 from bot_manager import bot_manager
 from utils.bot_middleware import BotMiddleware
+from utils.config_manager import config_manager
+from utils.rate_limiter import init_rate_limiter, close_rate_limiter
 
 logging.basicConfig(level=getattr(logging, config.LOG_LEVEL), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -335,6 +337,11 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
 
 async def on_startup():
     await init_db()
+    try:
+        await config_manager.load()
+        await init_rate_limiter()
+    except Exception as e:
+        logger.warning(f"Config/ratelimiter init failed: {e}")
     
     # Load bots
     await bot_manager.load_bots()
@@ -372,9 +379,13 @@ async def on_shutdown():
             await bot.session.close()
         except:
             pass
-        
+
     await close_db()
     await redis.close()
+    try:
+        await close_rate_limiter()
+    except:
+        pass
     logger.info("Bot stopped")
 
 
