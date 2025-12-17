@@ -19,7 +19,7 @@
                 {% if participants == 0 %}
                 <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle"></i> Нет участников для розыгрыша. Участники появляются после
-                    загрузки валидных чеков.
+                    {% if bot.type == 'promo' %}активации промокодов{% else %}загрузки валидных чеков{% endif %}.
                 </div>
                 {% else %}
                 <form method="post" action="/raffle/create" enctype="multipart/form-data">

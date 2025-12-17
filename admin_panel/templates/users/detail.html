@@ -81,11 +81,11 @@
                 <div class="row text-center">
                     <div class="col-6">
                         <div class="fs-3 fw-bold text-primary">{{ user_data.valid_receipts or 0 }}</div>
-                        <small class="text-muted">Принятых чеков</small>
+                        <small class="text-muted">{% if bot.type == 'promo' %}Активированных кодов{% else %}Принятых чеков{% endif %}</small>
                     </div>
                     <div class="col-6">
                         <div class="fs-3 fw-bold text-secondary">{{ user_data.total_receipts or 0 }}</div>
-                        <small class="text-muted">Всего чеков</small>
+                        <small class="text-muted">{% if bot.type == 'promo' %}Всего активаций{% else %}Всего чеков{% endif %}</small>
                     </div>
                 </div>
                 {% if user_data.total_sum %}
@@ -145,8 +145,8 @@
                         <form method="post" action="/users/{{ user_data.id }}/add-receipt">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit" class="btn btn-outline-success w-100"
-                                onclick="return confirm('Добавить чек этому пользователю?')">
-                                <i class="bi bi-plus-circle"></i> Выдать чек
+                                onclick="return confirm('{% if bot.type == 'promo' %}Начислить активацию/билеты этому пользователю?{% else %}Добавить чек этому пользователю?{% endif %}')">
+                                <i class="bi bi-plus-circle"></i> {% if bot.type == 'promo' %}Начислить{% else %}Выдать чек{% endif %}
                             </button>
                         </form>
 
@@ -177,7 +177,7 @@
         </div>
 
         <div class="card">
-            <div class="card-header"><i class="bi bi-receipt"></i> Чеки пользователя</div>
+            <div class="card-header"><i class="bi bi-receipt"></i> {% if bot.type == 'promo' %}Активации{% else %}Чеки пользователя{% endif %}</div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
@@ -210,7 +210,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">Нет чеков</td>
+                                <td colspan="5" class="text-center text-muted py-4">{% if bot.type == 'promo' %}Нет активаций{% else %}Нет чеков{% endif %}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

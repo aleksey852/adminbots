@@ -143,9 +143,10 @@
             <div class="card-body">
                 <p><strong>Пользователь:</strong> {{ user }}</p>
                 <p><strong>За 7 дней:</strong> +{{ stats.users_7d if stats else 0 }} пользователей, +{{
-                    stats.receipts_7d if stats else 0 }} чеков</p>
-                <p><strong>Всего чеков:</strong> {{ stats.total_receipts if stats else 0 }} ({{ stats.valid_receipts if
-                    stats else 0 }} принято)</p>
+                    stats.receipts_7d if stats else 0 }} {% if bot.type == 'promo' %}активаций{% else %}чеков{% endif %}
+                </p>
+                <p><strong>{% if bot.type == 'promo' %}Активаций кодов{% else %}Всего чеков{% endif %}:</strong>
+                    {{ stats.total_receipts if stats else 0 }} ({{ stats.valid_receipts if stats else 0 }} принято)</p>
                 <hr>
                 <p class="text-muted mb-0"><small>Статистика обновляется каждую минуту</small></p>
             </div>

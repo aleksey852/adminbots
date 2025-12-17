@@ -566,6 +566,8 @@ async def toggle_user_block(request: Request, user_id: int, user: str = Depends(
 async def receipts_list(request: Request, user: str = Depends(get_current_user), page: int = 1):
     bot = request.state.bot
     if not bot: return RedirectResponse("/")
+    if bot.get("type") != "receipt":
+        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
 
     receipts = await get_all_receipts_paginated(bot['id'], page=page, per_page=50)
     total = await get_total_receipts_count(bot['id'])
@@ -660,6 +662,8 @@ async def codes_list(request: Request, user: str = Depends(get_current_user), pa
     from database import get_promo_stats, get_promo_codes_paginated
     bot = request.state.bot
     if not bot: return RedirectResponse("/")
+    if bot.get("type") != "promo":
+        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
     
     stats = await get_promo_stats(bot['id'])
     codes = await get_promo_codes_paginated(bot['id'], limit=50, offset=(page-1)*50)
@@ -673,7 +677,8 @@ async def codes_list(request: Request, user: str = Depends(get_current_user), pa
 async def upload_codes(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...), user: str = Depends(get_current_user)):
     from admin_panel.utils.importer import process_promo_import
     bot = request.state.bot
-    if not bot: return JSONResponse({"status": "error", "message": "Bot not found"}, status_code=400)
+    if not bot or bot.get("type") != "promo":
+        return JSONResponse({"status": "error", "message": "Bot not found or unsupported"}, status_code=400)
     
     # Save to temp file
     try:
@@ -924,4 +929,3 @@ async def toggle_module(request: Request, module_name: str, user: str = Depends(
         await module_loader.enable_module(bot['id'], module_name)
     
     return RedirectResponse(url="/modules", status_code=status.HTTP_303_SEE_OTHER)
-

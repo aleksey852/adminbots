@@ -29,16 +29,18 @@ async def process_promo_code(message: Message, bot_id: int):
         return
 
     # Ensure user exists (if they just started chatting without /start)
-    db_user = await methods.get_user(message.from_user.id)
+    db_user = await methods.get_user(message.from_user.id, bot_id)
     if not db_user:
+        # Phone is mandatory in schema, use a safe placeholder for promo-only flow
+        fallback_phone = str(message.from_user.id)
         await methods.add_user(
             message.from_user.id, 
-            message.from_user.username, 
+            message.from_user.username or "", 
             message.from_user.full_name, 
-            None, 
+            fallback_phone, 
             bot_id
         )
-        db_user = await methods.get_user(message.from_user.id)
+        db_user = await methods.get_user(message.from_user.id, bot_id)
 
     # Use Code
     if await methods.use_promo_code(promo['id'], db_user['id']):
