@@ -35,10 +35,7 @@ if [ -d "$PROJECT_DIR/.git" ]; then
     git config --global --add safe.directory "$PROJECT_DIR"
     git pull origin main || warn "Git pull failed, continuing with local files..."
     cd - > /dev/null
-elif [ -d "$SOURCE_DIR/.git" ]; then
-    log "Syncing files from $SOURCE_DIR to $PROJECT_DIR..."
-    rsync -av --exclude 'venv' --exclude '.git' --exclude '__pycache__' --exclude '.env' "$SOURCE_DIR/" "$PROJECT_DIR/"
-else
+elif [ -d "$SOURCE_DIR/.git" ] || [ -d "$SOURCE_DIR" ]; then
     log "Syncing files from $SOURCE_DIR to $PROJECT_DIR..."
     rsync -av --exclude 'venv' --exclude '.git' --exclude '__pycache__' --exclude '.env' "$SOURCE_DIR/" "$PROJECT_DIR/"
 fi

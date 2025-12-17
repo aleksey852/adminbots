@@ -82,7 +82,7 @@ DB_PORT=${DB_PORT:-5432}
 log "Database: $DB_NAME @ $DB_HOST:$DB_PORT"
 
 # Perform backup
-PGPASSWORD=$(echo $DATABASE_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p') \
+export PGPASSWORD
 pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
     --format=plain \
     --no-owner \

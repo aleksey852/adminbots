@@ -108,7 +108,7 @@ async def process_promo_code(message: Message, bot_id: int):
     # Ensure user exists
     db_user = await methods.get_user(message.from_user.id, bot_id)
     if not db_user:
-        fallback_phone = str(message.from_user.id)
+        fallback_phone = "promo_auto_reg"  # Placeholder for auto-registered promo users
         await methods.add_user(
             message.from_user.id, 
             message.from_user.username or "", 

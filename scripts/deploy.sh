@@ -23,6 +23,9 @@ BACKUP_DIR="/var/backups/admin-bots-platform"
 
 log "=== Admin Bots Platform Deploy v4.0 (Zero-Config) ==="
 
+# Create backup directory
+mkdir -p "$BACKUP_DIR"
+
 # 1. System packages
 log "Installing system packages..."
 apt-get update

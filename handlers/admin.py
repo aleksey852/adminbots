@@ -1,4 +1,5 @@
 """Admin handlers: stats, broadcast, raffle, winners export"""
+import functools
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
@@ -25,6 +26,7 @@ router = Router()
 
 
 def admin_only(func):
+    @functools.wraps(func)
     async def wrapper(message: Message, *args, **kwargs):
         if not config.is_admin(message.from_user.id):
             return
@@ -393,9 +395,10 @@ async def export_winners(message: Message, bot_id: int = None):
 # === Manual Receipt ===
 
 @router.message(F.text == "➕ Ручное добавление")
-async def start_manual_receipt(message: Message, state: FSMContext):
+async def start_manual_receipt(message: Message, state: FSMContext, bot_id: int = None):
     if not config.is_admin(message.from_user.id):
         return
+    if not bot_id: return
     
     await message.answer("➕ Введите пользователя:\n• ID\n• @username\n• +7...", reply_markup=get_cancel_keyboard())
     await state.set_state(AdminManualReceipt.user_id)

@@ -29,10 +29,6 @@ async def get_bot_by_token(token: str) -> Optional[Dict]:
     async with get_connection() as db:
         return await db.fetchrow("SELECT * FROM bots WHERE token = $1", token)
 
-async def get_active_bots() -> List[Dict]:
-    async with get_connection() as db:
-        return await db.fetch("SELECT * FROM bots WHERE is_active = TRUE")
-
 async def get_bot(bot_id: int) -> Optional[Dict]:
     async with get_connection() as db:
         return await db.fetchrow("SELECT * FROM bots WHERE id = $1", bot_id)

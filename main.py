@@ -262,7 +262,7 @@ async def execute_broadcast(bot: Bot, campaign_id: int, content: dict):
     for admin_id in config.ADMIN_IDS:
         try:
             await bot.send_message(admin_id, report)
-        except:
+        except Exception:
             pass
 
 
@@ -384,7 +384,7 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
     for admin_id in config.ADMIN_IDS:
         try:
             await bot.send_message(admin_id, report)
-        except:
+        except Exception:
             pass
 
 
@@ -438,14 +438,22 @@ async def on_shutdown():
     for bot in bot_manager.get_bots():
         try:
             await bot.session.close()
-        except:
+        except Exception:
             pass
 
     await close_db()
     await redis.close()
+    
+    # Close API client
+    try:
+        from utils.api import close_api_client
+        await close_api_client()
+    except Exception:
+        pass
+    
     try:
         await close_rate_limiter()
-    except:
+    except Exception:
         pass
     logger.info("Bot stopped")
 
