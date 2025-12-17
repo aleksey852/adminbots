@@ -669,13 +669,23 @@ async def codes_list(request: Request, user: str = Depends(get_current_user), pa
     ))
 
 @app.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
-async def upload_codes(request: Request, codes_text: str = Form(...), user: str = Depends(get_current_user)):
-    from database import add_promo_codes
+async def upload_codes(request: Request, file: UploadFile = File(...), user: str = Depends(get_current_user)):
+    from database import add_promo_codes_bulk
     bot = request.state.bot
     if not bot: return RedirectResponse("/")
     
-    codes = [line.strip() for line in codes_text.splitlines() if line.strip()]
-    count = await add_promo_codes(bot['id'], codes)
+    # Process file line by line without loading entirely into RAM
+    # UploadFile.file is a SpooledTemporaryFile (binary)
+    # We create a generator to yield decoded strings
+    def file_line_generator(f):
+        for line in f:
+             yield line.decode('utf-8', errors='ignore').strip()
+
+    try:
+        count = await add_promo_codes_bulk(bot['id'], file_line_generator(file.file))
+    except Exception as e:
+        logger.error(f"Upload error: {e}")
+        return RedirectResponse(url=f"/codes?msg=error_{str(e)}", status_code=status.HTTP_303_SEE_OTHER)
     
     return RedirectResponse(url=f"/codes?msg=added_{count}", status_code=status.HTTP_303_SEE_OTHER)
 

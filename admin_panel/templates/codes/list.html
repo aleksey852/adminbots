@@ -90,14 +90,15 @@
                 <h5 class="modal-title">Загрузка кодов</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="/codes/upload" method="post">
+            <form action="/codes/upload" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Список кодов (каждый с новой строки)</label>
-                        <textarea class="form-control" name="codes_text" rows="10"
-                            placeholder="CODE1&#10;CODE2&#10;CODE3"></textarea>
+                        <label class="form-label">Файл с кодами (.txt)</label>
+                        <input type="file" class="form-control" name="file" accept=".txt, .csv">
+                        <div class="form-text">Один код на строку. Поддерживает миллионы записей.</div>
                     </div>
+                    <!-- Legacy textarea hidden or removed, user text instructions removed -->
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>

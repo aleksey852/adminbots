@@ -611,6 +611,60 @@ async def add_promo_codes(bot_id: int, codes: List[str], tickets: int = 1) -> in
     return count
 
 
+async def add_promo_codes_bulk(bot_id: int, codes_iterator, tickets: int = 1) -> int:
+    """
+    Bulk add promo codes using COPY and temp table for performance.
+    codes_iterator: iterable (list or generator) yielding code strings.
+    """
+    async with get_connection() as db:
+        # 1. Create temp table (unlogged for speed, drop on commit)
+        # We use a random suffix to allow concurrent uploads if needed, 
+        # but for simplicity and session isolation, generic name is fine if transaction isolated.
+        # Actually in PG temp tables are session-private.
+        await db.execute("CREATE TEMP TABLE IF NOT EXISTS promo_import_tmp (code TEXT) ON COMMIT DROP")
+        
+        # 2. Prepare records generator
+        # asyncpg copy_records_to_table accepts an iterable (not async iterator directly usually).
+        # We assume codes_iterator is already an iterable of strings or we convert it.
+        # If it's an async generator, we might need to batch it.
+        # For huge files, we receive an async stream. We should probably buffer/batch manually for copy.
+        # But here let's assume valid iterable.
+        
+        # If input is async generator, we need to consume it or handle differently.
+        # For simplicity, we'll accept a list of tuples for copy_records_to_table
+        # OR we rely on caller to pass a list/generator.
+        
+        records = ((c.strip(),) for c in codes_iterator if c.strip())
+        
+        try:
+            # COPY to temp table
+            await db.conn.copy_records_to_table('promo_import_tmp', records=records)
+            
+            # 3. Insert from temp to main
+            # We use ON CONFLICT to skip duplicates
+            query = """
+                INSERT INTO promo_codes (bot_id, code, tickets)
+                SELECT $1, code, $2 FROM promo_import_tmp
+                ON CONFLICT (bot_id, code) DO NOTHING
+            """
+            result = await db.execute(query, bot_id, tickets)
+            
+            # Parse inserted count from "INSERT 0 123"
+            try:
+                count = int(result.split()[-1])
+            except:
+                count = 0
+                
+            return count
+            
+        except Exception as e:
+            logger.error(f"Bulk copy error: {e}")
+            raise
+        finally:
+            # Explicit drop just in case, though ON COMMIT DROP handles it if transaction ends
+            await db.execute("DROP TABLE IF EXISTS promo_import_tmp")
+
+
 async def get_promo_code(code: str, bot_id: int) -> Optional[Dict]:
     async with get_connection() as db:
         return await db.fetchrow("SELECT * FROM promo_codes WHERE code = $1 AND bot_id = $2", code, bot_id)
