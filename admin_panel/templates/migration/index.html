@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title"><i class="bi bi-box-seam"></i> Миграция сервера</h1>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-1-circle"></i> Подготовка к переезду
+            </div>
+            <div class="card-body">
+                <h5>Что нужно сделать на СТАРОМ сервере:</h5>
+                <ol>
+                    <li>
+                        <strong>Создать бэкап базы данных</strong>
+                        <pre
+                            class="bg-dark text-light p-3 rounded mt-2"><code>sudo bash /opt/admin-bots-platform/scripts/backup.sh</code></pre>
+                        <p class="text-muted small">Бэкап сохранится в <code>/var/backups/admin-bots-platform/</code>
+                        </p>
+                    </li>
+                    <li class="mt-3">
+                        <strong>Скопировать конфигурацию</strong>
+                        <pre
+                            class="bg-dark text-light p-3 rounded mt-2"><code>cat /opt/admin-bots-platform/.env</code></pre>
+                        <p class="text-muted small">Сохраните этот файл — он понадобится на новом сервере</p>
+                    </li>
+                    <li class="mt-3">
+                        <strong>Остановить бота</strong>
+                        <pre
+                            class="bg-dark text-light p-3 rounded mt-2"><code>sudo systemctl stop admin_bots admin_panel</code></pre>
+                    </li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-2-circle"></i> Развёртывание на новом сервере
+            </div>
+            <div class="card-body">
+                <h5>Что нужно сделать на НОВОМ сервере:</h5>
+                <ol>
+                    <li>
+                        <strong>Развернуть платформу</strong>
+                        <pre class="bg-dark text-light p-3 rounded mt-2"><code>git clone https://github.com/your-repo/adminbots.git /opt/admin-bots-platform
+cd /opt/admin-bots-platform
+sudo bash scripts/deploy.sh</code></pre>
+                    </li>
+                    <li class="mt-3">
+                        <strong>Скопировать .env со старого сервера</strong>
+                        <pre class="bg-dark text-light p-3 rounded mt-2"><code># На новом сервере
+sudo cp /path/to/.env.backup /opt/admin-bots-platform/.env</code></pre>
+                    </li>
+                    <li class="mt-3">
+                        <strong>Восстановить базу данных</strong>
+                        <pre class="bg-dark text-light p-3 rounded mt-2"><code># Скопировать бэкап на новый сервер, затем:
+sudo systemctl stop admin_bots admin_panel
+gunzip -c backup_YYYYMMDD_HHMMSS.sql.gz | sudo -u postgres psql admin_bots
+sudo systemctl start admin_bots admin_panel</code></pre>
+                    </li>
+                    <li class="mt-3">
+                        <strong>Настроить домен (если есть)</strong>
+                        <pre
+                            class="bg-dark text-light p-3 rounded mt-2"><code>sudo bash scripts/setup_domain.sh yourdomain.com</code></pre>
+                    </li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-3-circle"></i> Проверка
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>Откройте админ-панель на новом сервере</li>
+                    <li>Проверьте, что все боты и пользователи на месте</li>
+                    <li>Отправьте тестовую рассылку</li>
+                    <li>Удалите данные со старого сервера (опционально)</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> Текущий сервер
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td class="text-muted">IP</td>
+                        <td><code>{{ server_ip }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Ботов</td>
+                        <td>{{ bots|length }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Домен</td>
+                        <td>{{ current_domain or '—' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card border-warning">
+            <div class="card-header bg-warning">
+                <i class="bi bi-exclamation-triangle"></i> Важно
+            </div>
+            <div class="card-body">
+                <ul class="mb-0 small">
+                    <li>Токены ботов НЕ меняются при переезде</li>
+                    <li>Webhook сами перенастроятся при запуске</li>
+                    <li>Домен нужно настроить заново</li>
+                    <li>SSL сертификаты нужно получить заново</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

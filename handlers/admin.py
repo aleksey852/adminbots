@@ -14,8 +14,8 @@ from keyboards import (
 # Note: methods updated to accept bot_id
 from database import (
     add_campaign, get_stats, get_participants_count, get_recent_raffles_with_winners,
-    get_all_winners_for_export, add_receipt, get_user_by_id, get_user_by_username, get_user_by_phone,
-    get_total_users_count
+    get_all_winners_for_export, add_receipt, get_user_by_id, get_user_by_phone,
+    get_total_users_count, search_users
 )
 from utils.config_manager import config_manager
 from bot_manager import bot_manager
@@ -419,14 +419,11 @@ async def process_manual_user(message: Message, state: FSMContext, bot_id: int =
     text = message.text.strip()
     user = None
     
-    if text.startswith('@'):
-        user = await get_user_by_username(text, bot_id)
-    elif '+' in text or (text.isdigit() and len(text) > 7):
-        user = await get_user_by_phone(text, bot_id)
+    if text.startswith('@') or (text.isdigit() and len(text) > 7) or not text.isdigit():
+        results = await search_users(text, bot_id, limit=1)
+        user = results[0] if results else None
     elif text.isdigit():
         user = await get_user_by_id(int(text))
-        if not user:
-            user = await get_user_by_phone(text, bot_id)
     
     if not user:
         await message.answer("❌ Пользователь не найден", reply_markup=get_cancel_keyboard())

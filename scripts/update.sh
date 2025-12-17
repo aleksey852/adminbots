@@ -5,7 +5,7 @@
 set -e
 
 PROJECT_DIR="/opt/admin-bots-platform"
-SERVICE_USER="buster"
+SERVICE_USER="adminbots"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -53,10 +53,10 @@ fi
 
 # 4. Migrations (Texts)
 log "Running migrations..."
-if [ -f "$PROJECT_DIR/scripts/migrate_texts.py" ]; then
+if [ -f "$PROJECT_DIR/scripts/setup/migrate_texts.py" ]; then
     log "Migrating texts..."
     cd "$PROJECT_DIR"
-    sudo -u "$SERVICE_USER" "$PROJECT_DIR/venv/bin/python" scripts/migrate_texts.py || warn "Text migration failed"
+    sudo -u "$SERVICE_USER" "$PROJECT_DIR/venv/bin/python" scripts/setup/migrate_texts.py || warn "Text migration failed"
     cd - > /dev/null
 fi
 

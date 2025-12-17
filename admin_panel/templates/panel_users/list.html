@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title"><i class="bi bi-people-fill"></i> Пользователи панели</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+        <i class="bi bi-plus-lg"></i> Добавить
+    </button>
+</div>
+
+{% if message %}
+<div class="alert {% if 'error' in message %}alert-danger{% else %}alert-success-custom{% endif %} mb-3">
+    {{ message }}
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Логин</th>
+                    <th>Роль</th>
+                    <th>Создан</th>
+                    <th>Последний вход</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>
+                        <i class="bi bi-person-circle me-1"></i>
+                        {{ u.username }}
+                        {% if u.username == current_user.username %}
+                        <span class="badge bg-info">Вы</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge {% if u.role == 'superadmin' %}bg-danger{% else %}bg-secondary{% endif %}">
+                            {{ u.role }}
+                        </span>
+                    </td>
+                    <td class="text-muted small">{{ u.created_at.strftime('%d.%m.%Y %H:%M') if u.created_at else '-' }}
+                    </td>
+                    <td class="text-muted small">{{ u.last_login.strftime('%d.%m.%Y %H:%M') if u.last_login else '-' }}
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                            data-bs-target="#editModal" data-id="{{ u.id }}" data-username="{{ u.username }}"
+                            data-role="{{ u.role }}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        {% if u.username != current_user.username %}
+                        <form action="/panel-users/{{ u.id }}/delete" method="post" class="d-inline"
+                            onsubmit="return confirm('Удалить {{ u.username }}?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/panel-users/create" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Добавить пользователя</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Логин</label>
+                        <input type="text" name="username" class="form-control" required minlength="3">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Пароль</label>
+                        <input type="password" name="password" class="form-control" required minlength="6">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Роль</label>
+                        <select name="role" class="form-select">
+                            <option value="admin">Admin</option>
+                            <option value="superadmin">SuperAdmin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/panel-users/update" method="post" id="editForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="user_id" id="editUserId">
+                <div class="modal-header">
+                    <h5 class="modal-title">Редактировать пользователя</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Логин</label>
+                        <input type="text" name="username" id="editUsername" class="form-control" required
+                            minlength="3">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Новый пароль (оставьте пустым если не меняете)</label>
+                        <input type="password" name="password" class="form-control" minlength="6">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Роль</label>
+                        <select name="role" id="editRole" class="form-select">
+                            <option value="admin">Admin</option>
+                            <option value="superadmin">SuperAdmin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('editModal').addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        document.getElementById('editUserId').value = button.getAttribute('data-id');
+        document.getElementById('editUsername').value = button.getAttribute('data-username');
+        document.getElementById('editRole').value = button.getAttribute('data-role');
+    });
+</script>
+{% endblock %}

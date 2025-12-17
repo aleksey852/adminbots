@@ -51,7 +51,7 @@ if [ -f "$PROJECT_DIR/.env" ]; then
     DATABASE_URL=$(grep "^DATABASE_URL=" "$PROJECT_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
 else
     warn ".env file not found, using defaults"
-    DATABASE_URL="postgresql://buster:password@localhost:5432/admin_bots"
+    DATABASE_URL="postgresql://adminbots:password@localhost:5432/admin_bots"
 fi
 
 # Extract DB connection details from DATABASE_URL

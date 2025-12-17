@@ -132,7 +132,7 @@ sudo systemctl status admin_panel
 
 ## 📞 Поддержка
 
-**Issues:** [GitHub Issues](https://github.com/aleksey852/bot_promo/issues)
+**Issues:** [GitHub Issues](https://github.com/aleksey852/adminbots/issues)
 
 **Version:** 2.2.0 (Multi-Bot)
 **License:** MIT

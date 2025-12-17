@@ -22,21 +22,23 @@ class ConfigManager:
             async with get_connection() as db:
                 # Load settings
                 rows = await db.fetch("SELECT bot_id, key, value FROM settings")
-                self._settings = {}
+                new_settings = {}
                 for row in rows:
                     bot_id = row['bot_id']
-                    if bot_id not in self._settings:
-                        self._settings[bot_id] = {}
-                    self._settings[bot_id][row['key']] = row['value']
+                    if bot_id not in new_settings:
+                        new_settings[bot_id] = {}
+                    new_settings[bot_id][row['key']] = row['value']
+                self._settings = new_settings
                 
                 # Load messages
                 rows = await db.fetch("SELECT bot_id, key, text FROM messages")
-                self._messages = {}
+                new_messages = {}
                 for row in rows:
                     bot_id = row['bot_id']
-                    if bot_id not in self._messages:
-                        self._messages[bot_id] = {}
-                    self._messages[bot_id][row['key']] = row['text']
+                    if bot_id not in new_messages:
+                        new_messages[bot_id] = {}
+                    new_messages[bot_id][row['key']] = row['text']
+                self._messages = new_messages
                 
             self._initialized = True
             logger.info("Loaded settings and messages")

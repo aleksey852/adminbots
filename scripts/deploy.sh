@@ -18,7 +18,7 @@ err() { echo -e "${RED}[!]${NC} $1"; exit 1; }
 [[ $EUID -ne 0 ]] && err "Run as root: sudo bash scripts/deploy.sh"
 
 PROJECT_DIR="/opt/admin-bots-platform"
-SERVICE_USER="buster"
+SERVICE_USER="adminbots"
 BACKUP_DIR="/var/backups/admin-bots-platform"
 
 log "=== Admin Bots Platform Deploy v4.0 (Zero-Config) ==="
@@ -222,18 +222,22 @@ cat > "$CREDS_FILE" << EOF
   🚀 Admin Bots Platform Installed!
 ===========================================
 
-🌐 Admin Panel: http://$PUBLIC_IP
+🌐 ADMIN PANEL
+   URL:      http://$PUBLIC_IP
    Login:    admin
    Password: $ADMIN_PASS
 
-🔧 Steps to continue:
+🗄️ DATABASE (PostgreSQL)
+   Host:     127.0.0.1:5432
+   Database: admin_bots
+   User:     $SERVICE_USER
+   Password: $DB_PASS
+
+🔧 Next Steps:
    1. Open Admin Panel
    2. Go to 'Add Bot' to connect your first bot
    3. Configure settings in UI
 
-📂 Database:
-   User: $SERVICE_USER
-   Pass: $DB_PASS
 ===========================================
 EOF
 chmod 600 "$CREDS_FILE"

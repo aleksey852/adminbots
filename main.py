@@ -6,6 +6,7 @@ Features: PostgreSQL, Redis FSM, Rate limiting, Broadcasts, Raffles
 """
 import asyncio
 import logging
+import os
 import signal
 import sys
 import random
@@ -137,9 +138,10 @@ async def pg_listener():
                                 # If we want to start polling for new bot, we need to add it to the polling loop.
                                 # This requires implementing a custom PollingManager or restarting the process.
                                 # Since I cannot easily restart process from here (unless I exit), I will just Log.
-                                logger.warning("⚠️ New bot loaded to Manager. Restart required to start polling! (Dynamic polling not implemented)")
-                                # Ideally: os.execv(sys.executable, ['python'] + sys.argv)
-                                # But that kills connections abruptly.
+                                logger.warning("🔄 New bot detected. Restarting for polling...")
+                                # Graceful shutdown before restart
+                                # await on_shutdown() # Optional: if you want clean close inside same loop
+                                os.execv(sys.executable, ['python'] + sys.argv)
                                 
                         except Exception as e:
                             logger.error(f"Error processing notification {channel}: {e}")
@@ -148,10 +150,6 @@ async def pg_listener():
                             
                 except asyncio.TimeoutError:
                     continue
-                except Exception as e:
-                    if not shutdown_event.is_set():
-                        # logger.error(f"Listener loop error: {e}") # Reduce log noise
-                        await asyncio.sleep(5)
     except Exception as e:
         logger.critical(f"PG Listener failed: {e}")
 
@@ -434,12 +432,8 @@ async def on_startup():
 
 async def on_shutdown():
     shutdown_event.set()
-    await bot_manager.stop_bot(0) 
-    for bot in bot_manager.get_bots():
-        try:
-            await bot.session.close()
-        except Exception:
-            pass
+    for bot_id in list(bot_manager.bots.keys()):
+        await bot_manager.stop_bot(bot_id)
 
     await close_db()
     await redis.close()

@@ -105,53 +105,22 @@ async def archive_bot(bot_id: int, archived_by: str) -> bool:
         return "UPDATE 1" in result
 
 
-async def restore_bot(bot_id: int) -> bool:
-    """Restore an archived bot"""
+async def get_active_bots() -> List[Dict]:
+    """Get only active (non-archived) bots"""
     async with get_connection() as db:
-        result = await db.execute("""
-            UPDATE bots 
-            SET is_active = TRUE, archived_at = NULL, archived_by = NULL
-            WHERE id = $1 AND archived_at IS NOT NULL
-        """, bot_id)
-        return "UPDATE 1" in result
+        return await db.fetch(
+            "SELECT * FROM bots WHERE is_active = TRUE AND archived_at IS NULL"
+        )
 
 
-async def migrate_bot_data(source_bot_id: int, target_bot_id: int, migrated_by: str) -> Dict:
-    """Migrate user data from one bot to another"""
+async def get_all_bots(include_archived: bool = False) -> List[Dict]:
+    """Get all bots, optionally including archived"""
     async with get_connection() as db:
-        async with db.conn.transaction():
-            # Get counts before migration
-            users_count = await db.fetchval(
-                "SELECT COUNT(*) FROM users WHERE bot_id = $1", source_bot_id
-            )
-            receipts_count = await db.fetchval(
-                "SELECT COUNT(*) FROM receipts WHERE bot_id = $1", source_bot_id
-            )
-            
-            # Migrate users (update bot_id, handle conflicts)
-            await db.execute("""
-                UPDATE users SET bot_id = $2 
-                WHERE bot_id = $1 
-                AND telegram_id NOT IN (SELECT telegram_id FROM users WHERE bot_id = $2)
-            """, source_bot_id, target_bot_id)
-            
-            # Migrate receipts
-            await db.execute("""
-                UPDATE receipts SET bot_id = $2 
-                WHERE bot_id = $1
-            """, source_bot_id, target_bot_id)
-            
-            # Log migration
-            await db.execute("""
-                INSERT INTO data_migrations 
-                (source_bot_id, target_bot_id, users_migrated, receipts_migrated, migrated_by)
-                VALUES ($1, $2, $3, $4, $5)
-            """, source_bot_id, target_bot_id, users_count, receipts_count, migrated_by)
-            
-            return {
-                "users_migrated": users_count,
-                "receipts_migrated": receipts_count
-            }
+        if include_archived:
+            return await db.fetch("SELECT * FROM bots ORDER BY created_at DESC")
+        return await db.fetch(
+            "SELECT * FROM bots WHERE archived_at IS NULL ORDER BY created_at DESC"
+        )
 
 
 async def get_bot_enabled_modules(bot_id: int) -> List[str]:
@@ -183,23 +152,6 @@ async def update_bot_admins_array(bot_id: int, admin_ids: List[int]) -> bool:
         return "UPDATE 1" in result
 
 
-async def get_all_bots(include_archived: bool = False) -> List[Dict]:
-    """Get all bots, optionally including archived"""
-    async with get_connection() as db:
-        if include_archived:
-            return await db.fetch("SELECT * FROM bots ORDER BY created_at DESC")
-        return await db.fetch(
-            "SELECT * FROM bots WHERE archived_at IS NULL ORDER BY created_at DESC"
-        )
-
-
-async def get_active_bots() -> List[Dict]:
-    """Get only active (non-archived) bots"""
-    async with get_connection() as db:
-        return await db.fetch(
-            "SELECT * FROM bots WHERE is_active = TRUE AND archived_at IS NULL"
-        )
-
 async def add_user(telegram_id: int, username: str, full_name: str, phone: str, bot_id: int) -> int:
     async with get_connection() as db:
         # Use ON CONFLICT DO UPDATE to ensure we always get an ID back
@@ -222,11 +174,6 @@ async def get_user(telegram_id: int, bot_id: int) -> Optional[Dict]:
 async def get_user_by_id(user_id: int) -> Optional[Dict]:
     async with get_connection() as db:
         return await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
-
-
-async def get_user_by_username(username: str, bot_id: int) -> Optional[Dict]:
-    async with get_connection() as db:
-        return await db.fetchrow("SELECT * FROM users WHERE username ILIKE $1 AND bot_id = $2", username.lstrip('@'), bot_id)
 
 
 async def get_user_by_phone(phone: str, bot_id: int) -> Optional[Dict]:
@@ -595,13 +542,15 @@ async def get_stats(bot_id: int) -> Dict:
         return _stats_cache[cache_key].copy()
     
     async with _stats_lock:
-        if time.time() - _stats_cache_time < config.STATS_CACHE_TTL and cache_key in _stats_cache:
+        # Check cache under lock
+        now_ts = time.time()
+        if now_ts - _stats_cache_time < config.STATS_CACHE_TTL and cache_key in _stats_cache:
             return _stats_cache[cache_key].copy()
         
         async with get_connection() as db:
-            now = datetime.utcnow()
-            today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            week_ago = now - timedelta(days=7)
+            now_dt = datetime.now() # Use local time consistently with config
+            today = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            week_ago = now_dt - timedelta(days=7)
             
             stats = {
                 "total_users": await db.fetchval("SELECT COUNT(*) FROM users WHERE bot_id = $1", bot_id),
@@ -610,10 +559,10 @@ async def get_stats(bot_id: int) -> Dict:
                 "total_tickets": await db.fetchval("SELECT COALESCE(SUM(tickets), 0) FROM receipts WHERE status = 'valid' AND bot_id = $1", bot_id),
                 "participants": await db.fetchval("SELECT COUNT(DISTINCT user_id) FROM receipts WHERE status = 'valid' AND bot_id = $1", bot_id),
                 "users_today": await db.fetchval("SELECT COUNT(*) FROM users WHERE registered_at >= $1 AND bot_id = $2", today, bot_id),
-                "users_24h": await db.fetchval("SELECT COUNT(*) FROM users WHERE registered_at >= $1 AND bot_id = $2", now - timedelta(hours=24), bot_id),
+                "users_24h": await db.fetchval("SELECT COUNT(*) FROM users WHERE registered_at >= $1 AND bot_id = $2", now_dt - timedelta(hours=24), bot_id),
                 "users_7d": await db.fetchval("SELECT COUNT(*) FROM users WHERE registered_at >= $1 AND bot_id = $2", week_ago, bot_id),
                 "receipts_today": await db.fetchval("SELECT COUNT(*) FROM receipts WHERE created_at >= $1 AND bot_id = $2", today, bot_id),
-                "receipts_24h": await db.fetchval("SELECT COUNT(*) FROM receipts WHERE created_at >= $1 AND bot_id = $2", now - timedelta(hours=24), bot_id),
+                "receipts_24h": await db.fetchval("SELECT COUNT(*) FROM receipts WHERE created_at >= $1 AND bot_id = $2", now_dt - timedelta(hours=24), bot_id),
                 "receipts_7d": await db.fetchval("SELECT COUNT(*) FROM receipts WHERE created_at >= $1 AND bot_id = $2", week_ago, bot_id),
                 "tickets_today": await db.fetchval("SELECT COALESCE(SUM(tickets), 0) FROM receipts WHERE status = 'valid' AND created_at >= $1 AND bot_id = $2", today, bot_id),
                 "total_winners": await db.fetchval("SELECT COUNT(*) FROM winners WHERE bot_id = $1", bot_id),
@@ -623,7 +572,9 @@ async def get_stats(bot_id: int) -> Dict:
             stats["conversion"] = round((stats["participants"] / stats["total_users"] * 100) if stats["total_users"] else 0, 2)
             
             _stats_cache[cache_key] = stats
-            _stats_cache_time = time.time()
+            # Warning: _stats_cache_time is global, should ideally be per key if TTLs differ
+            # but for now we'll just update it.
+            _stats_cache_time = now_ts
             return stats.copy()
 
 
@@ -787,16 +738,17 @@ async def add_promo_codes(bot_id: int, codes: List[str], tickets: int = 1) -> in
     
     count = 0
     async with get_connection() as db:
-        # We use a transaction for bulk insert
         async with db.conn.transaction():
-            for code in codes:
-                if not code.strip(): continue
-                await db.execute("""
-                    INSERT INTO promo_codes (bot_id, code, tickets)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (bot_id, code) DO NOTHING
-                """, bot_id, code.strip(), tickets)
-                count += 1
+            # Filter and prepare tuples
+            data = [(bot_id, c.strip(), tickets) for c in codes if c.strip()]
+            if not data: return 0
+            
+            await db.conn.copy_records_to_table(
+                'promo_codes', 
+                records=data, 
+                columns=['bot_id', 'code', 'tickets']
+            )
+            count = len(data)
     return count
 
 
@@ -933,3 +885,95 @@ async def get_promo_codes_paginated(bot_id: int, limit: int = 50, offset: int = 
             ORDER BY p.id DESC
             LIMIT $2 OFFSET $3
         """, bot_id, limit, offset)
+
+
+# === Panel Users (Admin Panel Access Control) ===
+
+async def get_panel_user(username: str) -> Optional[Dict]:
+    """Get panel user by username"""
+    async with get_connection() as db:
+        return await db.fetchrow(
+            "SELECT * FROM panel_users WHERE username = $1", username
+        )
+
+
+async def get_panel_user_by_id(user_id: int) -> Optional[Dict]:
+    """Get panel user by ID"""
+    async with get_connection() as db:
+        return await db.fetchrow(
+            "SELECT * FROM panel_users WHERE id = $1", user_id
+        )
+
+
+async def get_all_panel_users() -> List[Dict]:
+    """Get all panel users"""
+    async with get_connection() as db:
+        return await db.fetch(
+            "SELECT id, username, role, created_at, last_login FROM panel_users ORDER BY created_at"
+        )
+
+
+async def create_panel_user(username: str, password_hash: str, role: str = 'admin') -> int:
+    """Create a new panel user"""
+    async with get_connection() as db:
+        return await db.fetchval("""
+            INSERT INTO panel_users (username, password_hash, role)
+            VALUES ($1, $2, $3)
+            RETURNING id
+        """, username, password_hash, role)
+
+
+async def update_panel_user(user_id: int, username: str = None, password_hash: str = None, role: str = None) -> bool:
+    """Update panel user"""
+    async with get_connection() as db:
+        fields = []
+        values = [user_id]
+        i = 2
+        
+        if username:
+            fields.append(f"username = ${i}")
+            values.append(username)
+            i += 1
+        if password_hash:
+            fields.append(f"password_hash = ${i}")
+            values.append(password_hash)
+            i += 1
+        if role:
+            fields.append(f"role = ${i}")
+            values.append(role)
+            i += 1
+        
+        if not fields:
+            return False
+        
+        result = await db.execute(
+            f"UPDATE panel_users SET {', '.join(fields)} WHERE id = $1",
+            *values
+        )
+        return "UPDATE 1" in result
+
+
+async def delete_panel_user(user_id: int) -> bool:
+    """Delete panel user"""
+    async with get_connection() as db:
+        result = await db.execute(
+            "DELETE FROM panel_users WHERE id = $1", user_id
+        )
+        return "DELETE 1" in result
+
+
+async def update_panel_user_login(user_id: int):
+    """Update last login time"""
+    async with get_connection() as db:
+        await db.execute(
+            "UPDATE panel_users SET last_login = NOW() WHERE id = $1", user_id
+        )
+
+
+async def count_superadmins() -> int:
+    """Count superadmin users (to prevent deleting last one)"""
+    async with get_connection() as db:
+        return await db.fetchval(
+            "SELECT COUNT(*) FROM panel_users WHERE role = 'superadmin'"
+        )
+

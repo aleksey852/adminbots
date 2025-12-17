@@ -63,18 +63,20 @@ class BotManager:
         if bot_id in self.bots:
             bot = self.bots[bot_id]
             try:
-                await bot.session.close()
                 # Remove from mapping
-                # We need to find the key for this value, simplified since we have bot object
-                # But better to iterate or store reverse mapping if needed. 
-                # For now just clear if valid.
-                pass 
+                me = await bot.get_me()
+                if me.id in self.bot_mapping:
+                    del self.bot_mapping[me.id]
+                
+                await bot.session.close()
+                logger.info(f"Stopped bot {bot_id}")
             except Exception as e:
                 logger.error(f"Error closing bot {bot_id}: {e}")
-            del self.bots[bot_id]
-            del self.bot_tokens[bot_id]
-            if bot_id in self.bot_types:
-                del self.bot_types[bot_id]
+            
+            # Clean up all attributes
+            self.bots.pop(bot_id, None)
+            self.bot_tokens.pop(bot_id, None)
+            self.bot_types.pop(bot_id, None)
 
     def get_bots(self) -> List[Bot]:
         return list(self.bots.values())

@@ -283,11 +283,33 @@
                     href="/settings/messages"><i class="bi bi-chat-text"></i> Тексты</a></li>
             <li><a class="nav-link {% if '/settings/support' in request.url.path %}active{% endif %}"
                     href="/settings/support"><i class="bi bi-headset"></i> Поддержка</a></li>
-            <li><a class="nav-link {% if '/modules' in request.url.path %}active{% endif %}" href="/modules"><i
-                        class="bi bi-puzzle"></i> Модули</a></li>
         </ul>
 
+        {% if is_superadmin %}
+        <div class="nav-section-title">SuperAdmin</div>
+        <ul class="nav flex-column">
+            <li><a class="nav-link {% if '/modules' in request.url.path %}active{% endif %}" href="/modules"><i
+                        class="bi bi-puzzle"></i> Модули</a></li>
+            <li><a class="nav-link {% if '/backups' in request.url.path %}active{% endif %}" href="/backups"><i
+                        class="bi bi-server"></i> Резервные копии</a></li>
+            <li><a class="nav-link {% if '/domain' in request.url.path %}active{% endif %}" href="/domain"><i
+                        class="bi bi-globe"></i> Домен</a></li>
+            <li><a class="nav-link {% if '/migration' in request.url.path %}active{% endif %}" href="/migration"><i
+                        class="bi bi-box-seam"></i> Миграция</a></li>
+            <li><a class="nav-link {% if '/panel-users' in request.url.path %}active{% endif %}" href="/panel-users"><i
+                        class="bi bi-people-fill"></i> Пользователи панели</a></li>
+        </ul>
+        {% endif %}
+
         <div class="sidebar-footer">
+            <div class="text-muted small mb-2" style="font-size: 0.7rem;">
+                {% if current_user %}
+                <i class="bi bi-person-circle"></i> {{ current_user.username }}
+                <span
+                    class="badge {% if current_user.role == 'superadmin' %}bg-danger{% else %}bg-secondary{% endif %}">{{
+                    current_user.role }}</span>
+                {% endif %}
+            </div>
             <a class="nav-link text-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> Выход</a>
         </div>
     </nav>

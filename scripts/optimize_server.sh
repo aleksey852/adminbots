@@ -57,7 +57,7 @@ fi
 
 # 2. System tunables
 log "Tuning sysctl..."
-cat > /etc/sysctl.d/99-buster-optimization.conf << EOF
+cat > /etc/sysctl.d/99-adminbots.conf << EOF
 # Prefer RAM over swap (10 = use RAM when possible)
 vm.swappiness=10
 
@@ -67,7 +67,7 @@ vm.overcommit_memory=1
 # TCP optimization for web applications
 net.core.somaxconn=1024
 EOF
-sysctl -p /etc/sysctl.d/99-buster-optimization.conf > /dev/null
+sysctl -p /etc/sysctl.d/99-adminbots.conf > /dev/null
 log "✅ Sysctl tuned"
 
 # 3. PostgreSQL Optimization

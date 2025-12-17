@@ -5,7 +5,7 @@
 set -e
 
 PROJECT_DIR="/opt/admin-bots-platform"
-SERVICE_USER="buster"
+SERVICE_USER="adminbots"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

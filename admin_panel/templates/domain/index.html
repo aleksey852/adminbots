@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title"><i class="bi bi-globe"></i> Настройка домена</h1>
+</div>
+
+{% if message %}
+<div
+    class="alert {% if 'error' in message or 'Ошибка' in message %}alert-danger{% else %}alert-success-custom{% endif %} mb-3">
+    {{ message }}
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> Текущий статус
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td class="text-muted">IP сервера</td>
+                        <td><code>{{ server_ip }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Текущий домен</td>
+                        <td>
+                            {% if current_domain %}
+                            <span class="text-success"><i class="bi bi-check-circle"></i> {{ current_domain }}</span>
+                            {% else %}
+                            <span class="text-muted">Не настроен</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">SSL сертификат</td>
+                        <td>
+                            {% if ssl_status %}
+                            <span class="text-success"><i class="bi bi-shield-check"></i> Активен</span>
+                            {% else %}
+                            <span class="text-warning"><i class="bi bi-shield-x"></i> Нет</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-gear"></i> Настроить домен
+            </div>
+            <div class="card-body">
+                <form action="/domain/setup" method="post" id="domainForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                    <div class="mb-3">
+                        <label class="form-label">Доменное имя</label>
+                        <input type="text" name="domain" class="form-control" placeholder="admin.example.com"
+                            value="{{ current_domain or '' }}"
+                            pattern="^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$" required>
+                        <div class="form-text">Например: panel.mysite.com</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email для Let's Encrypt</label>
+                        <input type="email" name="email" class="form-control" placeholder="admin@example.com"
+                            value="{{ email or '' }}">
+                        <div class="form-text">Для уведомлений о сертификате</div>
+                    </div>
+
+                    <div class="alert alert-info-custom mb-3">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Перед настройкой:</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Создайте A-запись в DNS вашего домена</li>
+                            <li>Укажите IP: <code>{{ server_ip }}</code></li>
+                            <li>Дождитесь обновления DNS (до 24ч)</li>
+                        </ol>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <i class="bi bi-rocket"></i> Настроить домен и SSL
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-terminal"></i> Логи</span>
+                {% if logs %}
+                <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <pre class="mb-0 p-3"
+                    style="max-height: 400px; overflow-y: auto; background: #1e293b; color: #e2e8f0; font-size: 0.85rem;">{% if logs %}{{ logs }}{% else %}Логи появятся после выполнения настройки...{% endif %}</pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('domainForm').addEventListener('submit', function () {
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Настройка...';
+    });
+</script>
+{% endblock %}

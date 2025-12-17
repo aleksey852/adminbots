@@ -1,12 +1,15 @@
 """
-Buster Vibe Bot - Centralized Configuration
+Admin Bots Platform - Centralized Configuration
 Simplified: removed runtime validation, consolidated helpers
 """
 import os
+import logging
 from dotenv import load_dotenv
 from datetime import datetime
 from typing import List, Optional
 import pytz
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -26,7 +29,7 @@ ADMIN_IDS: List[int] = _parse_admin_ids(os.getenv("ADMIN_IDS", ""))
 TIMEZONE = pytz.timezone(os.getenv("TIMEZONE", "Europe/Moscow"))
 
 # === Database & Redis ===
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/buster_bot")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://adminbots:password@localhost:5432/admin_bots")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 DB_POOL_MIN, DB_POOL_MAX = int(os.getenv("DB_POOL_MIN", "5")), int(os.getenv("DB_POOL_MAX", "20"))
 
@@ -88,20 +91,22 @@ def is_admin(telegram_id: int) -> bool:
 
 def is_promo_active() -> bool:
     try:
+        now = get_now().replace(tzinfo=None) # Compare naive
         start = datetime.strptime(PROMO_START_DATE, "%Y-%m-%d")
         end = datetime.strptime(PROMO_END_DATE, "%Y-%m-%d")
-        return start <= datetime.now() <= end
+        return start <= now <= end
     except Exception as e:
-        print(f"Error checking promo status: {e}")
+        logger.error(f"Error checking promo status: {e}")
         return True
 
 
 def days_until_end() -> int:
     try:
+        now = get_now().replace(tzinfo=None)
         end = datetime.strptime(PROMO_END_DATE, "%Y-%m-%d")
-        return max(0, (end - datetime.now()).days)
+        return max(0, (end - now).days)
     except Exception as e:
-        print(f"Error calculating days until end: {e}")
+        logger.error(f"Error calculating days until end: {e}")
         return 0
 
 

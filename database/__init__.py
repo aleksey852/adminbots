@@ -7,10 +7,9 @@ from database.methods import (
     get_bot_admins, add_bot_admin, remove_bot_admin, is_bot_admin,
     update_bot_admins_array,
     # Bot Lifecycle
-    archive_bot, restore_bot, migrate_bot_data,
     get_bot_enabled_modules, update_bot_modules,
     # Users
-    add_user, get_user, get_user_by_id, get_user_by_username, get_user_by_phone,
+    add_user, get_user, get_user_by_id, get_user_by_phone,
     get_user_with_stats, update_username, get_total_users_count, get_all_user_ids,
     get_user_ids_paginated, get_users_paginated, search_users, get_user_detail,
     get_user_receipts_detailed, block_user,

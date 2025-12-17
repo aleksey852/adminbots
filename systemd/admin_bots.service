@@ -4,7 +4,7 @@ After=network.target postgresql.service redis-server.service
 
 [Service]
 Type=simple
-User=buster
+User=adminbots
 WorkingDirectory=/opt/admin-bots-platform
 EnvironmentFile=/opt/admin-bots-platform/.env
 ExecStart=/opt/admin-bots-platform/venv/bin/python main.py

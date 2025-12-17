@@ -30,7 +30,7 @@ from database import (
     get_active_bots, get_bot, get_users_paginated, get_total_users_count, search_users,
     get_user_detail, get_user_receipts_detailed, add_campaign, add_receipt, block_user,
     get_all_receipts_paginated, get_total_receipts_count, get_recent_raffles_with_winners,
-    get_total_tickets_count
+    get_total_tickets_count, get_all_bots, update_bot_admins_array, update_bot_modules
 )
 
 # Setup logging
@@ -47,8 +47,6 @@ STATIC_DIR = ADMIN_DIR / "static"
 STATIC_DIR.mkdir(exist_ok=True)
 UPLOADS_DIR = ADMIN_DIR / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
-
-app = FastAPI(title="Buster Admin")
 
 # Lifespan for DB initialization
 from contextlib import asynccontextmanager
@@ -144,27 +142,36 @@ SUPPORT_FIELDS = [
 ]
 
 
-def create_token(username: str) -> str:
+def create_token(username: str, role: str = 'admin') -> str:
     expire = datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
-    return jwt.encode({"sub": username, "exp": expire}, config.ADMIN_SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode({"sub": username, "role": role, "exp": expire}, config.ADMIN_SECRET_KEY, algorithm=ALGORITHM)
 
 
-def verify_token(token: str) -> str:
+def verify_token(token: str) -> Optional[Dict]:
     try:
         payload = jwt.decode(token, config.ADMIN_SECRET_KEY, algorithms=[ALGORITHM])
-        return payload.get("sub")
+        return {"username": payload.get("sub"), "role": payload.get("role", "admin")}
     except JWTError:
         return None
 
 
-async def get_current_user(request: Request):
+async def get_current_user(request: Request) -> Dict:
+    """Returns dict with 'username' and 'role' keys"""
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
-    username = verify_token(token)
-    if not username:
+    user_data = verify_token(token)
+    if not user_data:
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
-    return username
+    return user_data
+
+
+async def require_superadmin(request: Request) -> Dict:
+    """Dependency that requires superadmin role"""
+    user = await get_current_user(request)
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Доступ только для SuperAdmin")
+    return user
 
 
 def get_csrf_token(request: Request):
@@ -193,11 +200,18 @@ async def verify_csrf_token(request: Request):
 
 def get_template_context(request: Request, **kwargs):
     """Helper to add common context variables"""
+    # Get user from kwargs if passed
+    user = kwargs.get('user', {})
+    if isinstance(user, str):
+        user = {'username': user, 'role': 'admin'}
+    
     context = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "bot": request.state.bot,
         "bots": getattr(request.state, 'bots', []),
+        "current_user": user,
+        "is_superadmin": user.get('role') == 'superadmin' if user else False,
     }
     context.update(kwargs)
     return context
@@ -218,7 +232,7 @@ async def switch_bot(request: Request, bot_id: int, user: str = Depends(get_curr
 # === Bot Management ===
 
 @app.get("/bots/new", response_class=HTMLResponse)
-async def new_bot_page(request: Request, user: str = Depends(get_current_user)):
+async def new_bot_page(request: Request, user: Dict = Depends(require_superadmin)):
     return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Добавить бота"))
 
 @app.post("/bots/create", dependencies=[Depends(verify_csrf_token)])
@@ -228,7 +242,7 @@ async def create_bot(
     name: str = Form(...),
     type: str = Form(...),
     admin_ids: str = Form(""),
-    user: str = Depends(get_current_user)
+    user: Dict = Depends(require_superadmin)
 ):
     from database import get_connection
     
@@ -303,7 +317,7 @@ async def create_bot(
 
 
 @app.get("/bots/{bot_id}/edit", response_class=HTMLResponse)
-async def edit_bot_page(request: Request, bot_id: int, user: str = Depends(get_current_user), msg: str = None):
+async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
     """Bot edit page"""
     from database import get_stats
     
@@ -404,61 +418,110 @@ async def update_bot_modules_route(
     )
 
 
-@app.post("/bots/{bot_id}/archive", dependencies=[Depends(verify_csrf_token)])
-async def archive_bot_route(
+# Bot archival functionality removed during cleanup
+
+
+@app.get("/bots/{bot_id}/export")
+async def export_bot(request: Request, bot_id: int, user: Dict = Depends(require_superadmin)):
+    """Export bot data as JSON for migration to another server"""
+    from database import get_connection
+    
+    bot = await get_bot(bot_id)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    
+    async with get_connection() as db:
+        # Export all related data
+        users = await db.fetch("SELECT * FROM users WHERE bot_id = $1", bot_id)
+        receipts = await db.fetch("SELECT * FROM receipts WHERE bot_id = $1", bot_id)
+        promo_codes = await db.fetch("SELECT * FROM promo_codes WHERE bot_id = $1", bot_id)
+        settings = await db.fetch("SELECT * FROM settings WHERE bot_id = $1", bot_id)
+        messages = await db.fetch("SELECT * FROM messages WHERE bot_id = $1", bot_id)
+        winners = await db.fetch("SELECT * FROM winners WHERE bot_id = $1", bot_id)
+    
+    # Convert to serializable format
+    def record_to_dict(record):
+        d = dict(record)
+        for k, v in d.items():
+            if isinstance(v, datetime):
+                d[k] = v.isoformat()
+            elif isinstance(v, date):
+                d[k] = v.isoformat()
+        return d
+    
+    export_data = {
+        "exported_at": datetime.now().isoformat(),
+        "bot": record_to_dict(bot),
+        "users": [record_to_dict(r) for r in users],
+        "receipts": [record_to_dict(r) for r in receipts],
+        "promo_codes": [record_to_dict(r) for r in promo_codes],
+        "settings": [record_to_dict(r) for r in settings],
+        "messages": [record_to_dict(r) for r in messages],
+        "winners": [record_to_dict(r) for r in winners],
+        "stats": {
+            "users_count": len(users),
+            "receipts_count": len(receipts),
+            "promo_codes_count": len(promo_codes),
+            "winners_count": len(winners)
+        }
+    }
+    
+    # Return as downloadable JSON
+    content = json.dumps(export_data, ensure_ascii=False, indent=2)
+    filename = f"bot_{bot_id}_{bot['name']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    
+    return JSONResponse(
+        content=export_data,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
+
+
+@app.post("/bots/{bot_id}/delete", dependencies=[Depends(verify_csrf_token)])
+async def delete_bot_permanently(
     request: Request,
     bot_id: int,
-    user: str = Depends(get_current_user)
+    confirm: str = Form(...),
+    user: Dict = Depends(require_superadmin)
 ):
-    """Archive a bot (soft delete)"""
-    from database import archive_bot
+    """Permanently delete bot and all its data (hard delete)"""
+    from database import get_connection
     
-    await archive_bot(bot_id, user)
+    bot = await get_bot(bot_id)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
     
-    # Clear active bot if it was archived
+    # Require confirmation with bot name
+    if confirm != bot['name']:
+        return RedirectResponse(
+            url=f"/bots/{bot_id}/edit?msg=Неверное+подтверждение",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    
+    async with get_connection() as db:
+        # Delete in correct order (foreign keys)
+        await db.execute("DELETE FROM winners WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM promo_codes WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM receipts WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM campaigns WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM messages WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM settings WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM bot_admins WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM module_settings WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM users WHERE bot_id = $1", bot_id)
+        await db.execute("DELETE FROM bots WHERE id = $1", bot_id)
+    
+    # Clear active bot if it was deleted
     if request.session.get("active_bot_id") == bot_id:
         request.session.pop("active_bot_id", None)
     
-    return RedirectResponse(url="/?msg=Бот+архивирован", status_code=status.HTTP_303_SEE_OTHER)
+    logger.info(f"Bot {bot_id} ({bot['name']}) permanently deleted by {user['username']}")
+    
+    return RedirectResponse(url="/?msg=Бот+удалён", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@app.get("/bots/{bot_id}/migrate", response_class=HTMLResponse)
-async def migrate_bot_page(request: Request, bot_id: int, user: str = Depends(get_current_user)):
-    """Migration page"""
-    from database import get_all_bots, get_stats
-    
-    source_bot = await get_bot(bot_id)
-    if not source_bot:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    
-    # Get all other bots as potential targets
-    all_bots = await get_all_bots()
-    target_bots = [b for b in all_bots if b['id'] != bot_id]
-    
-    stats = await get_stats(bot_id)
-    
-    return templates.TemplateResponse("bots/migrate.html", get_template_context(
-        request, user=user, title=f"Миграция: {source_bot['name']}",
-        source_bot=source_bot, target_bots=target_bots, stats=stats
-    ))
-
-
-@app.post("/bots/{bot_id}/migrate", dependencies=[Depends(verify_csrf_token)])
-async def migrate_bot_route(
-    request: Request,
-    bot_id: int,
-    target_bot_id: int = Form(...),
-    user: str = Depends(get_current_user)
-):
-    """Execute migration"""
-    from database import migrate_bot_data
-    
-    result = await migrate_bot_data(bot_id, target_bot_id, user)
-    
-    return RedirectResponse(
-        url=f"/bots/{target_bot_id}/edit?msg=Мигрировано+{result['users_migrated']}+пользователей",
-        status_code=status.HTTP_303_SEE_OTHER
-    )
+# Bot migration functionality removed during cleanup
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -467,13 +530,33 @@ async def login_page(request: Request):
 
 @app.post("/login")
 async def login(request: Request):
+    import bcrypt
+    from database import get_panel_user, update_panel_user_login
+    
     form = await request.form()
-    if form.get("username") == config.ADMIN_PANEL_USER and form.get("password") == config.ADMIN_PANEL_PASSWORD:
-        token = create_token(form.get("username"))
+    username = form.get("username")
+    password = form.get("password")
+    
+    # Get user from database
+    panel_user = await get_panel_user(username)
+    
+    if panel_user:
+        # Verify password with bcrypt
+        if bcrypt.checkpw(password.encode('utf-8'), panel_user['password_hash'].encode('utf-8')):
+            await update_panel_user_login(panel_user['id'])
+            token = create_token(username, panel_user['role'])
+            response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+            response.set_cookie("access_token", token, httponly=True, max_age=TOKEN_EXPIRE_HOURS * 3600)
+            return response
+    
+    # Fallback to .env for backward compatibility (will be deprecated)
+    if username == config.ADMIN_PANEL_USER and password == config.ADMIN_PANEL_PASSWORD:
+        token = create_token(username, 'superadmin')
         response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie("access_token", token, httponly=True, max_age=TOKEN_EXPIRE_HOURS * 3600)
         return response
-    return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
+    
+    return templates.TemplateResponse("login.html", {"request": request, "error": "Неверные данные", "csrf_token": get_csrf_token(request)})
 
 
 @app.get("/logout")
@@ -1095,7 +1178,7 @@ async def create_raffle(request: Request, prize_name: str = Form(...), winner_co
 
 # === Backups ===
 @app.get("/backups", response_class=HTMLResponse)
-async def backups_list(request: Request, user: str = Depends(get_current_user)):
+async def backups_list(request: Request, user: Dict = Depends(require_superadmin)):
     # Backups are global functionality usually, or per-bot? 
     # Current backup script dumps database. So it's global.
     from pathlib import Path
@@ -1226,3 +1309,232 @@ async def toggle_module(request: Request, module_name: str, user: str = Depends(
         await module_loader.enable_module(bot['id'], module_name)
     
     return RedirectResponse(url="/modules", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# === Panel Users Management (SuperAdmin only) ===
+
+@app.get("/panel-users", response_class=HTMLResponse)
+async def panel_users_list(request: Request, user: Dict = Depends(require_superadmin), msg: str = None):
+    from database import get_all_panel_users
+    
+    users = await get_all_panel_users()
+    message = None
+    if msg == "created":
+        message = "Пользователь создан"
+    elif msg == "updated":
+        message = "Пользователь обновлён"
+    elif msg == "deleted":
+        message = "Пользователь удалён"
+    elif msg == "error_last_superadmin":
+        message = "Нельзя удалить последнего SuperAdmin"
+    elif msg == "error_exists":
+        message = "Пользователь с таким логином уже существует"
+    
+    return templates.TemplateResponse("panel_users/list.html", get_template_context(
+        request, user=user, title="Пользователи панели",
+        users=users, message=message
+    ))
+
+
+@app.post("/panel-users/create", dependencies=[Depends(verify_csrf_token)])
+async def panel_users_create(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("admin"),
+    user: Dict = Depends(require_superadmin)
+):
+    import bcrypt
+    from database import get_panel_user, create_panel_user
+    
+    # Check if user exists
+    existing = await get_panel_user(username)
+    if existing:
+        return RedirectResponse(url="/panel-users?msg=error_exists", status_code=status.HTTP_303_SEE_OTHER)
+    
+    password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    await create_panel_user(username, password_hash, role)
+    
+    return RedirectResponse(url="/panel-users?msg=created", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/panel-users/update", dependencies=[Depends(verify_csrf_token)])
+async def panel_users_update(
+    request: Request,
+    user_id: int = Form(...),
+    username: str = Form(...),
+    password: str = Form(""),
+    role: str = Form("admin"),
+    user: Dict = Depends(require_superadmin)
+):
+    import bcrypt
+    from database import update_panel_user
+    
+    password_hash = None
+    if password.strip():
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    await update_panel_user(user_id, username=username, password_hash=password_hash, role=role)
+    
+    return RedirectResponse(url="/panel-users?msg=updated", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/panel-users/{user_id}/delete", dependencies=[Depends(verify_csrf_token)])
+async def panel_users_delete(
+    request: Request,
+    user_id: int,
+    user: Dict = Depends(require_superadmin)
+):
+    from database import get_panel_user_by_id, delete_panel_user, count_superadmins
+    
+    target_user = await get_panel_user_by_id(user_id)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prevent deleting last superadmin
+    if target_user['role'] == 'superadmin':
+        superadmin_count = await count_superadmins()
+        if superadmin_count <= 1:
+            return RedirectResponse(url="/panel-users?msg=error_last_superadmin", status_code=status.HTTP_303_SEE_OTHER)
+    
+    await delete_panel_user(user_id)
+    
+    return RedirectResponse(url="/panel-users?msg=deleted", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# === Domain & SSL Setup (SuperAdmin only) ===
+
+@app.get("/domain", response_class=HTMLResponse)
+async def domain_page(request: Request, user: Dict = Depends(require_superadmin), msg: str = None):
+    import socket
+    
+    # Get server IP
+    try:
+        server_ip = subprocess.run(
+            ["curl", "-s", "--max-time", "3", "ifconfig.me"],
+            capture_output=True, text=True
+        ).stdout.strip() or socket.gethostbyname(socket.gethostname())
+    except Exception:
+        server_ip = "Не определён"
+    
+    # Check current domain
+    domain_file = BASE_DIR / ".domain"
+    current_domain = None
+    if domain_file.exists():
+        current_domain = domain_file.read_text().strip()
+    
+    # Check SSL status
+    ssl_status = False
+    if current_domain:
+        cert_path = Path(f"/etc/letsencrypt/live/{current_domain}/fullchain.pem")
+        ssl_status = cert_path.exists()
+    
+    # Get logs
+    logs = None
+    logs_file = BASE_DIR / ".domain_logs"
+    if logs_file.exists():
+        logs = logs_file.read_text()
+    
+    message = None
+    if msg == "success":
+        message = "Домен настроен успешно!"
+    elif msg == "error":
+        message = "Ошибка при настройке домена. Проверьте логи."
+    elif msg == "dns_pending":
+        message = "Nginx настроен. Дождитесь обновления DNS для получения SSL."
+    
+    return templates.TemplateResponse("domain/index.html", get_template_context(
+        request, user=user, title="Настройка домена",
+        server_ip=server_ip, current_domain=current_domain, 
+        ssl_status=ssl_status, logs=logs, message=message
+    ))
+
+
+@app.post("/domain/setup", dependencies=[Depends(verify_csrf_token)])
+async def domain_setup(
+    request: Request,
+    domain: str = Form(...),
+    email: str = Form(""),
+    user: Dict = Depends(require_superadmin)
+):
+    import re
+    
+    # Validate domain
+    domain = domain.strip().lower()
+    if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$', domain):
+        return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
+    
+    # Build command
+    script_path = BASE_DIR / "scripts" / "setup_domain.sh"
+    
+    if not script_path.exists():
+        logger.error(f"Domain setup script not found: {script_path}")
+        return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
+    
+    # Run script and capture output
+    logs_file = BASE_DIR / ".domain_logs"
+    
+    try:
+        cmd = ["sudo", "bash", str(script_path), domain]
+        if email:
+            cmd.append(email)
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        
+        # Save logs
+        logs = f"=== {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n"
+        logs += f"Command: {' '.join(cmd)}\n\n"
+        logs += result.stdout
+        if result.stderr:
+            logs += f"\nSTDERR:\n{result.stderr}"
+        logs_file.write_text(logs)
+        
+        # Check result
+        if result.returncode == 0:
+            # Save domain
+            domain_file = BASE_DIR / ".domain"
+            domain_file.write_text(domain)
+            return RedirectResponse(url="/domain?msg=success", status_code=status.HTTP_303_SEE_OTHER)
+        elif "DNS" in result.stdout or "does not resolve" in result.stdout:
+            return RedirectResponse(url="/domain?msg=dns_pending", status_code=status.HTTP_303_SEE_OTHER)
+        else:
+            return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
+            
+    except subprocess.TimeoutExpired:
+        logs_file.write_text("Timeout: Script took too long to execute")
+        return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        logger.error(f"Domain setup error: {e}")
+        logs_file.write_text(f"Error: {e}")
+        return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# === Server Migration Guide (SuperAdmin only) ===
+
+@app.get("/migration", response_class=HTMLResponse)
+async def migration_page(request: Request, user: Dict = Depends(require_superadmin)):
+    import socket
+    
+    # Get server IP
+    try:
+        server_ip = subprocess.run(
+            ["curl", "-s", "--max-time", "3", "ifconfig.me"],
+            capture_output=True, text=True
+        ).stdout.strip() or socket.gethostbyname(socket.gethostname())
+    except Exception:
+        server_ip = "Не определён"
+    
+    # Check current domain
+    domain_file = BASE_DIR / ".domain"
+    current_domain = domain_file.read_text().strip() if domain_file.exists() else None
+    
+    return templates.TemplateResponse("migration/index.html", get_template_context(
+        request, user=user, title="Миграция сервера",
+        server_ip=server_ip, current_domain=current_domain
+    ))
+

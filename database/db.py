@@ -425,6 +425,33 @@ async def _create_schema():
                 );
             """)
             
+            # Panel Users table (Admin Panel access control)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS panel_users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    role TEXT DEFAULT 'admin',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    last_login TIMESTAMP
+                );
+            """)
+            
+            # Migrate first SuperAdmin from .env if table is empty
+            panel_user_count = await db.fetchval("SELECT COUNT(*) FROM panel_users")
+            if panel_user_count == 0 and config.ADMIN_PANEL_USER and config.ADMIN_PANEL_PASSWORD:
+                import bcrypt
+                password_hash = bcrypt.hashpw(
+                    config.ADMIN_PANEL_PASSWORD.encode('utf-8'),
+                    bcrypt.gensalt()
+                ).decode('utf-8')
+                await db.execute("""
+                    INSERT INTO panel_users (username, password_hash, role)
+                    VALUES ($1, $2, 'superadmin')
+                    ON CONFLICT (username) DO NOTHING
+                """, config.ADMIN_PANEL_USER, password_hash)
+                logger.info(f"Created initial SuperAdmin user: {config.ADMIN_PANEL_USER}")
+            
             # Add new columns to bots table if they don't exist (migration)
             await add_column_safe("bots", "admin_ids", "BIGINT[] DEFAULT '{}'")
             await add_column_safe("bots", "enabled_modules", "TEXT[] DEFAULT '{\"registration\", \"user_profile\", \"faq\", \"support\"}'")
