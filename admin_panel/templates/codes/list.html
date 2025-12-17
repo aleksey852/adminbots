@@ -166,6 +166,9 @@
         xhr.open('POST', '/codes/upload');
         // CSRF header (fast path to avoid re-parsing huge multipart in dependency)
         xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+        xhr.timeout = 180000; // 3 минуты на очень большие файлы
+
+        let responded = false;
 
         xhr.upload.addEventListener('progress', function (e) {
             if (e.lengthComputable) {
@@ -176,6 +179,15 @@
                 if (percent === 100) {
                     statusText.innerText = "Загрузка завершена. Сохранение файла на сервер...";
                     progressBar.classList.add('progress-bar-striped', 'progress-bar-animated'); // Ensure animation
+                    // Fallback: если сервер долго сохраняет, перезагрузим страницу через 10 сек.
+                    setTimeout(() => {
+                        if (!responded) {
+                            resultAlert.className = 'alert alert-info mt-3';
+                            resultAlert.innerText = "Файл принят. Проверяем очередь импортов...";
+                            resultAlert.classList.remove('d-none');
+                            location.reload();
+                        }
+                    }, 10000);
                 } else {
                     statusText.innerText = `Загружено ${(e.loaded / 1024 / 1024).toFixed(2)} MB из ${(e.total / 1024 / 1024).toFixed(2)} MB`;
                 }
@@ -183,6 +195,7 @@
         });
 
         xhr.addEventListener('load', function () {
+            responded = true;
             console.log("Upload finished. Status:", xhr.status);
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
@@ -224,12 +237,21 @@
         });
 
         xhr.addEventListener('error', function () {
+            responded = true;
             console.error("Network Error");
             resultAlert.className = 'alert alert-danger mt-3';
             resultAlert.innerText = "Ошибка сети (возможно файл слишком большой или соединение разорвано)";
             resultAlert.classList.remove('d-none');
             btn.disabled = false;
             closeBtn.disabled = false;
+        });
+
+        xhr.addEventListener('timeout', function () {
+            responded = true;
+            resultAlert.className = 'alert alert-warning mt-3';
+            resultAlert.innerText = "Сервер долго обрабатывает файл. Обновляем страницу для проверки очереди импортов.";
+            resultAlert.classList.remove('d-none');
+            setTimeout(() => location.reload(), 1000);
         });
 
         xhr.send(formData);
