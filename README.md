@@ -16,7 +16,7 @@
 
 ```bash
 # Клонируйте репозиторий
-git clone https://github.com/aleksey852/bot.git admin-bots-platform
+git clone https://github.com/aleksey852/adminbots.git admin-bots-platform
 cd admin-bots-platform
 
 # Запустите установку
