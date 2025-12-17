@@ -26,4 +26,6 @@ from database.methods import (
     check_db_health, get_stats, get_stats_by_days,
     # Promo
     add_promo_codes, get_promo_code, use_promo_code, get_promo_stats, get_promo_codes_paginated,
+    # Jobs
+    create_job, update_job, get_active_jobs,
 )
