@@ -56,7 +56,7 @@ log "Running migrations..."
 if [ -f "$PROJECT_DIR/scripts/setup/migrate_texts.py" ]; then
     log "Migrating texts..."
     cd "$PROJECT_DIR"
-    sudo -u "$SERVICE_USER" "$PROJECT_DIR/venv/bin/python" scripts/setup/migrate_texts.py || warn "Text migration failed"
+    sudo -u "$SERVICE_USER" PYTHONPATH="$PROJECT_DIR" "$PROJECT_DIR/venv/bin/python" scripts/setup/migrate_texts.py || warn "Text migration failed"
     cd - > /dev/null
 fi
 
