@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="d-flex align-items-center mb-4">
+                <a href="/" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i> Назад</a>
+                <h1 class="page-title mb-0">🤖 Добавить бота</h1>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger mb-4">
+                        <i class="bi bi-exclamation-circle me-2"></i> {{ error }}
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="/bots/create">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Название бота (для админки)</label>
+                            <input type="text" class="form-control" id="name" name="name" required
+                                placeholder="Например: Promo Bot 2025" value="{{ form__name if form__name else '' }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="token" class="form-label">Bot Token (из @BotFather)</label>
+                            <input type="text" class="form-control font-monospace" id="token" name="token" required
+                                placeholder="123456789:ABCdefGHIjklMNOpqrs..."
+                                value="{{ form__token if form__token else '' }}">
+                            <div class="form-text">Токен можно получить или отозвать в @BotFather</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="type" class="form-label">Тип кампании</label>
+                            <select class="form-select" id="type" name="type" required>
+                                <option value="receipt" {% if form__type=='receipt' %}selected{% endif %}>🧾 Регистрация
+                                    чеков</option>
+                                <option value="promo" {% if form__type=='promo' %}selected{% endif %}>🎁 Промо-коды
+                                    (Coming Soon)</option>
+                            </select>
+                            <div class="form-text">Определяет логику работы бота (обработка чеков или кодов)</div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-plus-circle me-2"></i> Создать бота
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
