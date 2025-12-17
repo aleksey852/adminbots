@@ -17,6 +17,7 @@ import secrets
 import aiofiles
 import asyncio
 import logging
+import subprocess
 
 # Ensure project root is in path
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -823,6 +824,39 @@ async def backups_list(request: Request, user: str = Depends(get_current_user)):
         request, user=user, title="Резервные копии",
         backups=backups, total_size_mb=total_size_mb, disk_free_mb=disk_free_mb
     ))
+
+
+@app.post("/backups/create", dependencies=[Depends(verify_csrf_token)])
+async def create_backup_handler(request: Request, user: str = Depends(get_current_user)):
+    """Trigger backup script"""
+    import subprocess
+    
+    # Determine backup dir (same logic as GET)
+    backup_dir = Path("/var/backups/admin-bots-platform")
+    if not backup_dir.exists() or not os.access(str(backup_dir), os.W_OK):
+        backup_dir = BASE_DIR / "backups"
+        backup_dir.mkdir(exist_ok=True)
+    
+    script_path = BASE_DIR / "scripts" / "backup.sh"
+    
+    try:
+        # Run script with backup_dir as argument
+        # Use 'bash' explicitly
+        result = subprocess.run(
+            ["bash", str(script_path), str(backup_dir)],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        logger.info(f"Backup created: {result.stdout}")
+        return RedirectResponse(url="/backups?created=1", status_code=status.HTTP_303_SEE_OTHER)
+        
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Backup failed: {e.stderr}")
+        return RedirectResponse(url=f"/backups?error=1", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as e:
+        logger.critical(f"Backup execution error: {e}")
+        return RedirectResponse(url=f"/backups?error=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # === Modules Management ===

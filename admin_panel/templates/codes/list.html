@@ -169,7 +169,13 @@
                 const percent = Math.round((e.loaded / e.total) * 100);
                 progressBar.style.width = percent + '%';
                 progressBar.innerText = percent + '%';
-                statusText.innerText = `Загружено ${(e.loaded / 1024 / 1024).toFixed(2)} MB из ${(e.total / 1024 / 1024).toFixed(2)} MB`;
+
+                if (percent === 100) {
+                    statusText.innerText = "Загрузка завершена. Сохранение файла на сервер... (Это может занять минуту)";
+                    progressBar.classList.add('progress-bar-striped', 'progress-bar-animated'); // Ensure animation
+                } else {
+                    statusText.innerText = `Загружено ${(e.loaded / 1024 / 1024).toFixed(2)} MB из ${(e.total / 1024 / 1024).toFixed(2)} MB`;
+                }
             }
         });
 
