@@ -59,6 +59,7 @@ sysctl -p /etc/sysctl.d/99-admin-bots.conf
 # 3. Create service user
 if ! id "$SERVICE_USER" &>/dev/null; then
     useradd -m -s /bin/bash "$SERVICE_USER"
+    usermod -aG systemd-journal "$SERVICE_USER"
 fi
 
 # 4. Copy project

@@ -1554,15 +1554,22 @@ async def logs_page(request: Request, service: str = "admin_bots", user: Dict = 
         service = "admin_bots"
         
     try:
+        # Try without sudo first (requires user to be in systemd-journal group)
         result = subprocess.run(
-            ["sudo", "journalctl", "-n", "100", "-u", service, "--no-pager"],
+            ["journalctl", "-n", "100", "-u", service, "--no-pager"],
             capture_output=True,
             text=True,
             check=True
         )
         logs = result.stdout
     except Exception as e:
-        logs = f"Error fetching logs (maybe sudo required): {e}"
+        logs = (
+            f"❌ Ошибка доступа к логам: {e}\n\n"
+            f"Для исправления выполните на сервере:\n"
+            f"sudo usermod -aG systemd-journal {config.DATABASE_URL.split('://')[1].split(':')[0]}\n"
+            f"sudo systemctl restart admin_panel\n\n"
+            f"Затем обновите страницу."
+        )
         
     return templates.TemplateResponse("settings/logs.html", get_template_context(
         request, user=user, title="Логи системы",
