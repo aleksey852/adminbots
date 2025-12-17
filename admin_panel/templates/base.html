@@ -231,11 +231,13 @@
                             </form>
                         </li>
                         {% endfor %}
+                        {% if is_superadmin %}
                         <li>
                             <hr class="dropdown-divider">
                         </li>
                         <li><a class="dropdown-item" href="/bots/new"><i class="bi bi-plus-circle me-2"></i>Добавить
                                 бота</a></li>
+                        {% endif %}
                     </ul>
                 </div>
                 {% if bot %}
@@ -275,8 +277,10 @@
                             class="bi bi-gift"></i> Розыгрыш</a></li>
                 <li><a class="nav-link {% if '/campaigns' in request.url.path %}active{% endif %}" href="/campaigns"><i
                             class="bi bi-list-task"></i> Кампании</a></li>
+                {% if is_superadmin %}
                 <li><a class="nav-link {% if '/backups' in request.url.path %}active{% endif %}" href="/backups"><i
                             class="bi bi-server"></i> Резервные копии</a></li>
+                {% endif %}
             </ul>
 
             <div class="nav-section-title">Настройки</div>
