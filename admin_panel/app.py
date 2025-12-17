@@ -48,6 +48,27 @@ UPLOADS_DIR = ADMIN_DIR / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 
 app = FastAPI(title="Buster Admin")
+
+# Lifespan for DB initialization
+from contextlib import asynccontextmanager
+from database import init_db, close_db
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    try:
+        await init_db()
+        logger.info("Database pool initialized in Admin Panel")
+    except Exception as e:
+        logger.critical(f"Failed to initialize database: {e}")
+    
+    yield
+    
+    # Shutdown
+    await close_db()
+
+app = FastAPI(title="Admin Bots Panel", lifespan=lifespan)
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.add_middleware(SessionMiddleware, secret_key=config.ADMIN_SECRET_KEY)
@@ -691,7 +712,7 @@ async def backups_list(request: Request, user: str = Depends(get_current_user)):
     import os
     import shutil
     
-    backup_dir = Path("/var/backups/buster-vibe-bot")
+    backup_dir = Path("/var/backups/admin-bots-platform")
     if not backup_dir.exists():
         backup_dir = BASE_DIR / "backups"
         backup_dir.mkdir(exist_ok=True)
