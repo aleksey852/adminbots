@@ -3,6 +3,14 @@ import os
 import asyncio
 import json
 from pathlib import Path
+import sys
+
+# Ensure root path is in sys.path for standalone imports if needed
+current_dir = Path(__file__).resolve().parent
+root_dir = current_dir.parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
+
 from database import add_promo_codes_bulk, create_job, update_job
 from bot_manager import bot_manager
 from aiogram import Bot
