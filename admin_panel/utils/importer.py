@@ -18,15 +18,15 @@ import config
 
 logger = logging.getLogger(__name__)
 
-async def process_promo_import(file_path: str, bot_id: int):
+async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
     """
     Background task to process promo code import with job tracking.
     """
     logger.info(f"Starting background import for Bot {bot_id} from {file_path}")
     
-    # 1. Create Job
-    job_id = await create_job(bot_id, 'import_promo', {"file": os.path.basename(file_path)})
-    
+    # 1. Create Job if not provided
+    if not job_id:
+        job_id = await create_job(bot_id, 'import_promo', {"file": os.path.basename(file_path)})
     await update_job(job_id, status='processing', progress=0)
     
     count = 0

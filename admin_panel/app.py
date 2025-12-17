@@ -707,6 +707,7 @@ async def codes_list(request: Request, user: str = Depends(get_current_user), pa
 @app.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
 async def upload_codes(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...), user: str = Depends(get_current_user)):
     from admin_panel.utils.importer import process_promo_import
+    from database import create_job
     bot = request.state.bot
     if not bot or bot.get("type") != "promo":
         return JSONResponse({"status": "error", "message": "Bot not found or unsupported"}, status_code=400)
@@ -721,12 +722,18 @@ async def upload_codes(request: Request, background_tasks: BackgroundTasks, file
             while content := await file.read(1024 * 1024):  # Read in chunks
                 await out_file.write(content)
         
+        file_size_mb = round(temp_path.stat().st_size / 1024 / 1024, 2)
+        
+        # Create job immediately to show in UI
+        job_id = await create_job(bot['id'], 'import_promo', {"file": temp_path.name, "size_mb": file_size_mb})
+        
         # Schedule background task
-        background_tasks.add_task(process_promo_import, str(temp_path), bot['id'])
+        background_tasks.add_task(process_promo_import, str(temp_path), bot['id'], job_id)
         
         return JSONResponse({
             "status": "queued", 
-            "message": "Файл загружен. Импорт начат в фоновом режиме. Вы получите уведомление по завершении."
+            "message": f"Файл загружен ({file_size_mb} MB). Импорт #{job_id} запущен в фоне.",
+            "job_id": job_id
         })
         
     except Exception as e:
