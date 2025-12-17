@@ -277,6 +277,10 @@
                             class="bi bi-gift"></i> Розыгрыш</a></li>
                 <li><a class="nav-link {% if '/campaigns' in request.url.path %}active{% endif %}" href="/campaigns"><i
                             class="bi bi-list-task"></i> Кампании</a></li>
+                {% if bot %}
+                <li><a class="nav-link {% if '/bots/' ~ bot.id ~ '/edit' in request.url.path %}active{% endif %}"
+                        href="/bots/{{ bot.id }}/edit"><i class="bi bi-gear-fill"></i> Настройки бота</a></li>
+                {% endif %}
                 {% if is_superadmin %}
                 <li><a class="nav-link {% if '/backups' in request.url.path %}active{% endif %}" href="/backups"><i
                             class="bi bi-server"></i> Резервные копии</a></li>
