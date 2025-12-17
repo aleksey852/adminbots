@@ -715,3 +715,71 @@ async def backups_list(request: Request, user: str = Depends(get_current_user)):
         request, user=user, title="Резервные копии",
         backups=backups, total_size_mb=total_size_mb, disk_free_mb=disk_free_mb
     ))
+
+
+# === Modules Management ===
+
+@app.get("/modules", response_class=HTMLResponse)
+async def modules_list(request: Request, user: str = Depends(get_current_user)):
+    """Module management page"""
+    bot = request.state.bot
+    if not bot:
+        return RedirectResponse("/")
+    
+    from modules import module_loader
+    from database import get_connection
+    
+    # Get all registered modules
+    all_modules = module_loader.get_all_modules()
+    
+    # Get enabled status from database
+    async with get_connection() as db:
+        rows = await db.fetch("""
+            SELECT module_name, is_enabled, settings 
+            FROM module_settings 
+            WHERE bot_id = $1
+        """, bot['id'])
+        
+        enabled_map = {r['module_name']: r['is_enabled'] for r in rows}
+    
+    # Build module list with status
+    modules_data = []
+    for mod in all_modules:
+        is_enabled = enabled_map.get(mod.name, mod.default_enabled)
+        modules_data.append({
+            "name": mod.name,
+            "version": mod.version,
+            "description": mod.description,
+            "is_enabled": is_enabled,
+            "dependencies": mod.dependencies,
+        })
+    
+    return templates.TemplateResponse("modules/list.html", get_template_context(
+        request, user=user, title="Модули",
+        modules=modules_data
+    ))
+
+
+@app.post("/modules/toggle/{module_name}", dependencies=[Depends(verify_csrf_token)])
+async def toggle_module(request: Request, module_name: str, user: str = Depends(get_current_user)):
+    """Toggle module enabled/disabled for current bot"""
+    bot = request.state.bot
+    if not bot:
+        return RedirectResponse("/")
+    
+    from modules import module_loader
+    
+    module = module_loader.get_module(module_name)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    
+    # Check current status and toggle
+    is_enabled = module_loader.is_enabled(bot['id'], module_name)
+    
+    if is_enabled:
+        await module_loader.disable_module(bot['id'], module_name)
+    else:
+        await module_loader.enable_module(bot['id'], module_name)
+    
+    return RedirectResponse(url="/modules", status_code=status.HTTP_303_SEE_OTHER)
+

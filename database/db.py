@@ -350,6 +350,20 @@ async def _create_schema():
                     EXECUTE FUNCTION notify_new_campaign();
                 """)
             
+            # Module Settings table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS module_settings (
+                    id SERIAL PRIMARY KEY,
+                    bot_id INTEGER REFERENCES bots(id) ON DELETE CASCADE,
+                    module_name TEXT NOT NULL,
+                    is_enabled BOOLEAN DEFAULT TRUE,
+                    settings JSONB DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(bot_id, module_name)
+                );
+            """)
+            
             # Indexes
             indexes = [
                 "CREATE INDEX IF NOT EXISTS idx_users_telegram_bot ON users(telegram_id, bot_id)",
@@ -357,6 +371,7 @@ async def _create_schema():
                 "CREATE INDEX IF NOT EXISTS idx_receipts_bot ON receipts(bot_id)",
                 "CREATE INDEX IF NOT EXISTS idx_campaigns_bot ON campaigns(bot_id)",
                 "CREATE INDEX IF NOT EXISTS idx_campaigns_pending ON campaigns(is_completed, scheduled_for)",
+                "CREATE INDEX IF NOT EXISTS idx_module_settings_bot ON module_settings(bot_id)",
             ]
             for idx in indexes:
                 try:

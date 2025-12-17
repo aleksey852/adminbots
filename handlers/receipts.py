@@ -17,15 +17,15 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-def get_target_keywords():
+def get_target_keywords(bot_id: int = None):
     """Get keywords from config_manager or fallback to config.py"""
-    keywords_str = config_manager.get_setting('TARGET_KEYWORDS', ','.join(config.TARGET_KEYWORDS))
+    keywords_str = config_manager.get_setting('TARGET_KEYWORDS', ','.join(config.TARGET_KEYWORDS), bot_id=bot_id)
     return [kw.strip().lower() for kw in keywords_str.split(',') if kw.strip()]
 
 
-def get_excluded_keywords():
+def get_excluded_keywords(bot_id: int = None):
     """Get excluded keywords from config_manager or fallback to config.py"""
-    keywords_str = config_manager.get_setting('EXCLUDED_KEYWORDS', ','.join(config.EXCLUDED_KEYWORDS))
+    keywords_str = config_manager.get_setting('EXCLUDED_KEYWORDS', ','.join(config.EXCLUDED_KEYWORDS), bot_id=bot_id)
     return [kw.strip().lower() for kw in keywords_str.split(',') if kw.strip()]
 
 
@@ -37,7 +37,8 @@ async def start_receipt_upload(message: Message, state: FSMContext, bot_id: int 
     if not config.is_promo_active():
         promo_ended_msg = config_manager.get_message(
             'promo_ended',
-            "🏁 Акция завершена {date}\n\nСпасибо за участие!"
+            "🏁 Акция завершена {date}\n\nСпасибо за участие!",
+            bot_id=bot_id
         ).format(date=config.PROMO_END_DATE)
         await message.answer(
             promo_ended_msg,
@@ -65,7 +66,8 @@ async def start_receipt_upload(message: Message, state: FSMContext, bot_id: int 
     
     upload_instruction = config_manager.get_message(
         'upload_instruction',
-        "📸 Отправьте фото QR-кода с чека\n\nВаших билетов: {count}\n\n💡 QR-код должен быть чётким и полностью в кадре"
+        "📸 Отправьте фото QR-кода с чека\n\nВаших билетов: {count}\n\n💡 QR-код должен быть чётким и полностью в кадре",
+        bot_id=bot_id
     ).format(count=tickets_count)
     
     await message.answer(
@@ -85,12 +87,12 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot, b
         await state.clear()
         return
     
-    scanning_msg = config_manager.get_message('scanning', "⏳ Сканирую QR... (3 сек)")
+    scanning_msg = config_manager.get_message('scanning', "⏳ Сканирую QR... (3 сек)", bot_id=bot_id)
     processing_msg = await message.answer(scanning_msg)
     
     photo = message.photo[-1]
     if photo.file_size and photo.file_size > 5 * 1024 * 1024:
-        file_too_big_msg = config_manager.get_message('file_too_big', "❌ Файл слишком большой. Максимум 5MB.")
+        file_too_big_msg = config_manager.get_message('file_too_big', "❌ Файл слишком большой. Максимум 5MB.", bot_id=bot_id)
         await processing_msg.edit_text(file_too_big_msg)
         await state.clear()
         return
@@ -103,7 +105,7 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot, b
         file_io.close()
     except Exception as e:
         logger.error(f"Photo processing error: {e}")
-        processing_error_msg = config_manager.get_message('processing_error', "⚠️ Ошибка обработки. Попробуйте ещё раз")
+        processing_error_msg = config_manager.get_message('processing_error', "⚠️ Ошибка обработки. Попробуйте ещё раз", bot_id=bot_id)
         await processing_msg.edit_text(processing_error_msg)
         await state.clear()
         return
@@ -114,7 +116,7 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot, b
         pass
     
     if not result:
-        check_failed_msg = config_manager.get_message('check_failed', "⚠️ Не удалось проверить чек. Попробуйте ещё раз.")
+        check_failed_msg = config_manager.get_message('check_failed', "⚠️ Не удалось проверить чек. Попробуйте ещё раз.", bot_id=bot_id)
         await message.answer(check_failed_msg)
         await state.clear()
         return
@@ -142,7 +144,8 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot, b
         # Code 3/4: Rate limit (User requested to treat this as "No QR found" since valid QRs work)
         scan_failed_msg = config_manager.get_message(
             'scan_failed',
-            "🔍 Не удалось распознать чек\n\n• Сфотографируйте ближе\n• Улучшите освещение\n\n💡 Свежий чек? Подождите 5-10 минут"
+            "🔍 Не удалось распознать чек\n\n• Сфотографируйте ближе\n• Улучшите освещение\n\n💡 Свежий чек? Подождите 5-10 минут",
+            bot_id=bot_id
         )
         await message.answer(
             scan_failed_msg,
@@ -151,7 +154,8 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot, b
     elif code == 2:
         fns_wait_msg = config_manager.get_message(
             'fns_wait',
-            "🧾 Чек найден в ФНС, но данные еще не загрузились.\nПожалуйста, попробуйте отправить его повторно через час."
+            "🧾 Чек найден в ФНС, но данные еще не загрузились.\nПожалуйста, попробуйте отправить его повторно через час.",
+            bot_id=bot_id
         )
         await message.answer(
             fns_wait_msg,
@@ -159,7 +163,7 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot, b
         )
     else:
         # Code -1 (Internal error) or unknown
-        service_unavailable_msg = config_manager.get_message('service_unavailable', "⚠️ Сервис временно недоступен")
+        service_unavailable_msg = config_manager.get_message('service_unavailable', "⚠️ Сервис временно недоступен", bot_id=bot_id)
         await message.answer(service_unavailable_msg, reply_markup=get_support_keyboard())
         await state.clear()
 
@@ -169,8 +173,8 @@ async def _handle_valid_receipt(message: Message, state: FSMContext, result: dic
     items = receipt_data.get("items", [])
     
     # Get dynamic keywords
-    target_keywords = get_target_keywords()
-    excluded_keywords = get_excluded_keywords()
+    target_keywords = get_target_keywords(bot_id)
+    excluded_keywords = get_excluded_keywords(bot_id)
     
     # Check for target products and count total quantity (tickets)
     found_items = []
@@ -203,7 +207,8 @@ async def _handle_valid_receipt(message: Message, state: FSMContext, result: dic
     if not found_items:
         no_product_msg = config_manager.get_message(
             'receipt_no_product',
-            "😔 В чеке нет акционных товаров"
+            "😔 В чеке нет акционных товаров",
+            bot_id=bot_id
         )
         await message.answer(no_product_msg, reply_markup=get_cancel_keyboard())
         return
@@ -216,7 +221,8 @@ async def _handle_valid_receipt(message: Message, state: FSMContext, result: dic
     if fn and fd and fp and await is_receipt_exists(fn, fd, fp):
         duplicate_msg = config_manager.get_message(
             'receipt_duplicate',
-            "ℹ️ Этот чек уже загружен"
+            "ℹ️ Этот чек уже загружен",
+            bot_id=bot_id
         )
         await message.answer(duplicate_msg, reply_markup=get_cancel_keyboard())
         return
@@ -246,7 +252,8 @@ async def _handle_valid_receipt(message: Message, state: FSMContext, result: dic
         if "unique constraint" in str(e).lower():
             duplicate_msg = config_manager.get_message(
                 'receipt_duplicate',
-                "ℹ️ Этот чек уже загружен"
+                "ℹ️ Этот чек уже загружен",
+                bot_id=bot_id
             )
             await message.answer(duplicate_msg, reply_markup=get_cancel_keyboard())
             return
@@ -254,7 +261,7 @@ async def _handle_valid_receipt(message: Message, state: FSMContext, result: dic
         receipt_id = None
 
     if not receipt_id:
-        receipt_save_error = config_manager.get_message('receipt_save_error', "Не удалось сохранить чек")
+        receipt_save_error = config_manager.get_message('receipt_save_error', "Не удалось сохранить чек", bot_id=bot_id)
         await message.answer(receipt_save_error, reply_markup=get_cancel_keyboard())
         return
     
@@ -268,7 +275,8 @@ async def _handle_valid_receipt(message: Message, state: FSMContext, result: dic
     if total_user_tickets == total_tickets:  # First receipt
         first_msg = config_manager.get_message(
             'receipt_first',
-            "🎉 Поздравляем с первым чеком!\n\nВы в розыгрыше! Загружайте ещё 🎯"
+            "🎉 Поздравляем с первым чеком!\n\nВы в розыгрыше! Загружайте ещё 🎯",
+            bot_id=bot_id
         )
         if total_tickets > 1:
             first_msg = f"🎉 Поздравляем! +{total_tickets} билетов!\n\nВсего билетов: {total_user_tickets} 🎯"
@@ -279,7 +287,8 @@ async def _handle_valid_receipt(message: Message, state: FSMContext, result: dic
         else:
             valid_msg = config_manager.get_message(
                 'receipt_valid',
-                "✅ Чек принят!\n\nВсего билетов: {count} 🎯"
+                "✅ Чек принят!\n\nВсего билетов: {count} 🎯",
+                bot_id=bot_id
             ).format(count=total_user_tickets)
         await message.answer(valid_msg, reply_markup=get_receipt_continue_keyboard())
     
@@ -296,7 +305,8 @@ async def process_receipt_invalid_type(message: Message, state: FSMContext, bot_
         
         cancel_msg = config_manager.get_message(
             'cancel_msg',
-            "Выберите действие 👇\nВаших билетов: {count}"
+            "Выберите действие 👇\nВаших билетов: {count}",
+            bot_id=bot_id
         ).format(count=count)
         
         await message.answer(
@@ -305,5 +315,5 @@ async def process_receipt_invalid_type(message: Message, state: FSMContext, bot_
         )
         return
     
-    upload_qr_prompt = config_manager.get_message('upload_qr_prompt', "📷 Отправьте фотографию QR-кода")
+    upload_qr_prompt = config_manager.get_message('upload_qr_prompt', "📷 Отправьте фотографию QR-кода", bot_id=bot_id)
     await message.answer(upload_qr_prompt)

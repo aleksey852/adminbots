@@ -36,7 +36,8 @@ async def cancel_handler(message: Message, state: FSMContext, bot_id: int = None
     
     cancel_msg = config_manager.get_message(
         'cancel_msg',
-        "Выберите действие 👇\nВаших билетов: {count}"
+        "Выберите действие 👇\nВаших билетов: {count}",
+        bot_id=bot_id
     ).format(count=count)
     
     await message.answer(
@@ -71,17 +72,19 @@ async def command_start(message: Message, state: FSMContext, bot_id: int = None)
         # Use dynamic message from config_manager
         welcome_msg = config_manager.get_message(
             'welcome_back',
-            "С возвращением, {name}! 👋\n\nВаших билетов: {count}{days_text}\n\nВыберите действие 👇"
+            "С возвращением, {name}! 👋\n\nВаших билетов: {count}{days_text}\n\nВыберите действие 👇",
+            bot_id=bot_id
         ).format(name=user['full_name'], count=tickets_count, days_text=days_text)
         
         await message.answer(welcome_msg, reply_markup=get_main_keyboard(config.is_admin(message.from_user.id)))
     else:
-        promo_name = config_manager.get_setting('PROMO_NAME', config.PROMO_NAME)
-        prizes = config_manager.get_setting('PROMO_PRIZES', config.PROMO_PRIZES)
+        promo_name = config_manager.get_setting('PROMO_NAME', config.PROMO_NAME, bot_id=bot_id)
+        prizes = config_manager.get_setting('PROMO_PRIZES', config.PROMO_PRIZES, bot_id=bot_id)
         
         welcome_new_msg = config_manager.get_message(
             'welcome_new',
-            "🎉 Добро пожаловать в {promo_name}!\n\nПризы: {prizes}\n\nДля участия введите ваше имя:"
+            "🎉 Добро пожаловать в {promo_name}!\n\nПризы: {prizes}\n\nДля участия введите ваше имя:",
+            bot_id=bot_id
         ).format(promo_name=promo_name, prizes=prizes)
         
         await message.answer(welcome_new_msg, reply_markup=get_cancel_keyboard())
@@ -113,7 +116,8 @@ async def show_profile(message: Message, bot_id: int = None):
     
     profile_msg = config_manager.get_message(
         'profile',
-        "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков загружено: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}"
+        "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков загружено: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}",
+        bot_id=bot_id
     ).format(
         name=user['full_name'],
         phone=user['phone'],
@@ -127,10 +131,11 @@ async def show_profile(message: Message, bot_id: int = None):
 
 
 @router.message(Command("help"))
-async def command_help(message: Message):
+async def command_help(message: Message, bot_id: int = None):
     help_msg = config_manager.get_message(
         'help',
-        "🤖 Что умеет бот:\n\n🧾 Загрузить чек — отправьте QR-код\n👤 Мой профиль — ваша статистика\n📋 Мои чеки — история загрузок\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel"
+        "🤖 Что умеет бот:\n\n🧾 Загрузить чек — отправьте QR-код\n👤 Мой профиль — ваша статистика\n📋 Мои чеки — история загрузок\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel",
+        bot_id=bot_id
     )
     await message.answer(
         help_msg,
@@ -144,7 +149,7 @@ async def command_status(message: Message, bot_id: int = None):
     if not bot_id: return
     user = await get_user_with_stats(message.from_user.id, bot_id)
     if not user:
-        not_registered_msg = config_manager.get_message('not_registered', "Сначала /start")
+        not_registered_msg = config_manager.get_message('not_registered', "Сначала /start", bot_id=bot_id)
         await message.answer(not_registered_msg)
         return
     
@@ -152,7 +157,8 @@ async def command_status(message: Message, bot_id: int = None):
     
     status_msg = config_manager.get_message(
         'status',
-        "📊 {name}\n\nБилетов: {tickets}\nДо конца: {days} дн."
+        "📊 {name}\n\nБилетов: {tickets}\nДо конца: {days} дн.",
+        bot_id=bot_id
     ).format(
         name=user['full_name'],
         tickets=tickets_count,
@@ -173,7 +179,8 @@ async def show_receipts(message: Message, bot_id: int = None):
     if total == 0:
         no_receipts_msg = config_manager.get_message(
             'no_receipts',
-            "📋 У вас пока нет чеков\n\nНажмите «🧾 Загрузить чек»"
+            "📋 У вас пока нет чеков\n\nНажмите «🧾 Загрузить чек»",
+            bot_id=bot_id
         )
         await message.answer(no_receipts_msg)
         return
@@ -181,7 +188,7 @@ async def show_receipts(message: Message, bot_id: int = None):
     receipts = await get_user_receipts(user['id'], limit=RECEIPTS_PER_PAGE, offset=0)
     total_pages = math.ceil(total / RECEIPTS_PER_PAGE)
     
-    text = _format_receipts(receipts, 1, total)
+    text = _format_receipts(receipts, 1, total, bot_id)
     kb = get_receipts_pagination_keyboard(1, total_pages) if total_pages > 1 else None
     await message.answer(text, reply_markup=kb)
 
@@ -200,7 +207,7 @@ async def receipts_pagination(callback: CallbackQuery, bot_id: int = None):
     total_pages = math.ceil(user['total_receipts'] / RECEIPTS_PER_PAGE)
     
     await callback.message.edit_text(
-        _format_receipts(receipts, page, user['total_receipts']),
+        _format_receipts(receipts, page, user['total_receipts'], bot_id),
         reply_markup=get_receipts_pagination_keyboard(page, total_pages)
     )
     await callback.answer()
@@ -211,8 +218,8 @@ async def receipts_current_page(callback: CallbackQuery):
     await callback.answer()
 
 
-def _format_receipts(receipts: list, page: int, total: int) -> str:
-    header = config_manager.get_message('receipts_list', "📋 Ваши чеки ({total})\n").format(total=total)
+def _format_receipts(receipts: list, page: int, total: int, bot_id: int = None) -> str:
+    header = config_manager.get_message('receipts_list', "📋 Ваши чеки ({total})\n", bot_id=bot_id).format(total=total)
     lines = [header]
     for r in receipts:
         status = "✅" if r['status'] == 'valid' else "❌"
@@ -228,58 +235,63 @@ def _format_receipts(receipts: list, page: int, total: int) -> str:
 # === FAQ ===
 
 @router.message(F.text == "ℹ️ FAQ")
-async def show_faq(message: Message):
-    faq_title = config_manager.get_message('faq_title', "❓ Частые вопросы\n\nВыберите тему:")
+async def show_faq(message: Message, bot_id: int = None):
+    faq_title = config_manager.get_message('faq_title', "❓ Частые вопросы\n\nВыберите тему:", bot_id=bot_id)
     await message.answer(faq_title, reply_markup=get_faq_keyboard())
 
 
 @router.callback_query(F.data == "faq_how")
-async def faq_how(callback: CallbackQuery):
+async def faq_how(callback: CallbackQuery, bot_id: int = None):
     text = config_manager.get_message(
         'faq_how',
-        "🎯 Как участвовать?\n\n1. Купите чипсы +VIBE\n2. Сохраните чек\n3. Сфотографируйте QR-код\n4. Отправьте фото в бот\n5. Ждите розыгрыша!\n\n💡 Каждая пачка = 1 билет!\nБольше пачек — выше шансы на выигрыш!"
+        "🎯 Как участвовать?\n\n1. Купите чипсы +VIBE\n2. Сохраните чек\n3. Сфотографируйте QR-код\n4. Отправьте фото в бот\n5. Ждите розыгрыша!\n\n💡 Каждая пачка = 1 билет!\nБольше пачек — выше шансы на выигрыш!",
+        bot_id=bot_id
     )
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
     await callback.answer()
 
 
 @router.callback_query(F.data == "faq_limit")
-async def faq_limit(callback: CallbackQuery):
+async def faq_limit(callback: CallbackQuery, bot_id: int = None):
     text = config_manager.get_message(
         'faq_limit',
-        "🧾 Сколько чеков можно загрузить?\n\nОграничений нет!\n\nВажно:\n• Каждый чек — один раз\n• Нужны акционные товары\n• Чек не старше 30 дней"
+        "🧾 Сколько чеков можно загрузить?\n\nОграничений нет!\n\nВажно:\n• Каждый чек — один раз\n• Нужны акционные товары\n• Чек не старше 30 дней",
+        bot_id=bot_id
     )
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
     await callback.answer()
 
 
 @router.callback_query(F.data == "faq_win")
-async def faq_win(callback: CallbackQuery):
+async def faq_win(callback: CallbackQuery, bot_id: int = None):
     text = config_manager.get_message(
         'faq_win',
-        "🏆 Как узнать о выигрыше?\n\nМы пришлём сообщение в этот бот!\n\nУбедитесь, что уведомления включены"
+        "🏆 Как узнать о выигрыше?\n\nМы пришлём сообщение в этот бот!\n\nУбедитесь, что уведомления включены",
+        bot_id=bot_id
     )
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
     await callback.answer()
 
 
 @router.callback_query(F.data == "faq_reject")
-async def faq_reject(callback: CallbackQuery):
+async def faq_reject(callback: CallbackQuery, bot_id: int = None):
     text = config_manager.get_message(
         'faq_reject',
-        "❌ Почему чек не принят?\n\n• QR-код нечёткий\n• Нет акционных товаров\n• Чек старше 30 дней\n• Уже загружен\n\n💡 Свежий чек? Подождите 5-10 минут"
+        "❌ Почему чек не принят?\n\n• QR-код нечёткий\n• Нет акционных товаров\n• Чек старше 30 дней\n• Уже загружен\n\n💡 Свежий чек? Подождите 5-10 минут",
+        bot_id=bot_id
     )
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
     await callback.answer()
 
 
 @router.callback_query(F.data == "faq_dates")
-async def faq_dates(callback: CallbackQuery):
+async def faq_dates(callback: CallbackQuery, bot_id: int = None):
     days = config.days_until_end()
     status = f"Осталось: {days} дн." if days > 0 else "Акция завершена"
     text = config_manager.get_message(
         'faq_dates',
-        "📅 Сроки акции\n\nНачало: {start}\nОкончание: {end}\n\n{status}"
+        "📅 Сроки акции\n\nНачало: {start}\nОкончание: {end}\n\n{status}",
+        bot_id=bot_id
     ).format(start=config.PROMO_START_DATE, end=config.PROMO_END_DATE, status=status)
     
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
@@ -287,10 +299,11 @@ async def faq_dates(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "faq_prizes")
-async def faq_prizes(callback: CallbackQuery):
+async def faq_prizes(callback: CallbackQuery, bot_id: int = None):
     text = config_manager.get_message(
         'faq_prizes',
-        "🎁 Призы\n\n{prizes}\n\nБольше чеков = выше шансы!"
+        "🎁 Призы\n\n{prizes}\n\nБольше чеков = выше шансы!",
+        bot_id=bot_id
     ).format(prizes=config.PROMO_PRIZES)
     
     await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
@@ -298,8 +311,8 @@ async def faq_prizes(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "faq_back")
-async def faq_back(callback: CallbackQuery):
-    faq_title = config_manager.get_message('faq_title', "❓ Частые вопросы\n\nВыберите тему:")
+async def faq_back(callback: CallbackQuery, bot_id: int = None):
+    faq_title = config_manager.get_message('faq_title', "❓ Частые вопросы\n\nВыберите тему:", bot_id=bot_id)
     await callback.message.edit_text(faq_title, reply_markup=get_faq_keyboard())
     await callback.answer()
 
@@ -307,6 +320,6 @@ async def faq_back(callback: CallbackQuery):
 # === Support ===
 
 @router.message(F.text == "🆘 Поддержка")
-async def show_support(message: Message):
-    text = config_manager.get_message('support_msg', "🆘 Нужна помощь?\n\nНапишите нам!")
+async def show_support(message: Message, bot_id: int = None):
+    text = config_manager.get_message('support_msg', "🆘 Нужна помощь?\n\nНапишите нам!", bot_id=bot_id)
     await message.answer(text, reply_markup=get_support_keyboard())

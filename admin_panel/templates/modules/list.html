@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title"><i class="bi bi-puzzle me-2"></i>Модули</h1>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-box-seam me-1"></i> Управление модулями для {{ bot.name if bot else 'бота' }}
+    </div>
+    <div class="card-body p-0">
+        {% if modules %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Модуль</th>
+                        <th>Версия</th>
+                        <th>Описание</th>
+                        <th>Зависимости</th>
+                        <th class="text-center">Статус</th>
+                        <th class="text-center">Действие</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mod in modules %}
+                    <tr>
+                        <td>
+                            <strong>{{ mod.name }}</strong>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">v{{ mod.version }}</span>
+                        </td>
+                        <td>{{ mod.description }}</td>
+                        <td>
+                            {% if mod.dependencies %}
+                            {% for dep in mod.dependencies %}
+                            <span class="badge bg-info text-dark">{{ dep }}</span>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if mod.is_enabled %}
+                            <span class="badge bg-success">Включён</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Выключен</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <form action="/modules/toggle/{{ mod.name }}" method="post" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                {% if mod.is_enabled %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-power"></i> Выключить
+                                </button>
+                                {% else %}
+                                <button type="submit" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-power"></i> Включить
+                                </button>
+                                {% endif %}
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-4 text-center text-muted">
+            <i class="bi bi-box display-4"></i>
+            <p class="mt-2">Нет зарегистрированных модулей</p>
+            <small>Модули регистрируются при запуске бота</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="bi bi-info-circle me-1"></i> Информация
+    </div>
+    <div class="card-body">
+        <p class="mb-2"><strong>Что такое модули?</strong></p>
+        <p class="text-muted mb-3">
+            Модули позволяют включать и выключать отдельные функции бота без изменения кода.
+            Каждый модуль можно настроить индивидуально для этого бота.
+        </p>
+        <p class="mb-2"><strong>Доступные модули:</strong></p>
+        <ul class="text-muted">
+            <li><strong>registration</strong> — регистрация пользователей</li>
+            <li><strong>receipts</strong> — загрузка и проверка чеков</li>
+            <li><strong>user</strong> — профиль, FAQ, поддержка</li>
+        </ul>
+        <div class="alert alert-warning mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>Внимание:</strong> Изменения применяются после перезапуска бота.
+        </div>
+    </div>
+</div>
+{% endblock %}

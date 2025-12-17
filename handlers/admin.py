@@ -47,7 +47,8 @@ async def show_stats(message: Message, bot_id: int = None):
     
     stats_msg = config_manager.get_message(
         'stats_msg',
-        "📊 Статистика\n\n👥 Пользователи: {users}\n   сегодня: +{users_today}\n\n🧾 Чеки: {receipts}\n   принято: {valid}\n   сегодня: +{receipts_today}\n\n🎯 Участников: {participants}\n📈 Конверсия: {conversion:.1f}%\n\n🏆 Победителей: {winners}"
+        "📊 Статистика\n\n👥 Пользователи: {users}\n   сегодня: +{users_today}\n\n🧾 Чеки: {receipts}\n   принято: {valid}\n   сегодня: +{receipts_today}\n\n🎯 Участников: {participants}\n📈 Конверсия: {conversion:.1f}%\n\n🏆 Победителей: {winners}",
+        bot_id=bot_id
     ).format(
         users=stats['total_users'],
         users_today=stats['users_today'],

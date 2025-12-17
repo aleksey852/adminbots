@@ -15,22 +15,23 @@ PHONE_PATTERN = re.compile(r'^\+?[0-9]{10,15}$')
 
 
 @router.message(Registration.name)
-async def process_name(message: Message, state: FSMContext):
+async def process_name(message: Message, state: FSMContext, bot_id: int = None):
     if message.text == "❌ Отмена":
         await state.clear()
-        reg_cancel_msg = config_manager.get_message('reg_cancel', "Хорошо! Возвращайтесь 👋")
+        reg_cancel_msg = config_manager.get_message('reg_cancel', "Хорошо! Возвращайтесь 👋", bot_id=bot_id)
         await message.answer(reg_cancel_msg, reply_markup=get_start_keyboard())
         return
     
     if not message.text or len(message.text) < 2 or len(message.text) > 100:
-        reg_name_error_msg = config_manager.get_message('reg_name_error', "Введите имя (2-100 символов)")
+        reg_name_error_msg = config_manager.get_message('reg_name_error', "Введите имя (2-100 символов)", bot_id=bot_id)
         await message.answer(reg_name_error_msg)
         return
     
-    await state.update_data(name=message.text.strip())
+    await state.update_data(name=message.text.strip(), bot_id=bot_id)
     reg_phone_prompt = config_manager.get_message(
         'reg_phone_prompt',
-        "Отлично, {name}! 👋\n\nОтправьте номер телефона:"
+        "Отлично, {name}! 👋\n\nОтправьте номер телефона:",
+        bot_id=bot_id
     ).format(name=message.text)
     
     await message.answer(
@@ -49,7 +50,7 @@ async def process_phone(message: Message, state: FSMContext, bot_id: int = None)
 
     if message.text == "❌ Отмена":
         await state.clear()
-        reg_cancel_msg = config_manager.get_message('reg_cancel', "Хорошо! Возвращайтесь 👋")
+        reg_cancel_msg = config_manager.get_message('reg_cancel', "Хорошо! Возвращайтесь 👋", bot_id=bot_id)
         await message.answer(reg_cancel_msg, reply_markup=get_start_keyboard())
         return
     
@@ -59,12 +60,12 @@ async def process_phone(message: Message, state: FSMContext, bot_id: int = None)
     elif message.text:
         clean = re.sub(r'\D', '', message.text)
         if not PHONE_PATTERN.match(clean) and not PHONE_PATTERN.match(message.text.strip()):
-            reg_phone_error_msg = config_manager.get_message('reg_phone_error', "❌ Неверный формат. Введите как +79991234567")
+            reg_phone_error_msg = config_manager.get_message('reg_phone_error', "❌ Неверный формат. Введите как +79991234567", bot_id=bot_id)
             await message.answer(reg_phone_error_msg)
             return
         phone = message.text.strip()
     else:
-        reg_phone_request_msg = config_manager.get_message('reg_phone_request', "Отправьте номер телефона")
+        reg_phone_request_msg = config_manager.get_message('reg_phone_request', "Отправьте номер телефона", bot_id=bot_id)
         await message.answer(reg_phone_request_msg)
         return
     
@@ -80,7 +81,8 @@ async def process_phone(message: Message, state: FSMContext, bot_id: int = None)
     await state.clear()
     reg_success_msg = config_manager.get_message(
         'reg_success',
-        "✅ Регистрация завершена!\n\n1. Купите акционные товары\n2. Сфотографируйте QR-код\n3. Загрузите сюда\n\nАкция: {start} — {end}\n\n👇 Загрузите первый чек"
+        "✅ Регистрация завершена!\n\n1. Купите акционные товары\n2. Сфотографируйте QR-код\n3. Загрузите сюда\n\nАкция: {start} — {end}\n\n👇 Загрузите первый чек",
+        bot_id=bot_id
     ).format(start=config.PROMO_START_DATE, end=config.PROMO_END_DATE)
     
     await message.answer(
