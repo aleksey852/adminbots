@@ -1,6 +1,7 @@
 """Database module exports"""
 from database.db import init_db, close_db, get_connection
-from database.methods import (
+    # Bot Management
+    get_bot_by_token, get_active_bots, get_bot, get_bot_config,
     # Users
     add_user, get_user, get_user_by_id, get_user_by_username, get_user_by_phone,
     get_user_with_stats, update_username, get_total_users_count, get_all_user_ids,
