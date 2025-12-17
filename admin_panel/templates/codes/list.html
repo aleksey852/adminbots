@@ -95,17 +95,107 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Файл с кодами (.txt)</label>
-                        <input type="file" class="form-control" name="file" accept=".txt, .csv">
+                        <input type="file" class="form-control" name="file" id="uploadFileInput" accept=".txt, .csv">
                         <div class="form-text">Один код на строку. Поддерживает миллионы записей.</div>
                     </div>
-                    <!-- Legacy textarea hidden or removed, user text instructions removed -->
+
+                    <div id="uploadProgressContainer" class="d-none">
+                        <label class="form-label">Загрузка файла...</label>
+                        <div class="progress mb-2">
+                            <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                role="progressbar" style="width: 0%">0%</div>
+                        </div>
+                        <div id="uploadStatusText" class="text-muted small"></div>
+                    </div>
+
+                    <div id="uploadResult" class="alert d-none mt-3"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Загрузить</button>
+                    <button type="button" class="btn btn-secondary" id="btnCloseUpload"
+                        data-bs-dismiss="modal">Закрыть</button>
+                    <button type="button" class="btn btn-primary" id="btnUpload"
+                        onclick="uploadFiles()">Загрузить</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<script>
+    function uploadFiles() {
+        const fileInput = document.getElementById('uploadFileInput');
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // CSRF
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+        formData.append('csrf_token', csrfToken);
+
+        const btn = document.getElementById('btnUpload');
+        const progressContainer = document.getElementById('uploadProgressContainer');
+        const progressBar = document.getElementById('uploadProgressBar');
+        const statusText = document.getElementById('uploadStatusText');
+        const resultAlert = document.getElementById('uploadResult');
+        const closeBtn = document.getElementById('btnCloseUpload');
+
+        // Reset UI
+        btn.disabled = true;
+        closeBtn.disabled = true;
+        progressContainer.classList.remove('d-none');
+        resultAlert.classList.add('d-none');
+        resultAlert.className = 'alert d-none mt-3'; // reset colors
+        progressBar.style.width = '0%';
+        progressBar.innerText = '0%';
+
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', function (e) {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percent + '%';
+                progressBar.innerText = percent + '%';
+                statusText.innerText = `Загружено ${(e.loaded / 1024 / 1024).toFixed(2)} MB из ${(e.total / 1024 / 1024).toFixed(2)} MB`;
+            }
+        });
+
+        xhr.addEventListener('load', function () {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const response = JSON.parse(xhr.responseText);
+                resultAlert.className = 'alert alert-success mt-3';
+                resultAlert.innerText = response.message || "Успешно!";
+                resultAlert.classList.remove('d-none');
+
+                // Close after 2 seconds
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                resultAlert.className = 'alert alert-danger mt-3';
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    resultAlert.innerText = "Ошибка: " + (response.message || xhr.statusText);
+                } catch (e) {
+                    resultAlert.innerText = "Ошибка загрузки: " + xhr.statusText;
+                }
+                resultAlert.classList.remove('d-none');
+                btn.disabled = false;
+                closeBtn.disabled = false;
+            }
+        });
+
+        xhr.addEventListener('error', function () {
+            resultAlert.className = 'alert alert-danger mt-3';
+            resultAlert.innerText = "Ошибка сети";
+            resultAlert.classList.remove('d-none');
+            btn.disabled = false;
+            closeBtn.disabled = false;
+        });
+
+        xhr.open('POST', '/codes/upload');
+        xhr.send(formData);
+    }
+</script>
 {% endblock %}

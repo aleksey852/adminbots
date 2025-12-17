@@ -1,5 +1,5 @@
 """Admin Panel - FastAPI app with full management capabilities"""
-from fastapi import FastAPI, Request, Depends, HTTPException, status, Form, UploadFile, File
+from fastapi import FastAPI, Request, Depends, HTTPException, status, Form, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -669,25 +669,32 @@ async def codes_list(request: Request, user: str = Depends(get_current_user), pa
     ))
 
 @app.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
-async def upload_codes(request: Request, file: UploadFile = File(...), user: str = Depends(get_current_user)):
-    from database import add_promo_codes_bulk
+async def upload_codes(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...), user: str = Depends(get_current_user)):
+    from admin_panel.utils.importer import process_promo_import
     bot = request.state.bot
-    if not bot: return RedirectResponse("/")
+    if not bot: return JSONResponse({"status": "error", "message": "Bot not found"}, status_code=400)
     
-    # Process file line by line without loading entirely into RAM
-    # UploadFile.file is a SpooledTemporaryFile (binary)
-    # We create a generator to yield decoded strings
-    def file_line_generator(f):
-        for line in f:
-             yield line.decode('utf-8', errors='ignore').strip()
-
+    # Save to temp file
     try:
-        count = await add_promo_codes_bulk(bot['id'], file_line_generator(file.file))
+        temp_dir = UPLOADS_DIR / "temp_imports"
+        temp_dir.mkdir(exist_ok=True)
+        temp_path = temp_dir / f"import_{bot['id']}_{int(time.time())}_{uuid.uuid4()}.txt"
+        
+        async with aiofiles.open(temp_path, 'wb') as out_file:
+            while content := await file.read(1024 * 1024):  # Read in chunks
+                await out_file.write(content)
+        
+        # Schedule background task
+        background_tasks.add_task(process_promo_import, str(temp_path), bot['id'])
+        
+        return JSONResponse({
+            "status": "queued", 
+            "message": "Файл загружен. Импорт начат в фоновом режиме. Вы получите уведомление по завершении."
+        })
+        
     except Exception as e:
-        logger.error(f"Upload error: {e}")
-        return RedirectResponse(url=f"/codes?msg=error_{str(e)}", status_code=status.HTTP_303_SEE_OTHER)
-    
-    return RedirectResponse(url=f"/codes?msg=added_{count}", status_code=status.HTTP_303_SEE_OTHER)
+        logger.error(f"Upload handle error: {e}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 # === Raffle ===
