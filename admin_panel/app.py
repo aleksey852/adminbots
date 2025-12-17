@@ -566,6 +566,31 @@ async def toggle_user_block(request: Request, user_id: int, user: str = Depends(
     return RedirectResponse(url=f"/users/{user_id}?msg={'blocked' if new_status else 'unblocked'}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@app.post("/users/{user_id}/update", dependencies=[Depends(verify_csrf_token)])
+async def update_user_profile(request: Request, user_id: int, full_name: str = Form(None), phone: str = Form(None), username: str = Form(None), user: str = Depends(get_current_user)):
+    from database import update_user_fields
+    bot = request.state.bot
+    if not bot:
+        return RedirectResponse("/")
+
+    user_data = await get_user_detail(user_id)
+    if not user_data or user_data['bot_id'] != bot['id']:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    full_name_clean = full_name.strip() if full_name else None
+    phone_clean = phone.strip() if phone else None
+    username_clean = username.strip().lstrip("@") if username else None
+
+    await update_user_fields(
+        user_id,
+        full_name=full_name_clean or user_data.get("full_name"),
+        phone=phone_clean or user_data.get("phone"),
+        username=username_clean if username is not None else user_data.get("username"),
+    )
+
+    return RedirectResponse(url=f"/users/{user_id}?msg=updated", status_code=status.HTTP_303_SEE_OTHER)
+
+
 # === Receipts ===
 
 @app.get("/receipts", response_class=HTMLResponse)

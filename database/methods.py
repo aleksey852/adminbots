@@ -589,6 +589,29 @@ async def block_user(user_id: int, blocked: bool = True):
     async with get_connection() as db:
         await db.execute("UPDATE users SET is_blocked = $1 WHERE id = $2", blocked, user_id)
 
+async def update_user_fields(user_id: int, *, full_name: Optional[str] = None, phone: Optional[str] = None, username: Optional[str] = None):
+    """Update selected user fields"""
+    fields = []
+    values = []
+    
+    if full_name is not None:
+        fields.append("full_name = $" + str(len(values) + 1))
+        values.append(full_name)
+    if phone is not None:
+        fields.append("phone = $" + str(len(values) + 1))
+        values.append(phone)
+    if username is not None:
+        fields.append("username = $" + str(len(values) + 1))
+        values.append(username)
+    
+    if not fields:
+        return False
+    
+    values.append(user_id)
+    async with get_connection() as db:
+        await db.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ${len(values)}", *values)
+    return True
+
 
 # === Promo Codes ===
 
