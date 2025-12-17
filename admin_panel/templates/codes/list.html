@@ -167,6 +167,7 @@
         // CSRF header (fast path to avoid re-parsing huge multipart in dependency)
         xhr.setRequestHeader('X-CSRF-Token', csrfToken);
         xhr.timeout = 180000; // 3 минуты на очень большие файлы
+        xhr.withCredentials = true;
 
         let responded = false;
 

@@ -176,6 +176,8 @@ server {
     
     # Принимаем большие файлы (импорт промокодов)
     client_max_body_size 1G;
+    client_body_timeout 600s;
+    client_header_timeout 600s;
     
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -190,6 +192,7 @@ server {
         proxy_send_timeout 600;
         proxy_request_buffering off;
         proxy_buffering off;
+        proxy_connect_timeout 60;
     }
 }
 EOF

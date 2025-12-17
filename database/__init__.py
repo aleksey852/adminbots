@@ -25,7 +25,7 @@ from database.methods import (
     # Health & Stats
     check_db_health, get_stats, get_stats_by_days,
     # Promo
-    add_promo_codes, get_promo_code, use_promo_code, get_promo_stats, get_promo_codes_paginated,
+    add_promo_codes, add_promo_codes_bulk, get_promo_code, use_promo_code, get_promo_stats, get_promo_codes_paginated,
     # Jobs
     create_job, update_job, get_active_jobs,
     # Admin user edit

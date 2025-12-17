@@ -712,6 +712,8 @@ async def upload_codes(request: Request, background_tasks: BackgroundTasks, file
     if not bot or bot.get("type") != "promo":
         return JSONResponse({"status": "error", "message": "Bot not found or unsupported"}, status_code=400)
     
+    logger.info(f"[codes/upload] start bot={bot['id']} filename={file.filename} content_type={file.content_type}")
+    
     # Save to temp file
     try:
         temp_dir = UPLOADS_DIR / "temp_imports"
@@ -723,6 +725,7 @@ async def upload_codes(request: Request, background_tasks: BackgroundTasks, file
                 await out_file.write(content)
         
         file_size_mb = round(temp_path.stat().st_size / 1024 / 1024, 2)
+        logger.info(f"[codes/upload] saved file {temp_path} size={file_size_mb}MB bot={bot['id']}")
         
         # Create job immediately to show in UI
         job_id = await create_job(bot['id'], 'import_promo', {"file": temp_path.name, "size_mb": file_size_mb})
@@ -737,7 +740,7 @@ async def upload_codes(request: Request, background_tasks: BackgroundTasks, file
         })
         
     except Exception as e:
-        logger.error(f"Upload handle error: {e}")
+        logger.error(f"[codes/upload] error: {e}", exc_info=True)
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
