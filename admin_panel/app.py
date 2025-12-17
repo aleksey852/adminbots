@@ -697,6 +697,26 @@ async def upload_codes(request: Request, background_tasks: BackgroundTasks, file
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
+
+@app.get("/api/jobs/active")
+async def get_active_jobs_api(request: Request, user: str = Depends(get_current_user)):
+    from database import get_active_jobs
+    bot = request.state.bot
+    if not bot: return JSONResponse([])
+    
+    jobs = await get_active_jobs(bot['id'])
+    # Convert records to dict and handle datetimes
+    return JSONResponse([
+        {
+            "id": j['id'],
+            "type": j['type'],
+            "status": j['status'],
+            "progress": j['progress'],
+            "details": json.loads(j['details']) if isinstance(j['details'], str) else j['details'],
+            "created_at": j['created_at'].isoformat() if j['created_at'] else None
+        } for j in jobs
+    ])
+
 # === Raffle ===
 
 @app.get("/raffle", response_class=HTMLResponse)

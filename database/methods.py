@@ -664,6 +664,48 @@ async def add_promo_codes_bulk(bot_id: int, codes_iterator, tickets: int = 1) ->
             # Explicit drop just in case, though ON COMMIT DROP handles it if transaction ends
             await db.execute("DROP TABLE IF EXISTS promo_import_tmp")
 
+# === Job System ===
+
+async def create_job(bot_id: int, type: str, details: Dict = None) -> int:
+    async with get_connection() as db:
+        return await db.fetchval("""
+            INSERT INTO jobs (bot_id, type, status, details, created_at, updated_at)
+            VALUES ($1, $2, 'pending', $3, NOW(), NOW())
+            RETURNING id
+        """, bot_id, type, json.dumps(details or {}))
+
+
+async def update_job(job_id: int, status: str = None, progress: int = None, details: Dict = None):
+    async with get_connection() as db:
+        # Build query dynamically
+        fields = ["updated_at = NOW()"]
+        values = [job_id]
+        i = 2
+        
+        if status:
+            fields.append(f"status = ${i}")
+            values.append(status)
+            i += 1
+        if progress is not None:
+            fields.append(f"progress = ${i}")
+            values.append(progress)
+            i += 1
+        if details:
+            fields.append(f"details = details || ${i}") # Merge details
+            values.append(json.dumps(details))
+            i += 1
+            
+        await db.execute(f"UPDATE jobs SET {', '.join(fields)} WHERE id = $1", *values)
+
+
+async def get_active_jobs(bot_id: int) -> List[Dict]:
+    async with get_connection() as db:
+        return await db.fetch("""
+            SELECT * FROM jobs 
+            WHERE bot_id = $1 AND status IN ('pending', 'processing')
+            ORDER BY created_at DESC
+        """, bot_id)
+
 
 async def get_promo_code(code: str, bot_id: int) -> Optional[Dict]:
     async with get_connection() as db:

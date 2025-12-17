@@ -161,6 +161,20 @@ async def _create_schema():
             except Exception as e:
                 logger.warning(f"Constraint migration error (users): {e}")
 
+            # Jobs table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id SERIAL PRIMARY KEY,
+                    bot_id BIGINT,
+                    type TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    progress INTEGER DEFAULT 0,
+                    details JSONB DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
+
             # Receipts
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS receipts (
