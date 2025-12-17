@@ -179,8 +179,14 @@ async def verify_csrf_token(request: Request):
     token = request.session.get("csrf_token")
     if not token:
         raise HTTPException(status_code=403, detail="CSRF token missing in session")
+    
+    # Fast path: header token to avoid parsing huge multipart bodies (e.g., promo code uploads)
+    header_token = request.headers.get("X-CSRF-Token")
+    if header_token and header_token == token:
+        return
+
     form = await request.form()
-    submitted_token = form.get("csrf_token") or request.headers.get("X-CSRF-Token")
+    submitted_token = form.get("csrf_token") or header_token
     if not submitted_token or submitted_token != token:
         raise HTTPException(status_code=403, detail="CSRF token invalid")
 

@@ -163,6 +163,9 @@
         progressBar.innerText = '0%';
 
         const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/codes/upload');
+        // CSRF header (fast path to avoid re-parsing huge multipart in dependency)
+        xhr.setRequestHeader('X-CSRF-Token', csrfToken);
 
         xhr.upload.addEventListener('progress', function (e) {
             if (e.lengthComputable) {
@@ -171,7 +174,7 @@
                 progressBar.innerText = percent + '%';
 
                 if (percent === 100) {
-                    statusText.innerText = "Загрузка завершена. Сохранение файла на сервер... (Это может занять минуту)";
+                    statusText.innerText = "Загрузка завершена. Сохранение файла на сервер...";
                     progressBar.classList.add('progress-bar-striped', 'progress-bar-animated'); // Ensure animation
                 } else {
                     statusText.innerText = `Загружено ${(e.loaded / 1024 / 1024).toFixed(2)} MB из ${(e.total / 1024 / 1024).toFixed(2)} MB`;
@@ -229,7 +232,6 @@
             closeBtn.disabled = false;
         });
 
-        xhr.open('POST', '/codes/upload');
         xhr.send(formData);
     }
 
