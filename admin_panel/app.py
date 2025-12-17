@@ -1481,17 +1481,28 @@ async def domain_setup(
 # === Logs Viewer ===
 
 @app.get("/settings/logs", response_class=HTMLResponse)
-async def logs_page(request: Request, service: str = "admin_bots", user: Dict = Depends(require_superadmin)):
-    """View systemd logs"""
+async def logs_page(request: Request, service: str = "admin_bots", q: str = None, level: str = None, user: Dict = Depends(require_superadmin)):
+    """View systemd logs with filtering"""
     import subprocess
     
     if service not in ["admin_bots", "admin_panel"]:
         service = "admin_bots"
         
+    cmd = ["journalctl", "-n", "200", "-u", service, "--no-pager"]
+    
+    if q:
+        cmd += ["-g", q]
+    
+    if level:
+        # Priority levels: 0: emerg, 1: alert, 2: crit, 3: err, 4: warning, 5: notice, 6: info, 7: debug
+        level_map = {"error": "3", "warning": "4", "info": "6"}
+        if level in level_map:
+            cmd += ["-p", level_map[level]]
+
     try:
         # Try without sudo first (requires user to be in systemd-journal group)
         result = subprocess.run(
-            ["journalctl", "-n", "100", "-u", service, "--no-pager"],
+            cmd,
             capture_output=True,
             text=True,
             check=True
@@ -1501,14 +1512,14 @@ async def logs_page(request: Request, service: str = "admin_bots", user: Dict = 
         logs = (
             f"❌ Ошибка доступа к логам: {e}\n\n"
             f"Для исправления выполните на сервере:\n"
-            f"sudo usermod -aG systemd-journal {config.DATABASE_URL.split('://')[1].split(':')[0]}\n"
+            f"sudo usermod -aG systemd-journal adminbots\n"
             f"sudo systemctl restart admin_panel\n\n"
             f"Затем обновите страницу."
         )
         
     return templates.TemplateResponse("settings/logs.html", get_template_context(
         request, user=user, title="Логи системы",
-        logs=logs, active_service=service
+        logs=logs, active_service=service, q=q, active_level=level
     ))
 
 
