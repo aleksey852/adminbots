@@ -1,10 +1,10 @@
 #!/bin/bash
-# Universal Update Script for Buster Vibe Bot
+# Universal Update Script for Admin Bots Platform
 # Usage: sudo bash scripts/update.sh
 
 set -e
 
-PROJECT_DIR="/opt/buster-vibe-bot"
+PROJECT_DIR="/opt/admin-bots-platform"
 SERVICE_USER="buster"
 
 RED='\033[0;31m'
@@ -21,7 +21,7 @@ if [[ $EUID -ne 0 ]]; then
    err "This script must be run as root: sudo bash scripts/update.sh"
 fi
 
-echo "=== Updating Buster Vibe Bot ==="
+echo "=== Updating Admin Bots Platform ==="
 
 # 1. Update Code
 log "Updating code..."
@@ -32,16 +32,13 @@ SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
 if [ -d "$PROJECT_DIR/.git" ]; then
     log "Pulling latest changes from git..."
     cd "$PROJECT_DIR"
-    # Fix ownership to allow git pull as root (safe in this context)
     git config --global --add safe.directory "$PROJECT_DIR"
     git pull origin main || warn "Git pull failed, continuing with local files..."
     cd - > /dev/null
 elif [ -d "$SOURCE_DIR/.git" ]; then
-    # If source is a git repo but target isn't (or we are deploying from a separate dir)
     log "Syncing files from $SOURCE_DIR to $PROJECT_DIR..."
     rsync -av --exclude 'venv' --exclude '.git' --exclude '__pycache__' --exclude '.env' "$SOURCE_DIR/" "$PROJECT_DIR/"
 else
-    # Fallback: just rsync
     log "Syncing files from $SOURCE_DIR to $PROJECT_DIR..."
     rsync -av --exclude 'venv' --exclude '.git' --exclude '__pycache__' --exclude '.env' "$SOURCE_DIR/" "$PROJECT_DIR/"
 fi
@@ -69,17 +66,17 @@ fi
 # 5. Server Optimization Check
 if [ ! -f /swapfile ] && [ $(free -m | awk '/^Mem:/{print $2}') -lt 2000 ]; then
     warn "Low memory detected and no swapfile found."
-    warn "Run 'sudo bash scripts/deploy.sh' to apply server optimizations."
+    warn "Run 'sudo bash scripts/optimize_server.sh' to apply server optimizations."
 fi
 
 # 6. Restart Services
 log "Restarting services..."
-systemctl restart buster_bot
-systemctl restart buster_admin
+systemctl restart admin_bots
+systemctl restart admin_panel
 
 # 7. Check Status
 sleep 3
-systemctl is-active --quiet buster_bot && log "✅ Bot is running" || warn "⚠️ Bot may have issues"
-systemctl is-active --quiet buster_admin && log "✅ Admin panel is running" || warn "⚠️ Admin panel may have issues"
+systemctl is-active --quiet admin_bots && log "✅ Bot is running" || warn "⚠️ Bot may have issues"
+systemctl is-active --quiet admin_panel && log "✅ Admin panel is running" || warn "⚠️ Admin panel may have issues"
 
 log "=== Update Complete! ==="

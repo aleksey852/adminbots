@@ -1,0 +1,22 @@
+[Unit]
+Description=Admin Bots Telegram Core
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=buster
+WorkingDirectory=/opt/admin-bots-platform
+EnvironmentFile=/opt/admin-bots-platform/.env
+ExecStart=/opt/admin-bots-platform/venv/bin/python main.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# Multi-bot optimizations
+LimitNOFILE=65535
+LimitNPROC=4096
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

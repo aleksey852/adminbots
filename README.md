@@ -104,14 +104,14 @@ admin-bots-platform/
 ### Сервисы systemd
 ```bash
 # Основной процесс ботов (Manager + Scheduler)
-sudo systemctl status buster_bot
+sudo systemctl status admin_bots
 
 # Админ-панель (Web)
-sudo systemctl status buster_admin
+sudo systemctl status admin_panel
 ```
 
 ### Резервное копирование
-Автоматически создаются ежедневные бэкапы базы данных в `/var/backups/buster-vibe-bot/`.
+Автоматически создаются ежедневные бэкапы базы данных в `/var/backups/admin-bots-platform/`.
 Ручной запуск: `sudo bash /opt/admin-bots-platform/scripts/backup.sh`
 
 ### Переменные окружения (.env)

@@ -155,7 +155,7 @@ else
 fi
 
 # 5. Update bot .env settings (optional)
-PROJECT_DIR="/opt/buster-vibe-bot"
+PROJECT_DIR="/opt/admin-bots-platform"
 if [ -f "$PROJECT_DIR/.env" ]; then
     log "Updating bot configuration..."
     
@@ -178,13 +178,13 @@ fi
 
 # 6. Restart bot services
 log "Restarting bot services..."
-systemctl restart buster_bot buster_admin
+systemctl restart admin_bots admin_panel
 sleep 3
 
 # Status check
 log "Checking services..."
-systemctl is-active --quiet buster_bot && log "✅ Bot is running" || warn "⚠️ Bot may have issues"
-systemctl is-active --quiet buster_admin && log "✅ Admin panel is running" || warn "⚠️ Admin panel may have issues"
+systemctl is-active --quiet admin_bots && log "✅ Bot is running" || warn "⚠️ Bot may have issues"
+systemctl is-active --quiet admin_panel && log "✅ Admin panel is running" || warn "⚠️ Admin panel may have issues"
 
 echo ""
 log "=== Optimization Complete! ==="
@@ -193,4 +193,4 @@ log "Server optimized for ${RAM_GB}GB RAM"
 log "All data preserved ✅"
 echo ""
 log "Configuration backups saved with timestamp"
-log "Check status: sudo systemctl status buster_bot buster_admin"
+log "Check status: sudo systemctl status admin_bots admin_panel"
