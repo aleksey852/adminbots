@@ -115,6 +115,21 @@ sudo systemctl status admin_bots
 sudo systemctl status admin_panel
 ```
 
+### 📋 Просмотр логов
+```bash
+# Логи админ-панели (в реальном времени)
+sudo journalctl -u admin_panel -f
+
+# Последние 100 строк логов панели
+sudo journalctl -u admin_panel -n 100 --no-pager
+
+# Логи ботов
+sudo journalctl -u admin_bots -f
+
+# Ошибки Nginx
+sudo tail -f /var/log/nginx/error.log
+```
+
 ### Резервное копирование
 Автоматически создаются ежедневные бэкапы базы данных в `/var/backups/admin-bots-platform/`.
 Ручной запуск: `sudo bash /opt/admin-bots-platform/scripts/backup.sh`
