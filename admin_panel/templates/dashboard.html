@@ -24,7 +24,9 @@
         <div class="card stat-card" style="border-left-color: #10b981;">
             <div class="card-body">
                 <div class="stat-value">{{ stats.valid_receipts if stats else 0 }}</div>
-                <div class="stat-label">Принятых чеков</div>
+                <div class="stat-label">
+                    {% if bot.type == 'promo' %}Активировано кодов{% else %}Принятых чеков{% endif %}
+                </div>
                 <div class="d-flex justify-content-between mt-2">
                     <small class="text-success" title="За последние 24 часа">+{{ stats.receipts_24h if stats else 0 }}
                         (24ч)</small>
@@ -40,7 +42,8 @@
                 <div class="stat-value">{{ stats.total_tickets if stats else 0 }}</div>
                 <div class="stat-label">Всего билетов</div>
                 <small class="text-muted">{{ participants if participants else 0 }} участников</small>
-                {% if stats.tickets_today %}<br><small class="text-success">+{{ stats.tickets_today }} сегодня</small>{% endif %}
+                {% if stats.tickets_today %}<br><small class="text-success">+{{ stats.tickets_today }} сегодня</small>{%
+                endif %}
             </div>
         </div>
     </div>
@@ -180,7 +183,7 @@
                     fill: true
                 },
                 {
-                    label: 'Принятые чеки',
+                    label: '{% if bot.type == "promo" %}Активировано кодов{% else %}Принятые чеки{% endif %}',
                     data: receipts,
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',

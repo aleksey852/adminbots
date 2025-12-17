@@ -251,10 +251,14 @@
         <ul class="nav flex-column">
             <li><a class="nav-link {% if '/users' in request.url.path %}active{% endif %}" href="/users"><i
                         class="bi bi-people"></i> Пользователи</a></li>
+            {% if not bot or bot.type == 'receipt' %}
             <li><a class="nav-link {% if '/receipts' in request.url.path %}active{% endif %}" href="/receipts"><i
                         class="bi bi-receipt"></i> Чеки</a></li>
+            {% endif %}
+            {% if not bot or bot.type == 'promo' %}
             <li><a class="nav-link {% if '/codes' in request.url.path %}active{% endif %}" href="/codes"><i
                         class="bi bi-upc-scan"></i> Промокоды</a></li>
+            {% endif %}
             <li><a class="nav-link {% if '/winners' in request.url.path %}active{% endif %}" href="/winners"><i
                         class="bi bi-trophy"></i> Победители</a></li>
         </ul>

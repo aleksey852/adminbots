@@ -35,6 +35,10 @@ def get_excluded_keywords(bot_id: int = None):
 async def start_receipt_upload(message: Message, state: FSMContext, bot_id: int = None):
     if not bot_id: return
     
+    # Check bot type
+    if bot_manager.bot_types.get(bot_id) != 'receipt':
+        return
+    
     if not config.is_promo_active():
         promo_ended_msg = config_manager.get_message(
             'promo_ended',
@@ -81,6 +85,10 @@ async def start_receipt_upload(message: Message, state: FSMContext, bot_id: int 
 @router.message(ReceiptSubmission.upload_qr, F.photo)
 async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot, bot_id: int = None):
     if not bot_id: return
+    
+    # Check bot type
+    if bot_manager.bot_types.get(bot_id) != 'receipt':
+        return
     
     allowed, limit_msg = await check_rate_limit(message.from_user.id)
     if not allowed:
