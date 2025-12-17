@@ -588,3 +588,64 @@ async def block_user(user_id: int, blocked: bool = True):
     """Block or unblock user"""
     async with get_connection() as db:
         await db.execute("UPDATE users SET is_blocked = $1 WHERE id = $2", blocked, user_id)
+
+
+# === Promo Codes ===
+
+async def add_promo_codes(bot_id: int, codes: List[str], tickets: int = 1) -> int:
+    """Bulk add promo codes"""
+    if not codes: return 0
+    
+    count = 0
+    async with get_connection() as db:
+        # We use a transaction for bulk insert
+        async with db.conn.transaction():
+            for code in codes:
+                if not code.strip(): continue
+                await db.execute("""
+                    INSERT INTO promo_codes (bot_id, code, tickets)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (bot_id, code) DO NOTHING
+                """, bot_id, code.strip(), tickets)
+                count += 1
+    return count
+
+
+async def get_promo_code(code: str, bot_id: int) -> Optional[Dict]:
+    async with get_connection() as db:
+        return await db.fetchrow("SELECT * FROM promo_codes WHERE code = $1 AND bot_id = $2", code, bot_id)
+
+
+async def use_promo_code(code_id: int, user_id: int) -> bool:
+    """Mark code as used and return True if successful"""
+    async with get_connection() as db:
+        result = await db.execute("""
+            UPDATE promo_codes 
+            SET status = 'used', user_id = $1, used_at = NOW() 
+            WHERE id = $2 AND status = 'active'
+        """, user_id, code_id)
+        # Check if row was updated (result string usually 'UPDATE 1')
+        return "UPDATE 1" in result
+
+
+async def get_promo_stats(bot_id: int) -> Dict:
+    async with get_connection() as db:
+        return await db.fetchrow("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
+                COUNT(CASE WHEN status = 'used' THEN 1 END) as used
+            FROM promo_codes WHERE bot_id = $1
+        """, bot_id)
+
+
+async def get_promo_codes_paginated(bot_id: int, limit: int = 50, offset: int = 0) -> List[Dict]:
+    async with get_connection() as db:
+        return await db.fetch("""
+            SELECT p.*, u.username, u.full_name 
+            FROM promo_codes p
+            LEFT JOIN users u ON p.user_id = u.id
+            WHERE p.bot_id = $1
+            ORDER BY p.id DESC
+            LIMIT $2 OFFSET $3
+        """, bot_id, limit, offset)

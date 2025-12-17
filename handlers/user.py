@@ -11,6 +11,7 @@ import math
 from database import get_user, get_user_with_stats, get_user_receipts, update_username, get_user_wins
 from utils.states import Registration
 from utils.config_manager import config_manager
+from bot_manager import bot_manager
 from keyboards import (
     get_main_keyboard, get_cancel_keyboard, get_receipts_pagination_keyboard,
     get_faq_keyboard, get_faq_back_keyboard, get_support_keyboard
@@ -42,7 +43,7 @@ async def cancel_handler(message: Message, state: FSMContext, bot_id: int = None
     
     await message.answer(
         cancel_msg,
-        reply_markup=get_main_keyboard(config.is_admin(message.from_user.id))
+        reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_manager.bot_types.get(bot_id, 'receipt'))
     )
 
 
@@ -76,7 +77,7 @@ async def command_start(message: Message, state: FSMContext, bot_id: int = None)
             bot_id=bot_id
         ).format(name=user['full_name'], count=tickets_count, days_text=days_text)
         
-        await message.answer(welcome_msg, reply_markup=get_main_keyboard(config.is_admin(message.from_user.id)))
+        await message.answer(welcome_msg, reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_manager.bot_types.get(bot_id, 'receipt')))
     else:
         promo_name = config_manager.get_setting('PROMO_NAME', config.PROMO_NAME, bot_id=bot_id)
         prizes = config_manager.get_setting('PROMO_PRIZES', config.PROMO_PRIZES, bot_id=bot_id)
@@ -139,7 +140,7 @@ async def command_help(message: Message, bot_id: int = None):
     )
     await message.answer(
         help_msg,
-        reply_markup=get_main_keyboard(config.is_admin(message.from_user.id))
+        reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_manager.bot_types.get(bot_id, 'receipt'))
     )
 
 

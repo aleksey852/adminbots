@@ -13,6 +13,7 @@ class BotManager:
     def __init__(self):
         self.bots: Dict[int, Bot] = {}  # db_bot_id -> Bot instance
         self.bot_tokens: Dict[int, str] = {} # db_bot_id -> token
+        self.bot_types: Dict[int, str] = {} # db_bot_id -> type (receipt/promo)
         self.bot_mapping: Dict[int, int] = {} # telegram_bot_id -> db_bot_id
 
     async def load_bots(self):
@@ -26,6 +27,7 @@ class BotManager:
         for row in rows:
             bot_id = row['id']
             token = row['token']
+            bot_type = row.get('type', 'receipt')
             new_ids.add(bot_id)
             
             if bot_id in self.bots:
@@ -34,23 +36,26 @@ class BotManager:
                     logger.info(f"Token changed for bot {bot_id}, reloading...")
                     await self.stop_bot(bot_id)
                 else:
+                    # Update type just in case
+                    self.bot_types[bot_id] = bot_type
                     continue
             
-            await self.start_bot(bot_id, token)
+            await self.start_bot(bot_id, token, bot_type)
         
         # Stop removed bots
         for bot_id in current_ids - new_ids:
             logger.info(f"Bot {bot_id} is no longer active, stopping...")
             await self.stop_bot(bot_id)
 
-    async def start_bot(self, bot_id: int, token: str):
+    async def start_bot(self, bot_id: int, token: str, bot_type: str = 'receipt'):
         try:
             bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
             me = await bot.get_me()
             self.bots[bot_id] = bot
             self.bot_tokens[bot_id] = token
+            self.bot_types[bot_id] = bot_type
             self.bot_mapping[me.id] = bot_id
-            logger.info(f"Started bot {bot_id} (@{me.username})")
+            logger.info(f"Started bot {bot_id} (@{me.username}) [Type: {bot_type}]")
         except Exception as e:
             logger.error(f"Failed to start bot {bot_id}: {e}")
 
@@ -68,6 +73,8 @@ class BotManager:
                 logger.error(f"Error closing bot {bot_id}: {e}")
             del self.bots[bot_id]
             del self.bot_tokens[bot_id]
+            if bot_id in self.bot_types:
+                del self.bot_types[bot_id]
 
     def get_bots(self) -> List[Bot]:
         return list(self.bots.values())

@@ -222,6 +222,21 @@ async def _create_schema():
             if default_bot_id:
                 await db.execute(f"UPDATE winners SET bot_id = {default_bot_id} WHERE bot_id IS NULL")
 
+            # Promo Codes
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS promo_codes (
+                    id SERIAL PRIMARY KEY,
+                    bot_id INTEGER REFERENCES bots(id) ON DELETE CASCADE,
+                    code TEXT NOT NULL,
+                    status TEXT DEFAULT 'active', -- active, used
+                    tickets INTEGER DEFAULT 1,
+                    user_id INTEGER REFERENCES users(id),
+                    used_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(bot_id, code)
+                );
+            """)
+
             # Broadcast Progress (depends on campaign, so implied, but good to ensure FK consistency if creating fresh)
              # (No bot_id needed here necessarily if 1:1 with campaign_id which has bot_id, but keeping structure simple)
             await db.execute("""

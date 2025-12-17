@@ -7,6 +7,7 @@ import logging
 
 from utils.states import ReceiptSubmission
 from utils.config_manager import config_manager
+from bot_manager import bot_manager
 from keyboards import get_main_keyboard, get_cancel_keyboard, get_receipt_continue_keyboard, get_support_keyboard
 from utils.api import check_receipt
 from utils.rate_limiter import check_rate_limit, increment_rate_limit
@@ -311,7 +312,7 @@ async def process_receipt_invalid_type(message: Message, state: FSMContext, bot_
         
         await message.answer(
             cancel_msg,
-            reply_markup=get_main_keyboard(config.is_admin(message.from_user.id))
+            reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_manager.bot_types.get(bot_id, 'receipt'))
         )
         return
     

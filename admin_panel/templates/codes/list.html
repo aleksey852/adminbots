@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Промокоды</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+        <i class="bi bi-upload"></i> Загрузить коды
+    </button>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="stat-value">{{ stats.total|default(0) }}</div>
+                <div class="stat-label">Всего кодов</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card" style="border-left-color: #10b981;">
+            <div class="card-body">
+                <div class="stat-value">{{ stats.active|default(0) }}</div>
+                <div class="stat-label">Доступно</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card" style="border-left-color: #f59e0b;">
+            <div class="card-body">
+                <div class="stat-value">{{ stats.used|default(0) }}</div>
+                <div class="stat-label">Использовано</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Код</th>
+                        <th>Статус</th>
+                        <th>Билеты</th>
+                        <th>Использовал</th>
+                        <th>Дата</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in codes %}
+                    <tr>
+                        <td>#{{ c.id }}</td>
+                        <td><code class="text-primary">{{ c.code }}</code></td>
+                        <td>
+                            {% if c.status == 'active' %}
+                            <span class="badge bg-success">Активен</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Использован</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ c.tickets }}</td>
+                        <td>
+                            {% if c.user_id %}
+                            <a href="/users/{{ c.user_id }}">{{ c.full_name or c.username or 'User' }}</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ c.used_at.strftime('%d.%m %H:%M') if c.used_at else '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">Нет кодов</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Загрузка кодов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/codes/upload" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Список кодов (каждый с новой строки)</label>
+                        <textarea class="form-control" name="codes_text" rows="10"
+                            placeholder="CODE1&#10;CODE2&#10;CODE3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Загрузить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

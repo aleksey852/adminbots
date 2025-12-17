@@ -20,7 +20,7 @@ from redis.asyncio import Redis
 import config
 from database.db import init_db, close_db, get_connection
 from database import methods
-from handlers import registration, user, receipts, admin
+from handlers import registration, user, receipts, admin, promo
 from bot_manager import bot_manager
 from utils.bot_middleware import BotMiddleware
 
@@ -352,6 +352,7 @@ async def on_startup():
     dp.include_router(registration.router)
     dp.include_router(user.router)
     dp.include_router(receipts.router)
+    dp.include_router(promo.router)
     dp.include_router(admin.router)
     
     # Add Middleware

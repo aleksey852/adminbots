@@ -635,6 +635,51 @@ async def create_broadcast(request: Request, text: str = Form(None), photo: Uplo
     return RedirectResponse(url=f"/broadcast?created={campaign_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+# === All Campaigns ===
+
+@app.get("/campaigns", response_class=HTMLResponse)
+async def campaigns_list(request: Request, user: str = Depends(get_current_user), page: int = 1):
+    bot = request.state.bot
+    if not bot: return RedirectResponse("/")
+    
+    # We reuse get_recent_campaigns but maybe we need pagination?
+    # For now let's just show top 50
+    campaigns = await get_recent_campaigns(bot['id'], limit=50)
+    
+    return templates.TemplateResponse("campaigns/list.html", get_template_context(
+        request, user=user, campaigns=campaigns,
+        title="Кампании"
+    ))
+
+
+# === Promo Codes ===
+
+@app.get("/codes", response_class=HTMLResponse)
+async def codes_list(request: Request, user: str = Depends(get_current_user), page: int = 1):
+    from database import get_promo_stats, get_promo_codes_paginated
+    bot = request.state.bot
+    if not bot: return RedirectResponse("/")
+    
+    stats = await get_promo_stats(bot['id'])
+    codes = await get_promo_codes_paginated(bot['id'], limit=50, offset=(page-1)*50)
+    
+    return templates.TemplateResponse("codes/list.html", get_template_context(
+        request, user=user, title="Промокоды",
+        stats=stats, codes=codes
+    ))
+
+@app.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
+async def upload_codes(request: Request, codes_text: str = Form(...), user: str = Depends(get_current_user)):
+    from database import add_promo_codes
+    bot = request.state.bot
+    if not bot: return RedirectResponse("/")
+    
+    codes = [line.strip() for line in codes_text.splitlines() if line.strip()]
+    count = await add_promo_codes(bot['id'], codes)
+    
+    return RedirectResponse(url=f"/codes?msg=added_{count}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 # === Raffle ===
 
 @app.get("/raffle", response_class=HTMLResponse)

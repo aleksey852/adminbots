@@ -227,8 +227,11 @@
                         </form>
                     </li>
                     {% endfor %}
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="/bots/new"><i class="bi bi-plus-circle me-2"></i>Добавить бота</a></li>
+                    <li>
+                        <hr class="dropdown-divider">
+                    </li>
+                    <li><a class="dropdown-item" href="/bots/new"><i class="bi bi-plus-circle me-2"></i>Добавить
+                            бота</a></li>
                 </ul>
             </div>
             {% if bot %}
@@ -250,6 +253,8 @@
                         class="bi bi-people"></i> Пользователи</a></li>
             <li><a class="nav-link {% if '/receipts' in request.url.path %}active{% endif %}" href="/receipts"><i
                         class="bi bi-receipt"></i> Чеки</a></li>
+            <li><a class="nav-link {% if '/codes' in request.url.path %}active{% endif %}" href="/codes"><i
+                        class="bi bi-upc-scan"></i> Промокоды</a></li>
             <li><a class="nav-link {% if '/winners' in request.url.path %}active{% endif %}" href="/winners"><i
                         class="bi bi-trophy"></i> Победители</a></li>
         </ul>
@@ -274,8 +279,8 @@
                     href="/settings/messages"><i class="bi bi-chat-text"></i> Тексты</a></li>
             <li><a class="nav-link {% if '/settings/support' in request.url.path %}active{% endif %}"
                     href="/settings/support"><i class="bi bi-headset"></i> Поддержка</a></li>
-            <li><a class="nav-link {% if '/modules' in request.url.path %}active{% endif %}"
-                    href="/modules"><i class="bi bi-puzzle"></i> Модули</a></li>
+            <li><a class="nav-link {% if '/modules' in request.url.path %}active{% endif %}" href="/modules"><i
+                        class="bi bi-puzzle"></i> Модули</a></li>
         </ul>
 
         <div class="sidebar-footer">

@@ -24,4 +24,6 @@ from database.methods import (
     get_broadcast_progress, save_broadcast_progress, delete_broadcast_progress,
     # Health & Stats
     check_db_health, get_stats, get_stats_by_days,
+    # Promo
+    add_promo_codes, get_promo_code, use_promo_code, get_promo_stats, get_promo_codes_paginated,
 )

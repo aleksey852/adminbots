@@ -42,11 +42,17 @@ def get_receipt_continue_keyboard():
     return _reply("🧾 Ещё чек", "🏠 В меню")
 
 
-def get_main_keyboard(is_admin: bool = False):
-    buttons = [
-        "🧾 Загрузить чек", "👤 Мой профиль",
-        "📋 Мои чеки", "ℹ️ FAQ", "🆘 Поддержка"
-    ]
+def get_main_keyboard(is_admin: bool = False, bot_type: str = 'receipt'):
+    buttons = []
+    if bot_type == 'receipt':
+        buttons.append("🧾 Загрузить чек")
+    else:
+        # For promo bots, maybe just text prompt or different button?
+        # For now, just remove the upload button.
+        pass
+
+    buttons.extend(["👤 Мой профиль", "📋 Мои чеки", "ℹ️ FAQ", "🆘 Поддержка"])
+    
     if is_admin:
         buttons.extend([
             "📊 Статистика", "📢 Рассылка", "🎁 Розыгрыш",
