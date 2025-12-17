@@ -108,9 +108,14 @@ def days_until_end() -> int:
 def validate_config() -> List[str]:
     """Validate critical settings on startup"""
     errors = []
-    if not BOT_TOKEN: errors.append("BOT_TOKEN is not set")
-    if not PROVERKA_CHEKA_TOKEN: errors.append("PROVERKA_CHEKA_TOKEN is not set")
-    if not ADMIN_IDS: errors.append("ADMIN_IDS is not set")
+    # Relaxed validation for zero-config deployment
+    if not BOT_TOKEN:
+        print("⚠️  WARNING: BOT_TOKEN is not set in .env. Bots will not poll until configured.")
+    if not PROVERKA_CHEKA_TOKEN:
+        print("⚠️  WARNING: PROVERKA_CHEKA_TOKEN is not set. Receipt checking will fail.")
+    if not ADMIN_IDS:
+        print("⚠️  WARNING: ADMIN_IDS is not set. No telegram admins configured.")
+        
     if not ADMIN_PANEL_PASSWORD or len(ADMIN_PANEL_PASSWORD) < 12:
         errors.append("ADMIN_PANEL_PASSWORD must be at least 12 characters")
     if not ADMIN_SECRET_KEY or len(ADMIN_SECRET_KEY) < 32:
