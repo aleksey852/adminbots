@@ -210,30 +210,27 @@
                         resultAlert.innerText = "Ошибка: " + (response.message || xhr.statusText);
                     } catch (e) {
                         console.error("Error response is not JSON:", xhr.responseText);
-                        resultAlert.classList.remove('d-none');
-                        btn.disabled = false;
-                        closeBtn.disabled = false;
+                        resultAlert.innerText = "Ошибка загрузки (" + xhr.status + "): " + xhr.statusText;
                     }
-                });
-    }
                 }
-    resultAlert.classList.remove('d-none');
-    btn.disabled = false;
-    closeBtn.disabled = false;
+
+                resultAlert.classList.remove('d-none');
+                btn.disabled = false;
+                closeBtn.disabled = false;
             }
         });
 
-    xhr.addEventListener('error', function () {
-        console.error("Network Error");
-        resultAlert.className = 'alert alert-danger mt-3';
-        resultAlert.innerText = "Ошибка сети (возможно файл слишком большой или соединение разорвано)";
-        resultAlert.classList.remove('d-none');
-        btn.disabled = false;
-        closeBtn.disabled = false;
-    });
+        xhr.addEventListener('error', function () {
+            console.error("Network Error");
+            resultAlert.className = 'alert alert-danger mt-3';
+            resultAlert.innerText = "Ошибка сети (возможно файл слишком большой или соединение разорвано)";
+            resultAlert.classList.remove('d-none');
+            btn.disabled = false;
+            closeBtn.disabled = false;
+        });
 
-    xhr.open('POST', '/codes/upload');
-    xhr.send(formData);
+        xhr.open('POST', '/codes/upload');
+        xhr.send(formData);
     }
 
     // Job Polling
