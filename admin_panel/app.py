@@ -71,7 +71,7 @@ app = FastAPI(title="Admin Bots Panel", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
-app.add_middleware(SessionMiddleware, secret_key=config.ADMIN_SECRET_KEY)
+
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 ALGORITHM = "HS256"
@@ -123,6 +123,8 @@ async def context_middleware(request: Request, call_next):
         logger.warning(f"🐢 Slow request: {duration:.2f}s")
     
     return response
+
+app.add_middleware(SessionMiddleware, secret_key=config.ADMIN_SECRET_KEY)
 
 
 # Editable promo settings
