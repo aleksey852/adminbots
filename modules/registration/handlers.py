@@ -110,10 +110,10 @@ class RegistrationModule(BotModule):
             
             data = await state.get_data()
             await add_user(
-                telegram_id=message.from_user.id,
-                username=message.from_user.username or "",
-                full_name=data.get("name", "Пользователь"),
-                phone=phone
+                message.from_user.id,
+                message.from_user.username or "",
+                data.get("name", "Пользователь"),
+                phone
             )
             
             await state.clear()

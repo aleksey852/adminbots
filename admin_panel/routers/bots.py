@@ -112,6 +112,19 @@ def setup_routes(
         await update_bot(bot_id, admin_ids=p_ids)
         return RedirectResponse(f"/bots/{bot_id}/edit?msg=Admins+updated", 303)
 
+    @router.post("/{bot_id}/modules", dependencies=[Depends(verify_csrf_token)])
+    async def update_bot_modules(request: Request, bot_id: int):
+        from database.panel_db import update_bot
+        form = await request.form()
+        modules = list(form.getlist('modules'))
+        # Ensure required modules are always included
+        if 'registration' not in modules:
+            modules.append('registration')
+        if 'core' not in modules:
+            modules.append('core')
+        await update_bot(bot_id, enabled_modules=modules)
+        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Modules+updated", 303)
+
     @router.post("/{bot_id}/delete", dependencies=[Depends(verify_csrf_token)])
     async def delete_bot_permanently(request: Request, bot_id: int, confirm: str = Form(...), user: Dict = Depends(require_superadmin)):
         from database.panel_db import delete_bot_registry
