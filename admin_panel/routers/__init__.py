@@ -3,7 +3,6 @@ from .auth import router as auth_router
 from .bots import router as bots_router
 from .users import router as users_router
 from .campaigns import router as campaigns_router
-from .settings import router as settings_router
 from .system import router as system_router
 from .texts import router as texts_router
 
@@ -13,6 +12,5 @@ __all__ = [
     'users_router',
     'bots_router',
     'campaigns_router',
-    'settings_router',
     'texts_router'
 ]
