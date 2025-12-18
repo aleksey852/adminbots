@@ -89,6 +89,7 @@ def setup_routes(
     async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
         from database.bot_methods import get_stats, bot_db_context
         from utils.config_manager import config_manager
+        from modules.base import module_loader
         
         bot = await get_bot_by_id(bot_id)
         if not bot: raise HTTPException(404, "Bot not found")
@@ -99,7 +100,42 @@ def setup_routes(
         
         if not config_manager._initialized: await config_manager.load()
         
-        # Fetch subscription settings
+        # --- Modules & Settings Logic ---
+        enabled_modules = set(bot.get('enabled_modules') or [])
+        modules_data = []
+        
+        # Sort: core/registration first, then others
+        sorted_modules = sorted(
+            module_loader.modules.values(), 
+            key=lambda x: 0 if x.name in ('core', 'registration') else 1
+        )
+
+        async with bot_db_context(bot_id):
+            # Fetch stats
+            stats = await get_stats()
+            
+            # Prepare module data with settings
+            for mod in sorted_modules:
+                settings = []
+                if hasattr(mod, 'settings_schema'):
+                    for key, schema in mod.settings_schema.items():
+                        current_val = config_manager.get_setting(key, schema.get('default'), bot_id)
+                        settings.append({
+                            'key': key,
+                            'value': current_val,
+                            **schema
+                        })
+                
+                modules_data.append({
+                    'name': mod.name,
+                    'description': mod.description,
+                    'enabled': mod.name in enabled_modules,
+                    'is_required': mod.name in ('core', 'registration'),
+                    'settings': settings
+                })
+
+        # Subscription settings (Legacy check, maybe move to module schema later?)
+        # Keeping as is for now as requested in plan
         SUBSCRIPTION_FIELDS = [
             ("SUBSCRIPTION_REQUIRED", "Требовать подписку на канал"),
             ("SUBSCRIPTION_CHANNEL_ID", "ID канала (напр. -1001234567890)"),
@@ -108,70 +144,35 @@ def setup_routes(
         defaults = {"SUBSCRIPTION_REQUIRED": "false", "SUBSCRIPTION_CHANNEL_ID": "", "SUBSCRIPTION_CHANNEL_URL": ""}
         sub_settings = [(k, l, config_manager.get_setting(k, defaults.get(k, ""), bot_id)) for k, l in SUBSCRIPTION_FIELDS]
 
-        async with bot_db_context(bot_id): stats = await get_stats()
         return templates.TemplateResponse("bots/edit.html", get_template_context(
             request, user=user, title=f"Бот: {bot['name']}", edit_bot=bot, stats=stats, message=msg,
-            subscription_settings=sub_settings
-        ))
-
-    @router.post("/{bot_id}/subscription", dependencies=[Depends(verify_csrf_token)])
-    async def update_bot_subscription(
-        request: Request, bot_id: int, 
-        SUBSCRIPTION_REQUIRED: str = Form("false"),
-        SUBSCRIPTION_CHANNEL_ID: str = Form(""),
-        SUBSCRIPTION_CHANNEL_URL: str = Form("")
-    ):
-        from utils.config_manager import config_manager
-        
-        await config_manager.set_setting('SUBSCRIPTION_REQUIRED', SUBSCRIPTION_REQUIRED, bot_id)
-        await config_manager.set_setting('SUBSCRIPTION_CHANNEL_ID', SUBSCRIPTION_CHANNEL_ID, bot_id)
-        await config_manager.set_setting('SUBSCRIPTION_CHANNEL_URL', SUBSCRIPTION_CHANNEL_URL, bot_id)
-        
-        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Subscription+updated", 303)
-
-    @router.post("/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
-    async def update_bot_route(request: Request, bot_id: int, name: str = Form(...), type: str = Form(...)):
-        from database.panel_db import get_panel_connection
-        async with get_panel_connection() as db:
-            await db.execute("UPDATE bot_registry SET name = $2, type = $3 WHERE id = $1", bot_id, name, type)
-        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Updated", 303)
-
-    @router.post("/{bot_id}/admins", dependencies=[Depends(verify_csrf_token)])
-    async def update_bot_admins(request: Request, bot_id: int, admin_ids: str = Form("")):
-        from database.panel_db import update_bot
-        p_ids = [int(x.strip()) for x in admin_ids.split(',') if x.strip().isdigit()]
-        await update_bot(bot_id, admin_ids=p_ids)
-        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Admins+updated", 303)
-
-    @router.get("/{bot_id}/modules", response_class=HTMLResponse)
-    async def bot_modules_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin)):
-        bot = await get_bot_by_id(bot_id)
-        if not bot: raise HTTPException(404, "Bot not found")
-        
-        from modules.base import module_loader
-        # Get module objects to show descriptions
-        modules = []
-        for name, mod in module_loader.modules.items():
-             modules.append({"name": name, "description": mod.description})
-        
-        # Sort: core/registration first, then others
-        modules.sort(key=lambda x: 0 if x['name'] in ('core', 'registration') else 1)
-        
-        return templates.TemplateResponse("bots/modules.html", get_template_context(
-            request, user=user, title=f"Модули: {bot['name']}", bot=bot, available_modules=modules
+            subscription_settings=sub_settings,
+            modules=modules_data
         ))
 
     @router.post("/{bot_id}/modules", dependencies=[Depends(verify_csrf_token)])
     async def update_bot_modules(request: Request, bot_id: int):
         from database.panel_db import update_bot
+        from utils.config_manager import config_manager
+        from modules.base import module_loader
+        
         form = await request.form()
+        
+        # 1. Update Enabled Modules
         modules = list(form.getlist('modules'))
-        # Ensure required modules are always included
-        if 'registration' not in modules:
-            modules.append('registration')
-        if 'core' not in modules:
-            modules.append('core')
+        if 'registration' not in modules: modules.append('registration')
+        if 'core' not in modules: modules.append('core')
         await update_bot(bot_id, enabled_modules=modules)
+        
+        # 2. Update Settings
+        # Iterate over all known schemas and check form for values
+        for mod in module_loader.modules.values():
+            if hasattr(mod, 'settings_schema'):
+                for key in mod.settings_schema:
+                    if key in form:
+                        value = form[key]
+                        await config_manager.set_setting(key, value, bot_id)
+        
         return RedirectResponse(f"/bots/{bot_id}/edit?msg=Modules+updated", 303)
 
     @router.post("/{bot_id}/delete", dependencies=[Depends(verify_csrf_token)])

@@ -31,6 +31,10 @@ class BotModule(ABC):
     
     # Default messages for this module
     default_messages: Dict[str, str] = {}
+
+    # Settings schema for admin panel
+    # Format: { "key": { "type": "text|checkbox|number|textarea", "label": "Label", "default": "val", "required": True } }
+    settings_schema: Dict[str, Dict[str, Any]] = {}
     
     def __init__(self):
         self.router = Router(name=self.name)

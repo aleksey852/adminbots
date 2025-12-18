@@ -29,6 +29,33 @@ class CoreModule(BotModule):
     description = "Базовый функционал: меню, профиль, FAQ"
     default_enabled = True
     
+    settings_schema = {
+        "PROMO_NAME": {
+            "type": "text", 
+            "label": "Название акции", 
+            "default": config.PROMO_NAME,
+            "required": True
+        },
+        "PROMO_PRIZES": {
+            "type": "textarea",
+            "label": "Список призов",
+            "default": config.PROMO_PRIZES,
+            "required": True
+        },
+        "PROMO_START_DATE": {
+            "type": "text",
+            "label": "Дата начала (YYYY-MM-DD)",
+            "default": str(config.PROMO_START_DATE),
+            "required": True
+        },
+        "PROMO_END_DATE": {
+            "type": "text",
+            "label": "Дата окончания (YYYY-MM-DD)",
+            "default": str(config.PROMO_END_DATE),
+            "required": True
+        }
+    }
+    
     RECEIPTS_PER_PAGE = 10
     
     default_messages = {
