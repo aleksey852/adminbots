@@ -324,14 +324,6 @@ async def set_pipeline_config(bot_id: int, chain_name: str, steps: List[str]):
             DO UPDATE SET steps = $3, updated_at = NOW()
         """, bot_id, chain_name, json.dumps(steps))
 
-async def delete_pipeline_config(bot_id: int, chain_name: str):
-    """Delete custom step order, reverting to default"""
-    async with get_panel_connection() as db:
-        await db.execute(
-            "DELETE FROM pipeline_config WHERE bot_id = $1 AND chain_name = $2",
-            bot_id, chain_name
-        )
-
 async def get_all_pipeline_configs(bot_id: int) -> Dict[str, List[str]]:
     """Get all pipeline configs for a bot"""
     async with get_panel_connection() as db:

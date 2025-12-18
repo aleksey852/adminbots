@@ -3,157 +3,115 @@ Workflow Manager
 Handles dynamic chains of steps for various processes (e.g. registration).
 """
 import logging
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any
+from copy import deepcopy
 
 logger = logging.getLogger(__name__)
 
 class WorkflowManager:
     """
-    Manages linear workflows (chains of steps).
-    Modules can register steps into a named chain.
+    Manages workflows with a "Lake" of steps.
+    Steps are registered globally and can be used in different chains.
     """
     
     def __init__(self):
-        # chain_name -> list of steps associated with it
-        self.chains: Dict[str, List[Dict[str, Any]]] = {}
+        # Global registry of all available steps
+        # step_id -> step_definition
+        self.step_registry: Dict[str, Dict[str, Any]] = {}
+        
+        # Default configurations for chains (fallback if not in DB)
+        # chain_name -> list of step_ids
+        self.default_chains: Dict[str, List[str]] = {}
     
     def register_step(self, 
-                      chain_name: str, 
-                      step_name: str, 
-                      order: int = 100, 
+                      step_id: str,
+                      name: str,
+                      module_name: str,
                       state_name: str = None,
-                      module_name: str = None,
+                      description: str = "",
                       meta: Dict = None):
         """
-        Register a step in a workflow chain.
-        :param chain_name: Name of the workflow (e.g., 'registration')
-        :param step_name: Unique name of the step (e.g., 'phone')
-        :param order: Sort order (lower = earlier)
-        :param state_name: FSM state associated with this step (optional)
-        :param module_name: Name of the module owning this step (for enable/disable checks)
-        :param meta: Any extra metadata
+        Register a step definition in the global pool.
+        :param step_id: Unique identifier (e.g., 'registration.phone')
+        :param name: Human readable name
+        :param module_name: Module owning this step
+        :param state_name: FSM state associated with this step
+        :param description: Short description for UI
         """
-        if chain_name not in self.chains:
-            self.chains[chain_name] = []
-            
-        step = {
-            "name": step_name,
-            "order": order,
-            "state": state_name,
+        self.step_registry[step_id] = {
+            "id": step_id,
+            "name": name,
             "module_name": module_name,
+            "state": state_name,
+            "description": description,
             "meta": meta or {}
         }
-        
-        # Remove existing if same name (overwrite)
-        self.chains[chain_name] = [s for s in self.chains[chain_name] if s["name"] != step_name]
-        
-        self.chains[chain_name].append(step)
-        # Sort by order
-        self.chains[chain_name].sort(key=lambda x: x["order"])
-        
-        logger.info(f"Registered step '{step_name}' in chain '{chain_name}' at order {order} (Module: {module_name})")
+        logger.info(f"Registered step definition '{step_id}' ({name}) from module {module_name}")
 
-    def get_steps(self, chain_name: str) -> List[Dict]:
-        return self.chains.get(chain_name, [])
-
-    def get_steps_by_module(self, module_name: str) -> List[str]:
-        """Get list of step names registered by a specific module across all chains."""
+    def register_default_chain(self, chain_name: str, step_ids: List[str]):
+        """Define default sequence for a chain"""
+        self.default_chains[chain_name] = step_ids
+        
+    def get_all_steps(self) -> List[Dict]:
+        """Get list of all registered steps"""
+        return list(self.step_registry.values())
+        
+    def get_chain_steps_sync(self, chain_name: str) -> List[Dict]:
+        """Get default steps for a chain (sync helper for initial load)"""
+        step_ids = self.default_chains.get(chain_name, [])
         steps = []
-        for chain in self.chains.values():
-            for step in chain:
-                if step.get("module_name") == module_name:
-                    steps.append(step["name"])
+        for sid in step_ids:
+            if sid in self.step_registry:
+                steps.append(self.step_registry[sid])
         return steps
 
-    async def get_next_step(self, chain_name: str, current_step_name: str, bot_id: int = None) -> Optional[Dict]:
+    async def get_next_step(self, chain_name: str, current_step_id: str, bot_id: int) -> Optional[Dict]:
         """
-        Get the next ENABLED step after the current one.
-        If bot_id is provided, checks if the module owning the step is enabled.
-        Also respects custom pipeline order from DB if bot_id is provided.
+        Get the next ENABLED step ID in the chain for a specific bot.
         """
-        from modules.base import module_loader
         from database.panel_db import get_pipeline_config
+        from modules.base import module_loader
         
-        default_steps = self.chains.get(chain_name, [])
-        if not default_steps:
-            return None
+        # 1. Get effective pipeline config
+        # Default
+        step_ids = self.default_chains.get(chain_name, [])
+        
+        # Custom override
+        custom_ids = await get_pipeline_config(bot_id, chain_name)
+        if custom_ids:
+            step_ids = custom_ids
             
-        # Determine effective step order
-        steps_ordered = default_steps
-        
-        if bot_id:
-            custom_order_names = await get_pipeline_config(bot_id, chain_name)
-            if custom_order_names:
-                # Reorder default steps based on custom order
-                # Create a map for quick lookup
-                step_map = {s["name"]: s for s in default_steps}
-                new_order = []
-                
-                # Add customs that exist in definitions
-                for name in custom_order_names:
-                    if name in step_map:
-                        new_order.append(step_map[name])
-                
-                # Add any missing steps at the end (fallback)
-                for step in default_steps:
-                    if step["name"] not in custom_order_names:
-                        new_order.append(step)
-                
-                steps_ordered = new_order
-        
-        # Find index of current
+        # 2. Find current position
+        if current_step_id not in step_ids:
+            # Current step is not in the active pipeline? 
+            # Could be it was removed. Fallback or exit?
+            # Let's try to find it in the registry to see if it makes sense to continue?
+            # For robustness, we can't really guess where we are if we are off-track.
+            # But maybe we just started? If current_step_id is None?
+            pass
+            
         idx = -1
-        for i, step in enumerate(steps_ordered):
-            if step["name"] == current_step_name:
-                idx = i
-                break
-        
-        # Search for the next VALID step starting from idx + 1
-        for i in range(idx + 1, len(steps_ordered)):
-            step = steps_ordered[i]
-            # Check if module is enabled
-            mod_name = step.get("module_name")
-            if bot_id is not None and mod_name:
-                if not module_loader.is_enabled(bot_id, mod_name):
-                    # Module disabled, skip this step
-                    continue
+        try:
+            idx = step_ids.index(current_step_id)
+        except ValueError:
+            pass
             
-            return step
-        
+        # 3. Search for next ENABLED step
+        for i in range(idx + 1, len(step_ids)):
+            next_sid = step_ids[i]
+            step_def = self.step_registry.get(next_sid)
+            
+            if not step_def:
+                continue
+                
+            # Check module enabled status
+            mod_name = step_def.get("module_name")
+            if mod_name and not module_loader.is_enabled(bot_id, mod_name):
+                continue
+                
+            return step_def
+            
         return None
-
-    async def get_first_step(self, chain_name: str, bot_id: int = None) -> Optional[Dict]:
-         from database.panel_db import get_pipeline_config
-         from modules.base import module_loader
-         
-         default_steps = self.chains.get(chain_name, [])
-         if not default_steps:
-             return None
-             
-         steps_ordered = default_steps
-         
-         if bot_id:
-            custom_order_names = await get_pipeline_config(bot_id, chain_name)
-            if custom_order_names:
-                 step_map = {s["name"]: s for s in default_steps}
-                 new_order = []
-                 for name in custom_order_names:
-                     if name in step_map:
-                         new_order.append(step_map[name])
-                 for step in default_steps:
-                     if step["name"] not in custom_order_names:
-                         new_order.append(step)
-                 steps_ordered = new_order
-
-         # Return first enabled step
-         for step in steps_ordered:
-            mod_name = step.get("module_name")
-            if bot_id is not None and mod_name:
-                if not module_loader.is_enabled(bot_id, mod_name):
-                    continue
-            return step
-            
-         return None
 
 # Global instance
 workflow_manager = WorkflowManager()

@@ -10,9 +10,7 @@ from database.panel_db import (
     get_module_settings,
     set_module_settings,
     get_all_pipeline_configs,
-    get_all_pipeline_configs,
-    set_pipeline_config,
-    delete_pipeline_config
+    set_pipeline_config
 )
 from modules.base import module_loader
 from modules.workflow import workflow_manager
@@ -97,7 +95,7 @@ def setup_routes(
             raise HTTPException(404, "Bot not found")
             
         # Get all chains
-        chains = workflow_manager.chains.keys()
+        chains = workflow_manager.default_chains.keys()
         
         return templates.TemplateResponse("modules/pipelines.html", get_template_context(
             request,
@@ -107,61 +105,63 @@ def setup_routes(
         ))
 
 
+    @router.get("/pipelines/{chain_name}")
     async def get_pipeline_details(bot_id: int, chain_name: str, user: Dict = Depends(get_current_user)):
         """API to get steps for drag-n-drop editor"""
-        default_steps = workflow_manager.get_steps(chain_name)
-        custom_order_names = await get_all_pipeline_configs(bot_id)
-        custom_order = custom_order_names.get(chain_name, [])
-        enabled_modules = set(await get_bot_enabled_modules(bot_id))
+        # 1. Get all globally available steps from registry
+        all_steps = workflow_manager.get_all_steps()
         
-        # Sort
-        if custom_order:
-            step_map = {s["name"]: s for s in default_steps}
-            final_steps = []
-            for name in custom_order:
-                if name in step_map:
-                    final_steps.append(step_map[name])
-            for s in default_steps:
-                if s["name"] not in custom_order:
-                    final_steps.append(s)
-        else:
-            final_steps = default_steps
-            
-        # Sanitize steps for JSON response and inject is_enabled
-        sanitized_steps = []
-        for step in final_steps:
-            safe_step = step.copy()
-            if safe_step.get("state"):
-                safe_step["state"] = str(safe_step["state"])
-            
-            # Check enabled status
-            mod_name = safe_step.get("module_name")
-            is_enabled = True
-            if mod_name:
-                is_enabled = mod_name in enabled_modules
-            safe_step["is_enabled"] = is_enabled
-            
-            sanitized_steps.append(safe_step)
+        # 2. Get current pipeline configuration (list of IDs)
+        # If DB is empty, use default chain
+        custom_ids = await get_all_pipeline_configs(bot_id)
+        current_ids = custom_ids.get(chain_name)
+        
+        if current_ids is None:
+             # Load default chain
+             current_ids = workflow_manager.default_chains.get(chain_name, [])
+        
+        # 3. Separate into Active and Available
+        active_steps = []
+        active_ids_set = set()
+        
+        # Resolve active steps in order
+        for step_id in current_ids:
+            step = workflow_manager.step_registry.get(step_id)
+            if step:
+                active_steps.append(step)
+                active_ids_set.add(step_id)
+        
+        # Resolve available (unused) steps
+        available_steps = []
+        for step in all_steps:
+            if step['id'] not in active_ids_set:
+                available_steps.append(step)
+
+        # Helper to sanitize (convert non-serializable objects like State)
+        def sanitize(steps):
+             out = []
+             for s in steps:
+                 c = s.copy()
+                 if c.get("state"):
+                     c["state"] = str(c["state"])
+                 out.append(c)
+             return out
 
         return {
             "chain": chain_name,
-            "steps": sanitized_steps
+            "active_steps": sanitize(active_steps),
+            "available_steps": sanitize(available_steps)
         }
 
     @router.post("/pipelines/{chain_name}/order")
     async def save_pipeline_order(bot_id: int, chain_name: str, order: list[str], user: Dict = Depends(get_current_user)):
-        """Save new step order"""
-        # Verify these steps exist in the chain definition
-        valid_steps = {s["name"] for s in workflow_manager.get_steps(chain_name)}
-        filtered_order = [name for name in order if name in valid_steps]
+        """Save new step order (list of step_ids)"""
+        # Verify these steps exist in the registry
+        valid_ids = set(workflow_manager.step_registry.keys())
+        
+        filtered_order = [sid for sid in order if sid in valid_ids]
         
         await set_pipeline_config(bot_id, chain_name, filtered_order)
-        return {"status": "success"}
-
-    @router.post("/pipelines/{chain_name}/reset")
-    async def reset_pipeline_order(bot_id: int, chain_name: str, user: Dict = Depends(get_current_user)):
-        """Reset step order to default"""
-        await delete_pipeline_config(bot_id, chain_name)
         return {"status": "success"}
     
     return router

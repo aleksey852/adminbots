@@ -13,10 +13,11 @@
 </div>
 
 <div class="row">
-    <div class="col-md-4">
-        <div class="card">
+    <!-- Chains List -->
+    <div class="col-md-3">
+        <div class="card mb-3">
             <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Доступные сценарии</h5>
+                <h5 class="card-title mb-0">Сценарии</h5>
             </div>
             <div class="list-group list-group-flush" id="chainsList">
                 {% for chain in chains %}
@@ -31,26 +32,56 @@
         </div>
     </div>
 
-    <div class="col-md-8">
-        <div class="card">
+    <!-- Interface Area -->
+    <div class="col-md-9">
+        <div class="card" id="editorCard" style="display:none;">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0" id="currentChainTitle">Выберите сценарий</h5>
-                <div>
-                    <button class="btn btn-sm btn-outline-danger me-1" id="resetOrderBtn" style="display: none;"
-                        onclick="resetOrder()">
-                        <i class="bi bi-arrow-counterclockwise"></i> Сброс
-                    </button>
-                    <button class="btn btn-sm btn-primary" id="saveOrderBtn" style="display: none;"
-                        onclick="saveOrder()">
-                        <i class="bi bi-save me-1"></i> Сохранить порядок
-                    </button>
+                <h5 class="card-title mb-0" id="currentChainTitle">Редактор</h5>
+                <button class="btn btn-sm btn-primary" id="saveOrderBtn" onclick="saveOrder()">
+                    <i class="bi bi-save me-1"></i> Сохранить изменения
+                </button>
+            </div>
+            <div class="card-body bg-light">
+                <div class="row">
+                    <!-- Available Steps (Source) -->
+                    <div class="col-md-5">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">
+                            <i class="bi bi-box-seam me-1"></i> Доступные шаги
+                        </h6>
+                        <div id="availableSteps" class="list-group min-vh-50 bg-white border rounded p-2 shadow-sm"
+                            style="min-height: 400px;">
+                            <!-- Items will be injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Arrow Separator -->
+                    <div class="col-md-1 d-flex align-items-center justify-content-center">
+                        <i class="bi bi-arrow-right display-6 text-muted opacity-25"></i>
+                    </div>
+
+                    <!-- Active Pipeline (Target) -->
+                    <div class="col-md-6">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">
+                            <i class="bi bi-list-ol me-1"></i> Активный сценарий
+                        </h6>
+                        <div id="activeSteps" class="list-group min-vh-50 bg-white border rounded p-2 shadow-sm"
+                            style="min-height: 400px;">
+                            <!-- Items will be injected here -->
+                        </div>
+                        <div class="form-text mt-2">
+                            Перетащите шаги в этот список, чтобы добавить их в сценарий.
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="card-body">
-                <div id="stepsContainer" class="text-center text-muted py-5">
-                    <i class="bi bi-diagram-3 display-4 mb-3 d-block opacity-25"></i>
-                    Выберите цепочку шагов слева для настройки порядка.
-                </div>
+        </div>
+
+        <!-- Placeholder -->
+        <div class="card" id="placeholderCard">
+            <div class="card-body py-5 text-center text-muted">
+                <i class="bi bi-diagram-2 display-1 mb-3 d-block opacity-25"></i>
+                <h5>Выберите сценарий слева</h5>
+                <p>чтобы настроить порядок прохождения шагов</p>
             </div>
         </div>
     </div>
@@ -61,7 +92,8 @@
 <script>
     const botId = {{ bot.id }};
     let currentChain = null;
-    let sortable = null;
+    let sortableActive = null;
+    let sortableAvailable = null;
 
     function loadChain(chainName, element) {
         if (element) {
@@ -70,92 +102,93 @@
         }
 
         currentChain = chainName;
-        document.getElementById('currentChainTitle').innerText = `Цепочка: ${chainName}`;
-        const container = document.getElementById('stepsContainer');
-        container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+        document.getElementById('currentChainTitle').innerText = `Сценарий: ${chainName}`;
+
+        // Show loading
+        document.getElementById('editorCard').style.display = 'none';
+        document.getElementById('placeholderCard').style.display = 'none';
 
         fetch(`/bots/${botId}/pipelines/${chainName}`)
             .then(r => r.json())
             .then(data => {
-                renderSteps(data.steps);
-                document.getElementById('saveOrderBtn').style.display = 'inline-block';
-                document.getElementById('resetOrderBtn').style.display = 'inline-block';
+                document.getElementById('editorCard').style.display = 'block';
+                renderLists(data.active_steps, data.available_steps);
             });
     }
 
-    function renderSteps(steps) {
-        const container = document.getElementById('stepsContainer');
-        container.innerHTML = '';
+    function renderLists(activeSteps, availableSteps) {
+        const activeContainer = document.getElementById('activeSteps');
+        const availableContainer = document.getElementById('availableSteps');
 
-        if (steps.length === 0) {
-            container.innerHTML = '<div class="alert alert-info">В этой цепочке нет шагов.</div>';
-            return;
-        }
+        activeContainer.innerHTML = '';
+        availableContainer.innerHTML = '';
 
-        const list = document.createElement('div');
-        list.className = 'list-group';
-        list.id = 'stepsList';
-
-        steps.forEach((step, index) => {
+        function createStepEl(step, isActive) {
             const item = document.createElement('div');
-            item.className = 'list-group-item d-flex align-items-center p-3 mb-2 border rounded shadow-sm';
-            item.dataset.name = step.name;
-            item.style.cursor = 'move';
+            item.className = 'list-group-item p-3 mb-2 border rounded shadow-sm bg-white cursor-move step-item';
+            // Use ID for tracking
+            item.dataset.id = step.id;
 
             let badgeClass = 'bg-secondary';
-            if (index === 0) badgeClass = 'bg-success';
-            else if (index === steps.length - 1) badgeClass = 'bg-primary';
-
-            let enabledBadge = '';
-            let opacityStyle = '';
-
-            if (step.is_enabled === false) {
-                enabledBadge = '<span class="badge bg-danger ms-2">Disabled</span>';
-                opacityStyle = 'opacity: 0.6;';
-                item.style.backgroundColor = '#f8f9fa';
-            }
+            if (step.module_name === 'registration') badgeClass = 'bg-info text-dark';
 
             item.innerHTML = `
-            <div class="me-3 text-muted"><i class="bi bi-grip-vertical"></i></div>
-            <div class="flex-grow-1" style="${opacityStyle}">
-                <div class="fw-bold fs-5">
-                    ${step.name} 
-                    ${enabledBadge}
+                <div class="d-flex align-items-center">
+                    <div class="me-3 text-muted drag-handle"><i class="bi bi-grip-vertical"></i></div>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold">${step.name}</div>
+                        <div class="small text-muted">${step.description || step.id}</div>
+                        <div class="mt-1">
+                            <span class="badge ${badgeClass} border bg-opacity-10 text-dark opacity-75 small p-1 px-2 rounded-pill">
+                                ${step.module_name}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                <div class="small text-muted">
-                    Module: <span class="badge bg-light text-dark border">${step.module_name || 'System'}</span>
-                    ${step.state ? `| State: <code>${step.state}</code>` : ''}
-                </div>
-            </div>
-            <div class="text-muted small">#${index + 1}</div>
-        `;
+            `;
+            return item;
+        }
 
-            list.appendChild(item);
-        });
+        activeSteps.forEach(s => activeContainer.appendChild(createStepEl(s, true)));
+        availableSteps.forEach(s => availableContainer.appendChild(createStepEl(s, false)));
 
-        container.appendChild(list);
+        initSortable();
+    }
 
-        // Init Drag & Drop
-        sortable = new Sortable(list, {
+    function initSortable() {
+        const activeContainer = document.getElementById('activeSteps');
+        const availableContainer = document.getElementById('availableSteps');
+
+        if (sortableActive) sortableActive.destroy();
+        if (sortableAvailable) sortableAvailable.destroy();
+
+        // Config for both
+        const ops = {
+            group: 'shared', // shared group allows dragging between lists
             animation: 150,
             ghostClass: 'bg-light',
-            onEnd: function () {
-                // Update numbers
-                const items = list.querySelectorAll('.list-group-item');
-                items.forEach((item, idx) => {
-                    item.querySelector('.text-muted.small').innerText = `#${idx + 1}`;
-                });
+            handle: '.step-item, .drag-handle', // Make whole item draggable usually better UX
+            sort: true,
+        };
+
+        sortableActive = new Sortable(activeContainer, {
+            ...ops,
+            onSort: function (evt) {
+                // Could verify something here
             }
+        });
+
+        sortableAvailable = new Sortable(availableContainer, {
+            ...ops,
+            sort: false // Usually don't need sorting in source list? But why not
         });
     }
 
     function saveOrder() {
         if (!currentChain) return;
 
-        const list = document.getElementById('stepsList');
-        if (!list) return;
-
-        const steps = Array.from(list.children).map(el => el.dataset.name);
+        const list = document.getElementById('activeSteps');
+        const steps = Array.from(list.children).map(el => el.dataset.id);
 
         const btn = document.getElementById('saveOrderBtn');
         const originalText = btn.innerHTML;
@@ -175,53 +208,39 @@
                 btn.disabled = false;
                 btn.innerHTML = originalText;
                 if (data.status === 'success') {
-                    // Show toast or alert
-                    showToast('Порядок сохранён успешно!');
+                    const toast = document.createElement('div');
+                    toast.className = 'position-fixed bottom-0 end-0 p-3';
+                    toast.style.zIndex = 1050;
+                    toast.innerHTML = `
+                        <div class="toast show align-items-center text-white bg-success border-0">
+                            <div class="d-flex">
+                                <div class="toast-body">Pipeline saved successfully!</div>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
                 } else {
                     alert('Error saving order');
                 }
             });
     }
-
-    function resetOrder() {
-        if (!currentChain) return;
-        if (!confirm('Вы уверены? Это сбросит порядок шагов к умолчанию.')) return;
-
-        const btn = document.getElementById('resetOrderBtn');
-        btn.disabled = true;
-
-        fetch(`/bots/${botId}/pipelines/${currentChain}/reset`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-Token': '{{ csrf_token }}'
-            }
-        })
-            .then(r => r.json())
-            .then(data => {
-                btn.disabled = false;
-                if (data.status === 'success') {
-                    showToast('Порядок сброшен к умолчанию');
-                    loadChain(currentChain); // Reload
-                } else {
-                    alert('Error resetting order');
-                }
-            });
-    }
-
-    function showToast(message) {
-        const toast = document.createElement('div');
-        toast.className = 'position-fixed bottom-0 end-0 p-3';
-        toast.style.zIndex = 1050;
-        toast.innerHTML = `
-            <div class="toast show align-items-center text-white bg-success border-0">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    }
 </script>
+
+<style>
+    .cursor-move {
+        cursor: move;
+        /* fallback if grab cursor is unsupported */
+        cursor: grab;
+        cursor: -moz-grab;
+        cursor: -webkit-grab;
+    }
+
+    .cursor-move:active {
+        cursor: grabbing;
+        cursor: -moz-grabbing;
+        cursor: -webkit-grabbing;
+    }
+</style>
 {% endblock %}

@@ -48,8 +48,24 @@ class RegistrationModule(BotModule):
         from modules.workflow import workflow_manager
         
         # Register steps
-        workflow_manager.register_step("registration", "name", 10, Registration.name, module_name="registration")
-        workflow_manager.register_step("registration", "phone", 20, Registration.phone, module_name="registration")
+        # Register steps in the "Lake"
+        workflow_manager.register_step(
+            step_id="registration.name",
+            name="Имя",
+            module_name="registration",
+            state_name=Registration.name,
+            description="Запрос имени пользователя"
+        )
+        workflow_manager.register_step(
+            step_id="registration.phone",
+            name="Телефон",
+            module_name="registration",
+            state_name=Registration.phone,
+            description="Запрос номера телефона"
+        )
+        
+        # Define default flow
+        workflow_manager.register_default_chain("registration", ["registration.name", "registration.phone"])
         
         @self.router.message(Registration.name)
         async def process_name(message: Message, state: FSMContext, bot_id: int = None):
@@ -81,7 +97,7 @@ class RegistrationModule(BotModule):
             
             # Use workflow to find next state (usually phone, but could be injected)
             from modules.workflow import workflow_manager
-            next_step = workflow_manager.get_next_step("registration", "name", bot_id)
+            next_step = workflow_manager.get_next_step("registration", "registration.name", bot_id)
             if next_step and next_step.get("state"):
                  await state.set_state(next_step["state"])
             else:
@@ -141,7 +157,7 @@ class RegistrationModule(BotModule):
             
             # --- WORKFLOW CHECK ---
             from modules.workflow import workflow_manager
-            next_step = workflow_manager.get_next_step("registration", "phone", bot_id)
+            next_step = workflow_manager.get_next_step("registration", "registration.phone", bot_id)
             
             if next_step and next_step.get("state"):
                 # Transition to next step in workflow
