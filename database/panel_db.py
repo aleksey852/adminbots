@@ -113,215 +113,52 @@ async def _create_panel_schema():
 
 # === Bot Registry Methods ===
 
-async def get_all_bots(include_archived: bool = False) -> List[Dict]:
-    """Get all registered bots"""
+async def get_all_bots(include_archived: bool = False):
     async with get_panel_connection() as db:
-        if include_archived:
-            return await db.fetch("SELECT * FROM bot_registry ORDER BY created_at DESC")
-        return await db.fetch(
-            "SELECT * FROM bot_registry WHERE archived_at IS NULL ORDER BY created_at DESC"
-        )
+        return await db.fetch("SELECT * FROM bot_registry" + ("" if include_archived else " WHERE archived_at IS NULL") + " ORDER BY created_at DESC")
 
+async def get_bot_by_id(bot_id: int):
+    async with get_panel_connection() as db: return await db.fetchrow("SELECT * FROM bot_registry WHERE id = $1", bot_id)
 
-async def get_bot_by_id(bot_id: int) -> Optional[Dict]:
-    """Get bot by ID"""
+async def get_bot_by_token(token: str):
+    async with get_panel_connection() as db: return await db.fetchrow("SELECT * FROM bot_registry WHERE token = $1", token)
+
+async def register_bot(token: str, name: str, bot_type: str, database_url: str, admin_ids: List[int] = None):
     async with get_panel_connection() as db:
-        return await db.fetchrow("SELECT * FROM bot_registry WHERE id = $1", bot_id)
+        return await db.fetchval("INSERT INTO bot_registry (token, name, type, database_url, admin_ids) VALUES ($1, $2, $3, $4, $5) RETURNING id", token, name, bot_type, database_url, admin_ids or [])
 
-
-async def get_bot_by_token(token: str) -> Optional[Dict]:
-    """Get bot by token"""
-    async with get_panel_connection() as db:
-        return await db.fetchrow("SELECT * FROM bot_registry WHERE token = $1", token)
-
-
-async def get_active_bots() -> List[Dict]:
-    """Get only active (non-archived) bots"""
-    async with get_panel_connection() as db:
-        return await db.fetch(
-            "SELECT * FROM bot_registry WHERE is_active = TRUE AND archived_at IS NULL"
-        )
-
-
-async def register_bot(token: str, name: str, bot_type: str, database_url: str, admin_ids: List[int] = None) -> int:
-    """Register a new bot in the registry"""
-    async with get_panel_connection() as db:
-        return await db.fetchval("""
-            INSERT INTO bot_registry (token, name, type, database_url, admin_ids)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id
-        """, token, name, bot_type, database_url, admin_ids or [])
-
-
-async def update_bot(bot_id: int, **kwargs) -> bool:
-    """Update bot registry entry"""
-    if not kwargs:
-        return False
-    
-    fields = []
-    values = [bot_id]
-    i = 2
-    
-    for key, value in kwargs.items():
-        if key in ('name', 'type', 'database_url', 'is_active', 'admin_ids', 'enabled_modules'):
-            fields.append(f"{key} = ${i}")
-            values.append(value)
-            i += 1
-    
-    if not fields:
-        return False
-    
-    async with get_panel_connection() as db:
-        result = await db.execute(
-            f"UPDATE bot_registry SET {', '.join(fields)} WHERE id = $1",
-            *values
-        )
-        return "UPDATE 1" in result
-
-
-async def archive_bot(bot_id: int, archived_by: str) -> bool:
-    """Archive a bot (soft delete)"""
-    async with get_panel_connection() as db:
-        result = await db.execute("""
-            UPDATE bot_registry 
-            SET is_active = FALSE, archived_at = NOW(), archived_by = $2
-            WHERE id = $1 AND archived_at IS NULL
-        """, bot_id, archived_by)
-        return "UPDATE 1" in result
-
-
-async def delete_bot_registry(bot_id: int) -> bool:
-    """Permanently delete bot from registry"""
-    async with get_panel_connection() as db:
-        result = await db.execute("DELETE FROM bot_registry WHERE id = $1", bot_id)
-        return "DELETE 1" in result
-
+async def delete_bot_registry(bot_id: int):
+    async with get_panel_connection() as db: return "DELETE 1" in await db.execute("DELETE FROM bot_registry WHERE id = $1", bot_id)
 
 # === Panel Users Methods ===
 
-async def get_panel_user(username: str) -> Optional[Dict]:
-    """Get panel user by username"""
-    async with get_panel_connection() as db:
-        return await db.fetchrow("SELECT * FROM panel_users WHERE username = $1", username)
+async def get_panel_user(username: str):
+    async with get_panel_connection() as db: return await db.fetchrow("SELECT * FROM panel_users WHERE username = $1", username)
 
+async def get_panel_user_by_id(user_id: int):
+    async with get_panel_connection() as db: return await db.fetchrow("SELECT * FROM panel_users WHERE id = $1", user_id)
 
-async def get_panel_user_by_id(user_id: int) -> Optional[Dict]:
-    """Get panel user by ID"""
-    async with get_panel_connection() as db:
-        return await db.fetchrow("SELECT * FROM panel_users WHERE id = $1", user_id)
+async def get_all_panel_users():
+    async with get_panel_connection() as db: return await db.fetch("SELECT id, username, role, created_at, last_login FROM panel_users ORDER BY created_at")
 
+async def create_panel_user(username: str, password_hash: str, role: str = 'admin'):
+    async with get_panel_connection() as db: return await db.fetchval("INSERT INTO panel_users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id", username, password_hash, role)
 
-async def get_all_panel_users() -> List[Dict]:
-    """Get all panel users"""
-    async with get_panel_connection() as db:
-        return await db.fetch(
-            "SELECT id, username, role, created_at, last_login FROM panel_users ORDER BY created_at"
-        )
-
-
-async def create_panel_user(username: str, password_hash: str, role: str = 'admin') -> int:
-    """Create a new panel user"""
-    async with get_panel_connection() as db:
-        return await db.fetchval("""
-            INSERT INTO panel_users (username, password_hash, role)
-            VALUES ($1, $2, $3)
-            RETURNING id
-        """, username, password_hash, role)
-
-
-async def update_panel_user(user_id: int, username: str = None, password_hash: str = None, role: str = None) -> bool:
-    """Update panel user"""
-    fields = []
-    values = [user_id]
-    i = 2
-    
-    if username:
-        fields.append(f"username = ${i}")
-        values.append(username)
-        i += 1
-    if password_hash:
-        fields.append(f"password_hash = ${i}")
-        values.append(password_hash)
-        i += 1
-    if role:
-        fields.append(f"role = ${i}")
-        values.append(role)
-        i += 1
-    
-    if not fields:
-        return False
-    
-    async with get_panel_connection() as db:
-        result = await db.execute(
-            f"UPDATE panel_users SET {', '.join(fields)} WHERE id = $1",
-            *values
-        )
-        return "UPDATE 1" in result
-
-
-async def delete_panel_user(user_id: int) -> bool:
-    """Delete panel user"""
-    async with get_panel_connection() as db:
-        result = await db.execute("DELETE FROM panel_users WHERE id = $1", user_id)
-        return "DELETE 1" in result
-
+async def delete_panel_user(user_id: int):
+    async with get_panel_connection() as db: return "DELETE 1" in await db.execute("DELETE FROM panel_users WHERE id = $1", user_id)
 
 async def update_panel_user_login(user_id: int):
-    """Update last login time"""
-    async with get_panel_connection() as db:
-        await db.execute("UPDATE panel_users SET last_login = NOW() WHERE id = $1", user_id)
+    async with get_panel_connection() as db: await db.execute("UPDATE panel_users SET last_login = NOW() WHERE id = $1", user_id)
 
-
-async def count_superadmins() -> int:
-    """Count superadmin users"""
-    async with get_panel_connection() as db:
-        return await db.fetchval("SELECT COUNT(*) FROM panel_users WHERE role = 'superadmin'")
-
-
-async def ensure_initial_superadmin(username: str, password_hash: str):
-    """Create initial superadmin if no users exist"""
-    async with get_panel_connection() as db:
-        count = await db.fetchval("SELECT COUNT(*) FROM panel_users")
-        if count == 0:
-            await db.execute("""
-                INSERT INTO panel_users (username, password_hash, role)
-                VALUES ($1, $2, 'superadmin')
-                ON CONFLICT (username) DO NOTHING
-            """, username, password_hash)
-            logger.info(f"Created initial SuperAdmin user: {username}")
-
-
-# === Database Creation Helper ===
+async def count_superadmins():
+    async with get_panel_connection() as db: return await db.fetchval("SELECT COUNT(*) FROM panel_users WHERE role = 'superadmin'")
 
 async def create_bot_database(db_name: str, base_url: str) -> str:
-    """
-    Create a new database for a bot.
-    Returns the connection URL for the new database.
-    
-    Note: Requires CREATEDB permission on PostgreSQL user.
-    """
-    # Parse base URL to get connection params
     import urllib.parse
     parsed = urllib.parse.urlparse(base_url)
-    
-    # Connect to default 'postgres' database to create new DB
-    admin_url = f"{parsed.scheme}://{parsed.netloc}/postgres"
-    
-    conn = await asyncpg.connect(admin_url)
+    conn = await asyncpg.connect(f"{parsed.scheme}://{parsed.netloc}/postgres")
     try:
-        # Check if database exists
-        exists = await conn.fetchval(
-            "SELECT 1 FROM pg_database WHERE datname = $1", db_name
-        )
-        
-        if not exists:
-            # CREATE DATABASE cannot run in a transaction
+        if not await conn.fetchval("SELECT 1 FROM pg_database WHERE datname = $1", db_name):
             await conn.execute(f'CREATE DATABASE "{db_name}"')
-            logger.info(f"Created database: {db_name}")
-        else:
-            logger.info(f"Database already exists: {db_name}")
-    finally:
-        await conn.close()
-    
-    # Return connection URL for the new database
+    finally: await conn.close()
     return f"{parsed.scheme}://{parsed.netloc}/{db_name}"

@@ -55,299 +55,81 @@ def setup_routes(
 
     @router.post("/create", dependencies=[Depends(verify_csrf_token)])
     async def create_bot(
-        request: Request,
-        token: str = Form(...),
-        name: str = Form(...),
-        type: str = Form(...),
-        admin_ids: str = Form(""),
-        user: Dict = Depends(require_superadmin)
+        request: Request, token: str = Form(...), name: str = Form(...),
+        type: str = Form(...), admin_ids: str = Form(""), user: Dict = Depends(require_superadmin)
     ):
         import re
+        from database.panel_db import get_bot_by_token, register_bot, create_bot_database, get_panel_connection
         
-        # Get modules from form
-        form = await request.form()
-        modules = form.getlist('modules')
+        modules = (await request.form()).getlist('modules')
+        if 'registration' not in modules: modules.append('registration')
         
-        if 'registration' not in modules:
-            modules.append('registration')
-        
-        # Validate token
         if not token or ":" not in token:
-            return templates.TemplateResponse("bots/new.html", get_template_context(
-                request, user=user, title="Добавить бота", error="Неверный формат токена",
-                form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
-            ))
-        
-        # Parse admin IDs
-        parsed_admin_ids = []
-        if admin_ids.strip():
-            for aid in admin_ids.replace(' ', '').split(','):
-                try:
-                    if aid.strip():
-                        parsed_admin_ids.append(int(aid.strip()))
-                except ValueError:
-                    return templates.TemplateResponse("bots/new.html", get_template_context(
-                        request, user=user, title="Добавить бота",
-                        error=f"Неверный формат Admin ID: {aid}",
-                        form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
-                    ))
+            return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Новый бот", error="Bad token", form__token=token, form__name=name))
         
         try:
-            # Check if bot exists
-            existing = await get_bot_by_token(token)
-            if existing:
-                return templates.TemplateResponse("bots/new.html", get_template_context(
-                    request, user=user, title="Добавить бота", error="Бот с таким токеном уже существует",
-                    form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
-                ))
+            if await get_bot_by_token(token):
+                return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Новый бот", error="Exists", form__token=token))
             
-            # Create database
-            safe_name = re.sub(r'[^a-z0-9_]', '', name.lower().replace(' ', '_'))[:30]
-            db_name = f"bot_{safe_name}_{uuid.uuid4().hex[:8]}"
+            p_ids = [int(x.strip()) for x in admin_ids.split(',') if x.strip().isdigit()]
+            db_url = await create_bot_database(f"bot_{re.sub(r'[^a-z0-9_]', '', name.lower())[:20]}_{uuid.uuid4().hex[:6]}", config.DATABASE_URL)
             
-            database_url = await create_bot_database(db_name, config.DATABASE_URL)
+            bid = await register_bot(token=token, name=name, bot_type=type, database_url=db_url, admin_ids=p_ids)
+            bot_db_manager.register(bid, db_url)
+            await bot_db_manager.connect(bid)
             
-            # Register bot
-            bot_id = await register_bot(
-                token=token,
-                name=name,
-                bot_type=type,
-                database_url=database_url,
-                admin_ids=parsed_admin_ids
-            )
-            
-            # Initialize bot's database
-            bot_db_manager.register(bot_id, database_url)
-            await bot_db_manager.connect(bot_id)
-            
-            # Notify main process
-            async with get_panel_connection() as db:
-                await db.execute("NOTIFY new_bot")
-            
-            request.session["active_bot_id"] = bot_id
-            logger.info(f"Created bot {bot_id} ({name}) with database {db_name}")
-            
-            return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-            
+            async with get_panel_connection() as db: await db.execute("NOTIFY new_bot")
+            request.session["active_bot_id"] = bid
+            return RedirectResponse("/", 303)
         except Exception as e:
-            logger.error(f"Failed to create bot: {e}")
-            return templates.TemplateResponse("bots/new.html", get_template_context(
-                request, user=user, title="Добавить бота", error=f"Ошибка: {e}",
-                form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
-            ))
+            logger.error(f"Bot creation failed: {e}")
+            return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Новый бот", error=str(e)))
 
     @router.get("/{bot_id}/edit", response_class=HTMLResponse)
     async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
-        from database import bot_methods
-        from database.bot_methods import bot_db_context
+        from database.bot_methods import get_stats, bot_db_context
+        bot = await get_bot_by_id(bot_id)
+        if not bot: raise HTTPException(404, "Bot not found")
         
-        edit_bot = await get_bot_by_id(bot_id)
-        if not edit_bot:
-            raise HTTPException(status_code=404, detail="Bot not found")
-        
-        # Connect to bot's database if not connected
         if not bot_db_manager.get(bot_id):
-            bot_db_manager.register(bot_id, edit_bot['database_url'])
+            bot_db_manager.register(bot_id, bot['database_url'])
             await bot_db_manager.connect(bot_id)
         
-        # Use context manager for database operations
-        async with bot_db_context(bot_id):
-            stats = await bot_methods.get_stats()
-        
-        return templates.TemplateResponse("bots/edit.html", get_template_context(
-            request, user=user, title=f"Редактирование: {edit_bot['name']}",
-            edit_bot=edit_bot, stats=stats, message=msg
-        ))
+        async with bot_db_context(bot_id): stats = await get_stats()
+        return templates.TemplateResponse("bots/edit.html", get_template_context(request, user=user, title=f"Бот: {bot['name']}", edit_bot=bot, stats=stats, message=msg))
 
     @router.post("/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
-    async def update_bot(
-        request: Request,
-        bot_id: int,
-        name: str = Form(...),
-        type: str = Form(...),
-        user: str = Depends(get_current_user)
-    ):
+    async def update_bot_route(request: Request, bot_id: int, name: str = Form(...), type: str = Form(...)):
         from database.panel_db import get_panel_connection
-        
         async with get_panel_connection() as db:
-            await db.execute(
-                "UPDATE bot_registry SET name = $2, type = $3 WHERE id = $1",
-                bot_id, name, type
-            )
-        
-        return RedirectResponse(
-            url=f"/bots/{bot_id}/edit?msg=Изменения+сохранены",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
+            await db.execute("UPDATE bot_registry SET name = $2, type = $3 WHERE id = $1", bot_id, name, type)
+        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Updated", 303)
 
     @router.post("/{bot_id}/admins", dependencies=[Depends(verify_csrf_token)])
-    async def update_bot_admins(
-        request: Request,
-        bot_id: int,
-        admin_ids: str = Form(""),
-        user: str = Depends(get_current_user)
-    ):
-        from database.panel_db import get_panel_connection, update_bot
-        
-        parsed_ids = []
-        if admin_ids.strip():
-            for aid in admin_ids.replace(' ', '').split(','):
-                try:
-                    if aid.strip():
-                        parsed_ids.append(int(aid.strip()))
-                except ValueError:
-                    pass
-        
-        await update_bot(bot_id, admin_ids=parsed_ids)
-        
-        return RedirectResponse(
-            url=f"/bots/{bot_id}/edit?msg=Админы+обновлены",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-
-    @router.post("/{bot_id}/modules", dependencies=[Depends(verify_csrf_token)])
-    async def update_bot_modules_route(
-        request: Request,
-        bot_id: int,
-        user: str = Depends(get_current_user)
-    ):
-        from database import update_bot_modules
-        
-        form = await request.form()
-        modules = list(form.getlist('modules'))
-        
-        if 'registration' not in modules:
-            modules.append('registration')
-        
-        await update_bot_modules(bot_id, modules)
-        
-        return RedirectResponse(
-            url=f"/bots/{bot_id}/edit?msg=Модули+обновлены",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-
-    @router.get("/{bot_id}/export")
-    async def export_bot(request: Request, bot_id: int, user: Dict = Depends(require_superadmin)):
-        bot = await get_bot_by_id(bot_id)
-        if not bot:
-            raise HTTPException(status_code=404, detail="Bot not found")
-        
-        try:
-            # Connect to bot's database
-            if not bot_db_manager.get(bot_id):
-                bot_db_manager.register(bot_id, bot['database_url'])
-                await bot_db_manager.connect(bot_id)
-            
-            bot_db = bot_db_manager.get(bot_id)
-            if not bot_db:
-                raise HTTPException(status_code=500, detail="Failed to connect to bot database")
-            
-            async with bot_db.get_connection() as db:
-                users = await db.fetch("SELECT * FROM users")
-                receipts = await db.fetch("SELECT * FROM receipts")
-                promo_codes = await db.fetch("SELECT * FROM promo_codes")
-                settings = await db.fetch("SELECT * FROM settings")
-                messages = await db.fetch("SELECT * FROM messages")
-                winners = await db.fetch("SELECT * FROM winners")
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Export bot {bot_id} failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-        
-        def record_to_dict(record):
-            d = dict(record)
-            for k, v in d.items():
-                if isinstance(v, datetime):
-                    d[k] = v.isoformat()
-                elif isinstance(v, date):
-                    d[k] = v.isoformat()
-            return d
-        
-        export_data = {
-            "exported_at": datetime.now().isoformat(),
-            "bot": record_to_dict(bot),
-            "users": [record_to_dict(r) for r in users],
-            "receipts": [record_to_dict(r) for r in receipts],
-            "promo_codes": [record_to_dict(r) for r in promo_codes],
-            "settings": [record_to_dict(r) for r in settings],
-            "messages": [record_to_dict(r) for r in messages],
-            "winners": [record_to_dict(r) for r in winners],
-            "stats": {
-                "users_count": len(users),
-                "receipts_count": len(receipts),
-                "promo_codes_count": len(promo_codes),
-                "winners_count": len(winners)
-            }
-        }
-        
-        filename = f"bot_{bot_id}_{bot['name']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        
-        return JSONResponse(
-            content=export_data,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
-        )
+    async def update_bot_admins(request: Request, bot_id: int, admin_ids: str = Form("")):
+        from database.panel_db import update_bot
+        p_ids = [int(x.strip()) for x in admin_ids.split(',') if x.strip().isdigit()]
+        await update_bot(bot_id, admin_ids=p_ids)
+        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Admins+updated", 303)
 
     @router.post("/{bot_id}/delete", dependencies=[Depends(verify_csrf_token)])
-    async def delete_bot_permanently(
-        request: Request,
-        bot_id: int,
-        confirm: str = Form(...),
-        user: Dict = Depends(require_superadmin)
-    ):
+    async def delete_bot_permanently(request: Request, bot_id: int, confirm: str = Form(...), user: Dict = Depends(require_superadmin)):
         from database.panel_db import delete_bot_registry
-        
         bot = await get_bot_by_id(bot_id)
-        if not bot:
-            raise HTTPException(status_code=404, detail="Bot not found")
-        
-        if confirm != bot['name']:
-            return RedirectResponse(
-                url=f"/bots/{bot_id}/edit?msg=Неверное+подтверждение",
-                status_code=status.HTTP_303_SEE_OTHER
-            )
+        if not bot or confirm != bot['name']: return RedirectResponse(f"/bots/{bot_id}/edit?msg=Bad+confirm", 303)
         
         try:
-            # Delete data from bot's database
-            if not bot_db_manager.get(bot_id):
-                bot_db_manager.register(bot_id, bot['database_url'])
-                await bot_db_manager.connect(bot_id)
-            
-            bot_db = bot_db_manager.get(bot_id)
-            if bot_db:
-                async with bot_db.get_connection() as db:
-                    await db.execute("DELETE FROM winners")
-                    await db.execute("DELETE FROM promo_codes")
-                    await db.execute("DELETE FROM receipts")
-                    await db.execute("DELETE FROM campaigns")
-                    await db.execute("DELETE FROM messages")
-                    await db.execute("DELETE FROM settings")
-                    await db.execute("DELETE FROM manual_tickets")
-                    await db.execute("DELETE FROM users")
-                
-                # Disconnect bot database connection
+            db = bot_db_manager.get(bot_id)
+            if db:
+                async with db.get_connection() as conn:
+                    for t in ["winners", "promo_codes", "receipts", "campaigns", "messages", "settings", "manual_tickets", "users"]:
+                        await conn.execute(f"DELETE FROM {t}")
                 await bot_db_manager.disconnect(bot_id)
-        except Exception as e:
-            logger.error(f"Error cleaning up bot {bot_id} database: {e}")
-            # Continue with deletion even if cleanup fails
-        
-        # Delete from panel registry
-        try:
             await delete_bot_registry(bot_id)
+            if request.session.get("active_bot_id") == bot_id: request.session.pop("active_bot_id", None)
+            return RedirectResponse("/?msg=Deleted", 303)
         except Exception as e:
-            logger.error(f"Error deleting bot {bot_id} from registry: {e}")
-            return RedirectResponse(
-                url=f"/bots/{bot_id}/edit?msg=Ошибка+удаления:+{str(e)[:50]}",
-                status_code=status.HTTP_303_SEE_OTHER
-            )
-        
-        if request.session.get("active_bot_id") == bot_id:
-            request.session.pop("active_bot_id", None)
-        
-        logger.info(f"Bot {bot_id} ({bot['name']}) permanently deleted by {user['username']}")
-        
-        return RedirectResponse(url="/?msg=Бот+удалён", status_code=status.HTTP_303_SEE_OTHER)
+            logger.error(f"Delete failed: {e}")
+            return RedirectResponse(f"/bots/{bot_id}/edit?msg=Error", 303)
 
     return router

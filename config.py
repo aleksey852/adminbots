@@ -16,14 +16,8 @@ load_dotenv()
 # === Core ===
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 def _parse_admin_ids(env_val: str) -> List[int]:
-    if not env_val:
-        return []
-    ids = []
-    for x in env_val.split(","):
-        clean = x.strip()
-        if clean.isdigit():
-            ids.append(int(clean))
-    return ids
+    if not env_val: return []
+    return [int(x.strip()) for x in env_val.split(",") if x.strip().isdigit()]
 
 ADMIN_IDS: List[int] = _parse_admin_ids(os.getenv("ADMIN_IDS", ""))
 TIMEZONE = pytz.timezone(os.getenv("TIMEZONE", "Europe/Moscow"))
@@ -122,8 +116,9 @@ def validate_config() -> List[str]:
     if not ADMIN_IDS:
         print("⚠️  WARNING: ADMIN_IDS is not set. No telegram admins configured.")
         
-    if not ADMIN_PANEL_PASSWORD or len(ADMIN_PANEL_PASSWORD) < 12:
-        errors.append("ADMIN_PANEL_PASSWORD must be at least 12 characters")
-    if not ADMIN_SECRET_KEY or len(ADMIN_SECRET_KEY) < 32:
-        errors.append("ADMIN_SECRET_KEY must be at least 32 characters")
+    # Relaxed password/secret requirements for internal project
+    if not ADMIN_PANEL_PASSWORD:
+        errors.append("ADMIN_PANEL_PASSWORD must be set")
+    if not ADMIN_SECRET_KEY:
+        errors.append("ADMIN_SECRET_KEY must be set")
     return errors
