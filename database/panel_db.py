@@ -234,6 +234,17 @@ async def update_panel_user_login(user_id: int):
 async def count_superadmins():
     async with get_panel_connection() as db: return await db.fetchval("SELECT COUNT(*) FROM panel_users WHERE role = 'superadmin'")
 
+async def ensure_initial_superadmin(username: str, password_hash: str):
+    """Create initial superadmin if no panel users exist"""
+    async with get_panel_connection() as db:
+        count = await db.fetchval("SELECT COUNT(*) FROM panel_users")
+        if count == 0:
+            await db.execute(
+                "INSERT INTO panel_users (username, password_hash, role) VALUES ($1, $2, 'superadmin')",
+                username, password_hash
+            )
+            logger.info(f"Created initial superadmin user: {username}")
+
 # === Utility Methods ===
 
 async def check_db_health() -> bool:

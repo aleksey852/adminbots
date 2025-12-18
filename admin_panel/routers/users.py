@@ -144,7 +144,7 @@ def setup_routes(
     @router.post("/{user_id}/add-tickets", dependencies=[Depends(verify_csrf_token)])
     async def add_user_tickets(
         request: Request, user_id: int, tickets: int = Form(...),
-        reason: str = Form(None), user: str = Depends(get_current_user)
+        reason: str = Form(None), user: Dict = Depends(get_current_user)
     ):
         if not (bot := request.state.bot): return RedirectResponse("/")
         user_data = await get_user_detail(user_id)
@@ -152,7 +152,8 @@ def setup_routes(
             raise HTTPException(404, "User not found")
         
         from database.bot_methods import add_manual_tickets
-        await add_manual_tickets(user_id, max(1, min(tickets, 10000)), reason, user)
+        created_by = user.get('username', 'admin') if isinstance(user, dict) else str(user)
+        await add_manual_tickets(user_id, max(1, min(tickets, 10000)), reason, created_by)
         return RedirectResponse(f"/users/{user_id}?msg=tickets_added", 303)
 
     @router.post("/{user_id}/update", dependencies=[Depends(verify_csrf_token)])
