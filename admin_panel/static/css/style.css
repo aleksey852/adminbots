@@ -1677,3 +1677,171 @@ code {
         gap: 1rem;
     }
 }
+
+/* =========================================
+   Phase 7: Comprehensive Dark Mode Fixes
+   ========================================= */
+
+/* Form Placeholder Dark Mode */
+.form-control::placeholder,
+textarea::placeholder {
+    color: var(--text-tertiary);
+    opacity: 0.8;
+}
+
+[data-theme="dark"] .form-control::placeholder,
+[data-theme="dark"] textarea::placeholder {
+    color: var(--text-tertiary);
+    opacity: 1;
+}
+
+/* Explicit Dark Mode Form Controls */
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select,
+[data-theme="dark"] textarea.form-control {
+    background-color: var(--bg-surface);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .form-control:disabled,
+[data-theme="dark"] .form-select:disabled {
+    background-color: var(--bg-surface-subtle);
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+/* File Input Dark Mode */
+input[type="file"] {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem;
+    color: var(--text-primary);
+}
+
+input[type="file"]::file-selector-button {
+    background: var(--bg-surface-subtle);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    margin-right: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+input[type="file"]::file-selector-button:hover {
+    background: var(--primary-500);
+    color: white;
+    border-color: var(--primary-500);
+}
+
+[data-theme="dark"] input[type="file"] {
+    background: var(--bg-surface);
+    border-color: var(--border-hover);
+}
+
+[data-theme="dark"] input[type="file"]::file-selector-button {
+    background: var(--bg-surface-subtle);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+}
+
+[data-theme="dark"] input[type="file"]::file-selector-button:hover {
+    background: var(--primary-600);
+    color: white;
+    border-color: var(--primary-600);
+}
+
+/* Premium Date Badge */
+.date-badge {
+    background: linear-gradient(135deg, var(--primary-600), var(--primary-800));
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.25);
+}
+
+/* Card Footer Dark Mode */
+[data-theme="dark"] .card-footer {
+    background: var(--bg-surface-subtle);
+    border-top-color: var(--border-color);
+}
+
+/* Form Check/Switch Dark Mode */
+[data-theme="dark"] .form-check-input {
+    background-color: var(--bg-surface-subtle);
+    border-color: var(--border-hover);
+}
+
+[data-theme="dark"] .form-check-input:checked {
+    background-color: var(--primary-600);
+    border-color: var(--primary-600);
+}
+
+/* Alert Standard Bootstrap Dark Mode */
+[data-theme="dark"] .alert-warning {
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .alert-info {
+    background: var(--info-bg);
+    color: var(--info-text);
+    border-color: rgba(56, 189, 248, 0.3);
+}
+
+[data-theme="dark"] .alert-danger {
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+[data-theme="dark"] .alert-success {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* HR Dark Mode */
+[data-theme="dark"] hr {
+    border-color: var(--border-color);
+    opacity: 0.5;
+}
+
+/* Background Utility Classes */
+.bg-surface {
+    background-color: var(--bg-surface) !important;
+}
+
+.bg-surface-subtle {
+    background-color: var(--bg-surface-subtle) !important;
+}
+
+/* Accordion Dark Mode */
+[data-theme="dark"] .accordion-item {
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .accordion-button {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .accordion-button:not(.collapsed) {
+    background: var(--bg-surface-subtle);
+    color: var(--primary-400);
+}
+
+[data-theme="dark"] .accordion-body {
+    background: var(--bg-surface-subtle);
+}

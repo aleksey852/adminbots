@@ -196,102 +196,102 @@
                 </div>
             </div>
 
-        </div>
-    </div>
-
-
-
-    <!-- Statistics -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Статистика</div>
-        <div class="card-body">
-            <div class="row text-center">
-                <div class="col-md-3 col-6 mb-3">
-                    <div class="h4 mb-0">{{ stats.total_users or 0 }}</div>
-                    <small class="text-muted">Пользователей</small>
-                </div>
-                <div class="col-md-3 col-6 mb-3">
-                    <div class="h4 mb-0">{{ stats.valid_receipts or 0 }}</div>
-                    <small class="text-muted">Чеков</small>
-                </div>
-                <div class="col-md-3 col-6 mb-3">
-                    <div class="h4 mb-0">{{ stats.total_tickets or 0 }}</div>
-                    <small class="text-muted">Билетов</small>
-                </div>
-                <div class="col-md-3 col-6 mb-3">
-                    <div class="h4 mb-0">{{ stats.total_winners or 0 }}</div>
-                    <small class="text-muted">Победителей</small>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Danger Zone -->
-    <div class="card danger-zone-card shadow-sm mt-5">
-        <div class="danger-zone-header">
-            <i class="bi bi-exclamation-triangle-fill"></i> Опасная зона
-        </div>
-        <div class="card-body p-4">
-            <div class="row g-4">
-                <!-- Export -->
-                <div class="col-md-6">
-                    <div class="danger-action-card">
-                        <div class="danger-action-title">
-                            <i class="bi bi-box-arrow-down text-primary"></i> Экспорт данных
+            <!-- Statistics -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Статистика</div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="h4 mb-0">{{ stats.total_users or 0 }}</div>
+                            <small class="text-muted">Пользователей</small>
                         </div>
-                        <p class="danger-action-desc">Скачать полный дамп базы данных бота в формате JSON для резервного
-                            копирования.</p>
-                        <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-sm btn-outline-primary w-100">
-                            Скачать JSON
-                        </a>
-                    </div>
-                </div>
-                <!-- Migrate -->
-                <div class="col-md-6">
-                    <div class="danger-action-card">
-                        <div class="danger-action-title">
-                            <i class="bi bi-arrow-left-right text-info"></i> Миграция
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="h4 mb-0">{{ stats.valid_receipts or 0 }}</div>
+                            <small class="text-muted">Чеков</small>
                         </div>
-                        <p class="danger-action-desc">Перенос всех пользователей в другого бота на этом же сервере.</p>
-                        <a href="/bots/{{ edit_bot.id }}/migrate" class="btn btn-sm btn-outline-info w-100">
-                            Начать миграцию
-                        </a>
-                    </div>
-                </div>
-                <!-- Archive -->
-                <div class="col-md-6">
-                    <div class="danger-action-card">
-                        <div class="danger-action-title">
-                            <i class="bi bi-archive text-warning"></i> Архив
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="h4 mb-0">{{ stats.total_tickets or 0 }}</div>
+                            <small class="text-muted">Билетов</small>
                         </div>
-                        <p class="danger-action-desc">Отключить бота, но сохранить все исторические данные и файлы.</p>
-                        <form method="POST" action="/bots/{{ edit_bot.id }}/archive"
-                            onsubmit="return confirm('Архивировать бота {{ edit_bot.name }}?')">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button type="submit" class="btn btn-sm btn-outline-warning w-100">
-                                Архивировать
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                <!-- Delete -->
-                <div class="col-md-6">
-                    <div class="danger-action-card" style="background: rgba(254, 226, 226, 0.3);">
-                        <div class="danger-action-title text-danger">
-                            <i class="bi bi-trash"></i> Удаление
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="h4 mb-0">{{ stats.total_winners or 0 }}</div>
+                            <small class="text-muted">Победителей</small>
                         </div>
-                        <p class="danger-action-desc">Полное и безвозвратное удаление бота и всех связанных данных.</p>
-                        <button type="button" class="btn btn-sm btn-danger w-100" data-bs-toggle="modal"
-                            data-bs-target="#deleteModal">
-                            Удалить навсегда
-                        </button>
                     </div>
                 </div>
             </div>
+
+            <!-- Danger Zone -->
+            <div class="card danger-zone-card shadow-sm">
+                <div class="danger-zone-header">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Опасная зона
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <!-- Export -->
+                        <div class="col-md-6">
+                            <div class="danger-action-card">
+                                <div class="danger-action-title">
+                                    <i class="bi bi-box-arrow-down text-primary"></i> Экспорт данных
+                                </div>
+                                <p class="danger-action-desc">Скачать полный дамп базы данных бота в формате JSON для
+                                    резервного
+                                    копирования.</p>
+                                <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-sm btn-outline-primary w-100">
+                                    Скачать JSON
+                                </a>
+                            </div>
+                        </div>
+                        <!-- Migrate -->
+                        <div class="col-md-6">
+                            <div class="danger-action-card">
+                                <div class="danger-action-title">
+                                    <i class="bi bi-arrow-left-right text-info"></i> Миграция
+                                </div>
+                                <p class="danger-action-desc">Перенос всех пользователей в другого бота на этом же
+                                    сервере.</p>
+                                <a href="/bots/{{ edit_bot.id }}/migrate" class="btn btn-sm btn-outline-info w-100">
+                                    Начать миграцию
+                                </a>
+                            </div>
+                        </div>
+                        <!-- Archive -->
+                        <div class="col-md-6">
+                            <div class="danger-action-card">
+                                <div class="danger-action-title">
+                                    <i class="bi bi-archive text-warning"></i> Архив
+                                </div>
+                                <p class="danger-action-desc">Отключить бота, но сохранить все исторические данные и
+                                    файлы.</p>
+                                <form method="POST" action="/bots/{{ edit_bot.id }}/archive"
+                                    onsubmit="return confirm('Архивировать бота {{ edit_bot.name }}?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning w-100">
+                                        Архивировать
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        <!-- Delete -->
+                        <div class="col-md-6">
+                            <div class="danger-action-card" style="background: rgba(254, 226, 226, 0.3);">
+                                <div class="danger-action-title text-danger">
+                                    <i class="bi bi-trash"></i> Удаление
+                                </div>
+                                <p class="danger-action-desc">Полное и безвозвратное удаление бота и всех связанных
+                                    данных.</p>
+                                <button type="button" class="btn btn-sm btn-danger w-100" data-bs-toggle="modal"
+                                    data-bs-target="#deleteModal">
+                                    Удалить навсегда
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
-</div>
-</div>
 </div>
 
 <!-- Delete Confirmation Modal -->
