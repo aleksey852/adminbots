@@ -1,35 +1,24 @@
 """
 Database module - exports for bot handlers and admin panel
-
-Structure:
-- db.py: Panel database connection pool and schema
-- panel_db.py: Panel-specific operations (bot registry, panel users)  
-- methods.py: Bot management operations (bots table, admins)
-- bot_db.py: Per-bot database connections
-- bot_methods.py: Bot-specific data operations (users, receipts, etc.)
 """
-from database.db import init_db, close_db, get_connection
-
-# Panel/Bot management methods (work with panel database)
-from database.methods import (
-    # Bot Management
-    get_bot_by_token, get_active_bots, get_bot, get_bot_config, get_all_bots,
-    # Bot Admins
-    get_bot_admins, add_bot_admin, remove_bot_admin, is_bot_admin,
-    update_bot_admins_array,
-    # Bot Lifecycle
-    get_bot_enabled_modules, update_bot_modules, archive_bot,
-    # Health
-    check_db_health,
-    # Utils
-    escape_like,
-)
-
-# Panel users (from panel_db)
+# Panel Database Core
 from database.panel_db import (
-    get_panel_user, get_panel_user_by_id, update_panel_user_login,
-    get_all_panel_users, create_panel_user, update_panel_user, delete_panel_user,
+    init_panel_db, close_panel_db, get_panel_connection,
+    # Bot Management
+    get_bot_by_token, get_active_bots, get_bot_by_id as get_bot, get_all_bots,
+    register_bot, update_bot, archive_bot,
+    # Bot Modules & Admins
+    get_bot_enabled_modules, update_bot_modules,
+    get_bot_admins, is_bot_admin, update_bot_admins_array,
+    # Panel Users
+    get_panel_user, get_panel_user_by_id, update_panel_user,
+    get_all_panel_users, create_panel_user, delete_panel_user,
+    # Utilities
+    check_db_health, escape_like, create_bot_database,
 )
+
+# Bot Database Core
+from database.bot_db import BotDatabase, bot_db_manager
 
 # Bot-specific methods (work with per-bot databases via context)
 from database.bot_methods import (

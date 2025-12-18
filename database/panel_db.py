@@ -7,6 +7,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Optional, Any, List, Dict
+from datetime import datetime
 import asyncpg
 
 logger = logging.getLogger(__name__)
@@ -113,22 +114,85 @@ async def _create_panel_schema():
 
 # === Bot Registry Methods ===
 
+def escape_like(text: Optional[str]) -> str:
+    """Escape special characters for LIKE queries"""
+    if not text: return ""
+    return str(text).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+async def get_active_bots() -> List[Dict]:
+    """Get only active (non-archived) bots"""
+    async with get_panel_connection() as db:
+        return await db.fetch("SELECT * FROM bot_registry WHERE is_active = TRUE AND archived_at IS NULL ORDER BY created_at DESC")
+
 async def get_all_bots(include_archived: bool = False):
     async with get_panel_connection() as db:
-        return await db.fetch("SELECT * FROM bot_registry" + ("" if include_archived else " WHERE archived_at IS NULL") + " ORDER BY created_at DESC")
+        if include_archived:
+            return await db.fetch("SELECT * FROM bot_registry ORDER BY created_at DESC")
+        return await get_active_bots()
 
 async def get_bot_by_id(bot_id: int):
-    async with get_panel_connection() as db: return await db.fetchrow("SELECT * FROM bot_registry WHERE id = $1", bot_id)
+    async with get_panel_connection() as db:
+        return await db.fetchrow("SELECT * FROM bot_registry WHERE id = $1", bot_id)
 
 async def get_bot_by_token(token: str):
-    async with get_panel_connection() as db: return await db.fetchrow("SELECT * FROM bot_registry WHERE token = $1", token)
+    async with get_panel_connection() as db:
+        return await db.fetchrow("SELECT * FROM bot_registry WHERE token = $1", token)
 
 async def register_bot(token: str, name: str, bot_type: str, database_url: str, admin_ids: List[int] = None):
     async with get_panel_connection() as db:
         return await db.fetchval("INSERT INTO bot_registry (token, name, type, database_url, admin_ids) VALUES ($1, $2, $3, $4, $5) RETURNING id", token, name, bot_type, database_url, admin_ids or [])
 
+async def update_bot(bot_id: int, **kwargs):
+    """Update bot registry record"""
+    if not kwargs: return False
+    async with get_panel_connection() as db:
+        fields = []
+        vals = []
+        for i, (k, v) in enumerate(kwargs.items(), 1):
+            fields.append(f"{k} = ${i}")
+            vals.append(v)
+        vals.append(bot_id)
+        query = f"UPDATE bot_registry SET {', '.join(fields)} WHERE id = ${len(vals)}"
+        return "UPDATE 1" in await db.execute(query, *vals)
+
 async def delete_bot_registry(bot_id: int):
-    async with get_panel_connection() as db: return "DELETE 1" in await db.execute("DELETE FROM bot_registry WHERE id = $1", bot_id)
+    async with get_panel_connection() as db:
+        return "DELETE 1" in await db.execute("DELETE FROM bot_registry WHERE id = $1", bot_id)
+
+async def archive_bot(bot_id: int, archived_by: str) -> bool:
+    """Archive a bot (soft delete)"""
+    return await update_bot(bot_id, is_active=False, archived_at=datetime.now(), archived_by=archived_by)
+
+# === Bot Admins ===
+
+async def get_bot_admins(bot_id: int) -> List[int]:
+    """Get list of admin telegram_ids for a bot"""
+    bot = await get_bot_by_id(bot_id)
+    return list(bot['admin_ids']) if bot and bot['admin_ids'] else []
+
+async def is_bot_admin(telegram_id: int, bot_id: int) -> bool:
+    """Check if user is admin for specific bot"""
+    import config
+    if telegram_id in (config.ADMIN_IDS or []): return True
+    admins = await get_bot_admins(bot_id)
+    return telegram_id in (admins or [])
+
+# === Module Helpers ===
+
+async def get_bot_enabled_modules(bot_id: int) -> List[str]:
+    """Get list of enabled modules for a bot"""
+    bot = await get_bot_by_id(bot_id)
+    if bot and bot.get('enabled_modules'):
+        return list(bot['enabled_modules'])
+    return ['core', 'registration', 'receipts', 'promo', 'admin']
+
+async def update_bot_modules(bot_id: int, modules: List[str]) -> bool:
+    """Update enabled modules for a bot"""
+    return await update_bot(bot_id, enabled_modules=modules)
+
+async def update_bot_admins_array(bot_id: int, admin_ids: List[int]) -> bool:
+    """Update admin_ids array for a bot"""
+    return await update_bot(bot_id, admin_ids=admin_ids)
 
 # === Panel Users Methods ===
 
@@ -144,6 +208,18 @@ async def get_all_panel_users():
 async def create_panel_user(username: str, password_hash: str, role: str = 'admin'):
     async with get_panel_connection() as db: return await db.fetchval("INSERT INTO panel_users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id", username, password_hash, role)
 
+async def update_panel_user(user_id: int, **kwargs):
+    if not kwargs: return False
+    async with get_panel_connection() as db:
+        fields = []
+        vals = []
+        for i, (k, v) in enumerate(kwargs.items(), 1):
+            fields.append(f"{k} = ${i}")
+            vals.append(v)
+        vals.append(user_id)
+        query = f"UPDATE panel_users SET {', '.join(fields)} WHERE id = ${len(vals)}"
+        return "UPDATE 1" in await db.execute(query, *vals)
+
 async def delete_panel_user(user_id: int):
     async with get_panel_connection() as db: return "DELETE 1" in await db.execute("DELETE FROM panel_users WHERE id = $1", user_id)
 
@@ -152,6 +228,16 @@ async def update_panel_user_login(user_id: int):
 
 async def count_superadmins():
     async with get_panel_connection() as db: return await db.fetchval("SELECT COUNT(*) FROM panel_users WHERE role = 'superadmin'")
+
+# === Utility Methods ===
+
+async def check_db_health() -> bool:
+    """Check panel database connection health"""
+    if not _panel_pool: return False
+    try:
+        async with get_panel_connection() as db:
+            return await db.fetchval("SELECT 1") == 1
+    except: return False
 
 async def create_bot_database(db_name: str, base_url: str) -> str:
     import urllib.parse

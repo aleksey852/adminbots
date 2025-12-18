@@ -23,7 +23,7 @@ from redis.asyncio import Redis
 import config
 from database.panel_db import init_panel_db, close_panel_db, get_panel_connection, get_active_bots, get_bot_by_id
 from database.bot_db import bot_db_manager
-from database import bot_methods, methods
+from database import bot_methods
 from bot_manager import bot_manager, PollingManager
 from modules.base import module_loader
 from modules.core import core_module
@@ -95,7 +95,7 @@ async def send_message_with_retry(
 # === Campaign Processor ===
 
 async def pg_listener():
-    """Listen for campaign notifications from PostgreSQL (uses panel DB)"""
+    """Listen for notifications from PostgreSQL (uses panel DB)"""
     try:
         async with get_panel_connection() as db:
             conn = db.conn
@@ -103,9 +103,8 @@ async def pg_listener():
             def notify_handler(conn, pid, channel, payload):
                 notification_queue.put_nowait((channel, payload))
             
-            await conn.add_listener("new_campaign", notify_handler)
             await conn.add_listener("new_bot", notify_handler)
-            logger.info("🔊 PostgreSQL Listener attached to 'new_campaign' and 'new_bot'")
+            logger.info("🔊 PostgreSQL Listener attached to 'new_bot'")
             
             while not shutdown_event.is_set():
                 try:
@@ -115,22 +114,7 @@ async def pg_listener():
                     while not notification_queue.empty():
                         channel, payload = await notification_queue.get()
                         try:
-                            if channel == "new_campaign":
-                                campaign_id = int(payload)
-                                logger.info(f"🔔 Notification: Campaign #{campaign_id}")
-                                campaign = await methods.get_campaign(campaign_id)
-                                if campaign:
-                                    scheduled_for = campaign.get("scheduled_for")
-                                    if scheduled_for and isinstance(scheduled_for, datetime):
-                                        now_local = config.get_now().replace(tzinfo=None)
-                                        if scheduled_for > now_local:
-                                            logger.info(
-                                                f"⏳ Campaign #{campaign_id} scheduled for {scheduled_for}, skipping notification run"
-                                            )
-                                            continue
-                                    await process_campaign(campaign)
-                            
-                            elif channel == "new_bot":
+                            if channel == "new_bot":
                                 logger.info("🔔 Notification: New Bot added. Reloading dynamically...")
                                 # Use PollingManager to add new bots without restart
                                 if polling_manager:
