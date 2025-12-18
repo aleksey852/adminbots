@@ -130,7 +130,7 @@ def setup_routes(
         for name, data in sorted_groups:
             final_groups.append({
                 'name': name,
-                'items': data['items']
+                'messages': data['items']
             })
 
         return templates.TemplateResponse("settings/texts.html", get_template_context(
