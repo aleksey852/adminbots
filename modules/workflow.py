@@ -56,6 +56,15 @@ class WorkflowManager:
     def get_steps(self, chain_name: str) -> List[Dict]:
         return self.chains.get(chain_name, [])
 
+    def get_steps_by_module(self, module_name: str) -> List[str]:
+        """Get list of step names registered by a specific module across all chains."""
+        steps = []
+        for chain in self.chains.values():
+            for step in chain:
+                if step.get("module_name") == module_name:
+                    steps.append(step["name"])
+        return steps
+
     def get_next_step(self, chain_name: str, current_step_name: str, bot_id: int = None) -> Optional[Dict]:
         """
         Get the next ENABLED step after the current one.

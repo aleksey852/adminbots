@@ -115,6 +115,8 @@ def setup_routes(
             stats = await get_stats()
             
             # Prepare module data with settings
+            from modules.workflow import workflow_manager
+            
             for mod in sorted_modules:
                 settings = []
                 if hasattr(mod, 'settings_schema'):
@@ -126,12 +128,16 @@ def setup_routes(
                             **schema
                         })
                 
+                # Get workflow steps
+                steps = workflow_manager.get_steps_by_module(mod.name)
+                
                 modules_data.append({
                     'name': mod.name,
                     'description': mod.description,
                     'enabled': mod.name in enabled_modules,
                     'is_required': mod.name in ('core', 'registration'),
-                    'settings': settings
+                    'settings': settings,
+                    'workflow_steps': steps
                 })
 
         return templates.TemplateResponse("bots/edit.html", get_template_context(
