@@ -112,6 +112,24 @@ def setup_routes(
         await update_bot(bot_id, admin_ids=p_ids)
         return RedirectResponse(f"/bots/{bot_id}/edit?msg=Admins+updated", 303)
 
+    @router.get("/{bot_id}/modules", response_class=HTMLResponse)
+    async def bot_modules_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin)):
+        bot = await get_bot_by_id(bot_id)
+        if not bot: raise HTTPException(404, "Bot not found")
+        
+        from modules.base import module_loader
+        # Get module objects to show descriptions
+        modules = []
+        for name, mod in module_loader.modules.items():
+             modules.append({"name": name, "description": mod.description})
+        
+        # Sort: core/registration first, then others
+        modules.sort(key=lambda x: 0 if x['name'] in ('core', 'registration') else 1)
+        
+        return templates.TemplateResponse("bots/modules.html", get_template_context(
+            request, user=user, title=f"Модули: {bot['name']}", bot=bot, available_modules=modules
+        ))
+
     @router.post("/{bot_id}/modules", dependencies=[Depends(verify_csrf_token)])
     async def update_bot_modules(request: Request, bot_id: int):
         from database.panel_db import update_bot

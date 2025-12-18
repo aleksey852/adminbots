@@ -13,6 +13,25 @@
     </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto flex-grow-1">
+                <input type="text" name="q" class="form-control" placeholder="Поиск по коду или username..."
+                    value="{{ search_query or '' }}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Найти</button>
+            </div>
+            {% if search_query %}
+            <div class="col-auto">
+                <a href="/codes" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Сброс</a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
 <div class="row g-4 mb-4">
     <div class="col-md-4">
         <div class="card stat-card">

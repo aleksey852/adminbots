@@ -28,42 +28,56 @@ async def execute_raffle(
     3. Paginated loser notification
     4. Graceful shutdown with progress saving
     """
-    count = int(content.get("count", 1))
-    prize = content.get("prize", "Приз")
-    is_final = content.get("is_final", False)
+    prizes = content.get("prizes")
+    if not prizes:
+         # Backward compatibility
+         prizes = [{"name": content.get("prize", "Приз"), "count": int(content.get("count", 1))}]
     
+    is_final = content.get("is_final", False)
     raffle_type = "FINAL" if is_final else "regular"
-    logger.info(f"🎁 Raffle #{campaign_id} ({raffle_type}): {count} winners for '{prize}'")
+    total_count = sum(p['count'] for p in prizes)
+    logger.info(f"🎁 Raffle #{campaign_id} ({raffle_type}): {total_count} winners, {len(prizes)} prize types")
     
     # 1. Check if winners already exist (resume case)
     existing_winners = await bot_methods.get_campaign_winners(campaign_id)
     
     if not existing_winners:
-        # Selection phase - use DB-side selection (memory efficient!)
-        logger.info(f"Raffle #{campaign_id}: Selecting {count} winners via DB...")
+        # Selection phase
+        logger.info(f"Raffle #{campaign_id}: Selecting winners via DB...")
         
-        # Use memory-efficient DB-side weighted random selection
-        selected = await bot_methods.select_random_winners_db(count, prize, exclude_user_ids=[])
+        all_winners_data = []
+        exclude_ids = []
         
-        if not selected:
-            logger.warning(f"Raffle #{campaign_id}: No participants")
+        for p in prizes:
+            p_name = p['name']
+            p_count = int(p['count'])
+            if p_count <= 0: continue
+            
+            # Select winners for this prize
+            # Note: select_random_winners_db uses weighted logic
+            selected = await bot_methods.select_random_winners_db(p_count, p_name, exclude_user_ids=exclude_ids)
+            
+            if not selected:
+                logger.warning(f"Raffle #{campaign_id}: Not enough participants for prize '{p_name}'")
+                continue
+                
+            for w in selected:
+                exclude_ids.append(w['user_id'])
+                all_winners_data.append({
+                    "user_id": w['user_id'],
+                    "telegram_id": w['telegram_id'],
+                    "prize_name": p_name,
+                    "full_name": w.get('full_name'),
+                    "username": w.get('username')
+                })
+        
+        if not all_winners_data:
+            logger.warning(f"Raffle #{campaign_id}: No winners selected at all")
             await bot_methods.mark_campaign_completed(campaign_id)
             return
         
-        # Convert to winner format and save atomically
-        winners_to_save = [
-            {
-                "user_id": w['user_id'],
-                "telegram_id": w['telegram_id'],
-                "prize_name": prize,
-                "full_name": w.get('full_name'),
-                "username": w.get('username')
-            }
-            for w in selected
-        ]
-        
-        await bot_methods.save_winners_atomic(campaign_id, winners_to_save)
-        logger.info(f"Raffle #{campaign_id}: Selected and saved {len(winners_to_save)} winners")
+        await bot_methods.save_winners_atomic(campaign_id, all_winners_data)
+        logger.info(f"Raffle #{campaign_id}: Selected and saved {len(all_winners_data)} winners")
         existing_winners = await bot_methods.get_campaign_winners(campaign_id)
 
     # 2. Notify Winners (only those not yet notified)
@@ -81,7 +95,12 @@ async def execute_raffle(
             sent_win += 1
             continue
             
-        msg = win_msg_template.copy() if win_msg_template else {"text": f"🎉 Поздравляем! Вы выиграли: {prize}!"}
+        msg = win_msg_template.copy() if win_msg_template else {}
+        if "text" not in msg:
+            msg["text"] = f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"
+        else:
+            # Optional: simple template replacement if user wants generic text
+            msg["text"] = msg["text"].replace("{prize}", w.get('prize_name', ''))
         
         if await send_message_with_retry(
             bot,

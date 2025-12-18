@@ -344,8 +344,12 @@ async def get_promo_stats():
     async with get_current_bot_db().get_connection() as conn:
         r = await conn.fetchrow("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status='used') as used, COUNT(*) FILTER (WHERE status='active') as active FROM promo_codes")
         return dict(r)
-async def get_promo_codes_paginated(limit=50, offset=0):
-    async with get_current_bot_db().get_connection() as conn: return await conn.fetch("SELECT pc.*, u.username, u.full_name FROM promo_codes pc LEFT JOIN users u ON pc.user_id = u.id ORDER BY pc.created_at DESC LIMIT $1 OFFSET $2", limit, offset)
+async def get_promo_codes_paginated(limit=50, offset=0, search_query: str = None):
+    async with get_current_bot_db().get_connection() as conn:
+        if search_query:
+            q = escape_like(search_query)
+            return await conn.fetch("SELECT pc.*, u.username, u.full_name FROM promo_codes pc LEFT JOIN users u ON pc.user_id = u.id WHERE pc.code ILIKE $1 OR u.username ILIKE $1 ORDER BY pc.created_at DESC LIMIT $2 OFFSET $3", f"%{q}%", limit, offset)
+        return await conn.fetch("SELECT pc.*, u.username, u.full_name FROM promo_codes pc LEFT JOIN users u ON pc.user_id = u.id ORDER BY pc.created_at DESC LIMIT $1 OFFSET $2", limit, offset)
 async def get_all_receipts_paginated(page=1, per_page=50):
     async with get_current_bot_db().get_connection() as conn: return await conn.fetch("SELECT r.*, u.full_name, u.username FROM receipts r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC LIMIT $1 OFFSET $2", per_page, (page-1)*per_page)
 async def get_recent_raffles_with_winners(limit=5):

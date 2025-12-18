@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Настройки розыгрышей</h1>
+</div>
+
+{% if updated %}
+<div class="alert alert-success-custom mb-4">
+    <i class="bi bi-check-circle"></i> Настройки сохранены! Перезапустите бота для применения изменений.
+</div>
+{% endif %}
+
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-gift"></i> Параметры ежемесячных розыгрышей</div>
+    <div class="card-body">
+        <p class="text-muted mb-4">Настройте автоматические ежемесячные розыгрыши для этого бота.</p>
+
+        {% for key, label, value in raffle_fields %}
+        <form method="post" action="/settings/raffle/update" class="mb-3">
+            <div class="row align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label fw-bold">{{ label }}</label>
+                    <small class="text-muted d-block">{{ key }}</small>
+                </div>
+                <div class="col-md-5">
+                    <input type="hidden" name="key" value="{{ key }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="text" name="value" value="{{ value }}" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Сохранить</button>
+                </div>
+            </div>
+        </form>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="d-flex align-items-center mb-4">
+                <a href="/bots/{{ bot.id }}/edit" class="btn btn-outline-secondary me-3"><i
+                        class="bi bi-arrow-left"></i> Назад</a>
+                <div>
+                    <h1 class="page-title mb-0">🧩 Модули бота</h1>
+                    <p class="text-muted mb-0">{{ bot.name }}</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-collection me-2"></i>Управление модулями</div>
+                <div class="card-body">
+                    <p class="text-muted">Выберите модули, которые будут активны для этого бота. Изменения требуют
+                        перезапуска бота.</p>
+
+                    <form method="POST" action="/bots/{{ bot.id }}/modules">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="list-group mb-4">
+                            {% set enabled = bot.enabled_modules or [] %}
+
+                            {% for module in available_modules %}
+                            <label class="list-group-item d-flex gap-3 align-items-start p-3">
+                                <input class="form-check-input flex-shrink-0" type="checkbox" name="modules"
+                                    value="{{ module.name }}" style="font-size: 1.25rem;" {% if module.name in enabled
+                                    %}checked{% endif %} {% if module.name=='core' or module.name=='registration'
+                                    %}disabled{% endif %}>
+
+                                <div class="d-flex w-100 justify-content-between">
+                                    <div>
+                                        <h6 class="mb-1 fw-bold">{{ module.name }}</h6>
+                                        <p class="mb-1 text-muted small">{{ module.description or 'Нет описания' }}</p>
+                                    </div>
+                                    {% if module.name == 'core' or module.name == 'registration' %}
+                                    <span class="badge bg-secondary align-self-center">Обязательный</span>
+                                    {% elif module.name in enabled %}
+                                    <span class="badge bg-success align-self-center">Активен</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark border align-self-center">Выключен</span>
+                                    {% endif %}
+                                </div>
+                            </label>
+                            <!-- Hidden inputs for disabled checkboxes to ensure value is submitted if needed, 
+                                 but actually disabled inputs aren't submitted, so we must handle backend to always force them. 
+                                 Backend already does this: `if 'registration' not in modules: modules.append('registration')`
+                            -->
+                            {% endfor %}
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="/bots/{{ bot.id }}/edit" class="btn btn-link text-decoration-none">Отмена</a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-save me-2"></i>Сохранить изменения
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-4">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Примечание:</strong> После изменения списка модулей, бот автоматически перезагрузит
+                конфигурацию.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

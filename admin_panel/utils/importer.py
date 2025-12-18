@@ -11,7 +11,7 @@ root_dir = current_dir.parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from database import add_promo_codes, create_job, update_job, bot_db_context
+from database.bot_methods import add_promo_codes, create_job, update_job, bot_db_context
 from bot_manager import bot_manager
 from aiogram import Bot
 import config

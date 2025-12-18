@@ -81,87 +81,21 @@
                 </div>
             </div>
 
-            <!-- Modules -->
+            <!-- Modules Link -->
             <div class="card shadow-sm mb-4">
-                <div class="card-header"><i class="bi bi-puzzle me-1"></i> Модули</div>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-puzzle me-1"></i> Модули</span>
+                    <a href="/bots/{{ edit_bot.id }}/modules" class="btn btn-sm btn-outline-primary">Управление</a>
+                </div>
                 <div class="card-body">
-                    <form method="POST" action="/bots/{{ edit_bot.id }}/modules">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-                        <div class="row">
-                            {% set enabled_modules = edit_bot.enabled_modules or [] %}
-
-                            <div class="col-md-6 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="modules" value="registration"
-                                        checked disabled>
-                                    <label class="form-check-label">
-                                        <strong>📝 registration</strong> <span
-                                            class="badge bg-secondary">обязательный</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="modules" value="user_profile"
-                                        {% if 'user_profile' in enabled_modules %}checked{% endif %}>
-                                    <label class="form-check-label"><strong>👤 user_profile</strong></label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="modules" value="receipts" {%
-                                        if 'receipts' in enabled_modules %}checked{% endif %}>
-                                    <label class="form-check-label"><strong>🧾 receipts</strong></label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="modules" value="promo" {%
-                                        if 'promo' in enabled_modules %}checked{% endif %}>
-                                    <label class="form-check-label"><strong>🎁 promo</strong></label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="modules" value="faq" {%
-                                        if 'faq' in enabled_modules %}checked{% endif %}>
-                                    <label class="form-check-label"><strong>❓ faq</strong></label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="modules" value="support" {%
-                                        if 'support' in enabled_modules %}checked{% endif %}>
-                                    <label class="form-check-label"><strong>💬 support</strong></label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="modules" value="admin" {%
-                                        if 'admin' in enabled_modules %}checked{% endif %}>
-                                    <label class="form-check-label"><strong>⚙️ admin</strong></label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mt-3">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save me-1"></i> Сохранить модули
-                            </button>
-                        </div>
-
-                        <div class="alert alert-warning mt-3 mb-0">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            <strong>Внимание:</strong> Изменения модулей требуют перезапуска бота.
-                        </div>
-                    </form>
+                    <p class="text-muted mb-2">Активные модули:</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for mod in edit_bot.enabled_modules or [] %}
+                        <span class="badge bg-info text-dark">{{ mod }}</span>
+                        {% else %}
+                        <span class="text-muted small">Нет активных модулей (используются стандартные)</span>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
 

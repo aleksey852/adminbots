@@ -93,12 +93,13 @@ def setup_routes(
         return templates.TemplateResponse("campaigns/list.html", get_template_context(request, user=user, campaigns=await get_recent_campaigns(50), title="Кампании"))
 
     @router.get("/codes", response_class=HTMLResponse)
-    async def codes_list(request: Request, user: str = Depends(get_current_user), page: int = 1):
+    async def codes_list(request: Request, user: str = Depends(get_current_user), page: int = 1, q: str = None):
         from database import get_promo_stats, get_promo_codes_paginated
         if not (bot := request.state.bot) or bot.get("type") != "promo": return RedirectResponse("/")
         return templates.TemplateResponse("codes/list.html", get_template_context(
             request, user=user, title="Промокоды", stats=await get_promo_stats(),
-            codes=await get_promo_codes_paginated(50, (page-1)*50)
+            codes=await get_promo_codes_paginated(50, (page-1)*50, search_query=q),
+            search_query=q
         ))
 
     @router.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
@@ -198,7 +199,10 @@ def setup_routes(
 
     @router.post("/raffle/create", dependencies=[Depends(verify_csrf_token)])
     async def create_raffle(
-        request: Request, prize_name: str = Form(...), winner_count: int = Form(...),
+        request: Request, 
+        prize_names: list[str] = Form(None), winner_counts: list[int] = Form(None), # Lists
+        # Fallback for single values if form old cached
+        prize_name: str = Form(None), winner_count: int = Form(None),
         win_text: str = Form(None), win_photo: UploadFile = File(None),
         lose_text: str = Form(None), lose_photo: UploadFile = File(None),
         scheduled_for: str = Form(None), is_final: bool = Form(False),
@@ -206,15 +210,36 @@ def setup_routes(
     ):
         if not request.state.bot: return RedirectResponse("/")
         
+        # Parse prizes
+        prizes = []
+        if prize_names and winner_counts:
+            # New format
+            for name, count in zip(prize_names, winner_counts):
+                if name.strip() and count > 0:
+                    prizes.append({"name": name.strip(), "count": count})
+        elif prize_name and winner_count:
+            # Legacy format
+            prizes.append({"name": prize_name.strip(), "count": winner_count})
+        
+        if not prizes:
+             raise HTTPException(400, "At least one prize required")
+
         async def save_media(file, prefix, text):
-            if not (file and file.filename): return {"text": text or (f"🎉 Вы выиграли: {prize_name}!" if prefix == "win" else None)}
+            # Construct default message based on prizes if text is empty?
+            # For now, keep generic default or use text.
+            # If multiple prizes, generic text "You won: {prize}" is generated at runtime if placeholder used?
+            # Or we just use a generic message.
+            if not (file and file.filename): return {"text": text}
             path = UPLOADS_DIR / f"{prefix}_{uuid.uuid4().hex[:8]}{Path(file.filename).suffix}"
             async with aiofiles.open(path, 'wb') as f:
                 while chunk := await file.read(1024*1024): await f.write(chunk)
             return {"photo_path": str(path), "caption": text}
 
         content = {
-            "prize": prize_name, "count": winner_count, "is_final": is_final,
+            "prizes": prizes, # List of prizes
+            "prize": prizes[0]["name"], # Backward compat
+            "count": prizes[0]["count"], # Backward compat
+            "is_final": is_final,
             "win_msg": await save_media(win_photo, "win", win_text),
             "lose_msg": await save_media(lose_photo, "lose", lose_text)
         }
