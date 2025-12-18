@@ -183,7 +183,7 @@ def setup_routes(
         try:
             # 2. Notify Bot Process to restart the bot
             async with get_panel_connection() as db:
-                await db.execute("NOTIFY restart_bot, $1", str(bot_id))
+                await db.execute("SELECT pg_notify('restart_bot', $1)", str(bot_id))
                 
             return RedirectResponse(f"/bots/{bot_id}/edit?msg=Restart+signal+sent", 303)
         except Exception as e:
