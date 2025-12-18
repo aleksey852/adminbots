@@ -8,62 +8,60 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
     <style>
-        :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
         body {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%);
-            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 1rem;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        }
-
-        /* Animated Background */
-        .bg-pattern {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            min-height: 100vh;
+            background: var(--bg-body);
             overflow: hidden;
-            z-index: 0;
+            position: relative;
         }
 
-        .bg-pattern::before,
-        .bg-pattern::after {
-            content: '';
+        /* Ambient Background */
+        .ambient-light {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .light-orb {
             position: absolute;
             border-radius: 50%;
             filter: blur(80px);
             opacity: 0.4;
-            animation: float 8s ease-in-out infinite;
+            animation: float 10s infinite ease-in-out;
         }
 
-        .bg-pattern::before {
+        .orb-1 {
             width: 400px;
             height: 400px;
             background: var(--primary);
             top: -100px;
-            right: -100px;
+            left: -100px;
         }
 
-        .bg-pattern::after {
+        .orb-2 {
             width: 300px;
             height: 300px;
             background: #8b5cf6;
             bottom: -50px;
-            left: -50px;
-            animation-delay: -4s;
+            right: -50px;
+            animation-delay: -5s;
+        }
+
+        .orb-3 {
+            width: 200px;
+            height: 200px;
+            background: var(--success);
+            top: 40%;
+            left: 60%;
+            opacity: 0.2;
+            animation-delay: -2s;
         }
 
         @keyframes float {
@@ -74,32 +72,28 @@
             }
 
             50% {
-                transform: translate(30px, 30px);
+                transform: translate(30px, -30px);
             }
         }
 
-        .login-container {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 420px;
-        }
-
+        /* Login Card */
         .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
+            width: 100%;
+            max-width: 400px;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 24px;
-            box-shadow:
-                0 25px 50px -12px rgba(0, 0, 0, 0.4),
-                0 0 0 1px rgba(255, 255, 255, 0.1);
-            overflow: hidden;
-            animation: slideUp 0.5s ease-out;
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes slideUp {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(20px);
             }
 
             to {
@@ -108,233 +102,111 @@
             }
         }
 
-        .login-header {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            color: white;
-            padding: 2.5rem 2rem;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
+        .brand-icon {
+            font-size: 3rem;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+            display: inline-block;
         }
 
-        .login-header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
-            animation: shimmer 3s linear infinite;
-        }
-
-        @keyframes shimmer {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        .login-header h3 {
-            position: relative;
-            margin: 0;
+        .login-title {
             font-size: 1.5rem;
             font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
+            margin-bottom: 0.5rem;
         }
 
-        .login-header h3 i {
-            font-size: 2rem;
-        }
-
-        .login-header p {
-            position: relative;
-            margin: 0.5rem 0 0;
-            opacity: 0.9;
+        .login-subtitle {
+            color: var(--text-muted);
             font-size: 0.9rem;
-        }
-
-        .login-body {
-            padding: 2rem;
-        }
-
-        .form-floating {
-            margin-bottom: 1rem;
+            margin-bottom: 2rem;
         }
 
         .form-floating .form-control {
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 1rem 1rem 0.5rem;
-            height: 56px;
-            font-size: 0.95rem;
-            transition: all 0.3s ease;
+            background: rgba(2, 6, 23, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
         }
 
         .form-floating .form-control:focus {
+            background: rgba(2, 6, 23, 0.8);
             border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
         }
 
         .form-floating label {
-            color: #64748b;
-            padding: 1rem;
+            color: var(--text-muted);
         }
 
         .btn-login {
             width: 100%;
-            padding: 0.85rem;
-            font-size: 1rem;
-            font-weight: 600;
-            border: none;
+            padding: 1rem;
             border-radius: 12px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
             color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
+            margin-top: 1rem;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
 
         .btn-login:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
-        }
-
-        .btn-login:active {
-            transform: translateY(0);
-        }
-
-        .btn-login i {
-            margin-left: 0.5rem;
-            transition: transform 0.3s ease;
-        }
-
-        .btn-login:hover i {
-            transform: translateX(4px);
-        }
-
-        .alert {
-            border-radius: 12px;
-            border: none;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-size: 0.9rem;
-            animation: shake 0.5s ease-in-out;
-        }
-
-        @keyframes shake {
-
-            0%,
-            100% {
-                transform: translateX(0);
-            }
-
-            20%,
-            60% {
-                transform: translateX(-4px);
-            }
-
-            40%,
-            80% {
-                transform: translateX(4px);
-            }
-        }
-
-        .alert-danger {
-            background: rgba(239, 68, 68, 0.1);
-            color: #dc2626;
+            box-shadow: 0 8px 16px rgba(99, 102, 241, 0.4);
         }
 
         .login-footer {
+            margin-top: 2rem;
             text-align: center;
-            padding: 1.5rem 2rem 2rem;
-            border-top: 1px solid #e2e8f0;
-        }
-
-        .login-footer p {
-            margin: 0;
             font-size: 0.8rem;
-            color: #94a3b8;
-        }
-
-        /* Responsive */
-        @media (max-width: 480px) {
-            .login-header {
-                padding: 2rem 1.5rem;
-            }
-
-            .login-body {
-                padding: 1.5rem;
-            }
-
-            .login-header h3 {
-                font-size: 1.25rem;
-            }
+            color: var(--text-dim);
         }
     </style>
 </head>
 
 <body>
-    <div class="bg-pattern"></div>
+    <div class="ambient-light">
+        <div class="light-orb orb-1"></div>
+        <div class="light-orb orb-2"></div>
+        <div class="light-orb orb-3"></div>
+    </div>
 
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <h3>
-                    <i class="bi bi-robot"></i>
-                    Admin Bots
-                </h3>
-                <p>Панель управления ботами</p>
+    <div class="login-card">
+        <div class="text-center">
+            <i class="bi bi-robot brand-icon"></i>
+            <h1 class="login-title">Admin Bots</h1>
+            <p class="login-subtitle">Войдите в панель управления</p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div>{{ error }}</div>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/login">
+            <div class="form-floating mb-3">
+                <input type="text" name="username" class="form-control" id="username" placeholder="Логин" required
+                    autofocus autocomplete="username">
+                <label for="username">Логин</label>
             </div>
 
-            <div class="login-body">
-                {% if error %}
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-circle"></i>
-                    {{ error }}
-                </div>
-                {% endif %}
-
-                <form method="post" action="/login">
-                    <div class="form-floating">
-                        <input type="text" name="username" class="form-control" id="username" placeholder="Логин"
-                            required autofocus autocomplete="username">
-                        <label for="username">
-                            <i class="bi bi-person me-2"></i>Логин
-                        </label>
-                    </div>
-
-                    <div class="form-floating">
-                        <input type="password" name="password" class="form-control" id="password" placeholder="Пароль"
-                            required autocomplete="current-password">
-                        <label for="password">
-                            <i class="bi bi-lock me-2"></i>Пароль
-                        </label>
-                    </div>
-
-                    <button type="submit" class="btn-login">
-                        Войти
-                        <i class="bi bi-arrow-right"></i>
-                    </button>
-                </form>
+            <div class="form-floating mb-4">
+                <input type="password" name="password" class="form-control" id="password" placeholder="Пароль" required
+                    autocomplete="current-password">
+                <label for="password">Пароль</label>
             </div>
 
-            <div class="login-footer">
-                <p>
-                    <i class="bi bi-shield-check me-1"></i>
-                    Защищённое соединение
-                </p>
-            </div>
+            <button type="submit" class="btn btn-login">
+                Войти <i class="bi bi-arrow-right ms-2"></i>
+            </button>
+        </form>
+
+        <div class="login-footer">
+            <i class="bi bi-shield-lock me-1"></i> Защищенное соединение
         </div>
     </div>
 </body>

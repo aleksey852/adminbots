@@ -48,7 +48,7 @@
                         <h6 class="text-uppercase text-muted small fw-bold mb-3">
                             <i class="bi bi-box-seam me-1"></i> Доступные шаги
                         </h6>
-                        <div id="availableSteps" class="list-group min-vh-50 bg-white border rounded p-2 shadow-sm"
+                        <div id="availableSteps" class="list-group min-vh-50 bg-card border rounded p-2 shadow-sm"
                             style="min-height: 400px;">
                             <!-- Items will be injected here -->
                         </div>
@@ -64,7 +64,7 @@
                         <h6 class="text-uppercase text-muted small fw-bold mb-3">
                             <i class="bi bi-list-ol me-1"></i> Активный сценарий
                         </h6>
-                        <div id="activeSteps" class="list-group min-vh-50 bg-white border rounded p-2 shadow-sm"
+                        <div id="activeSteps" class="list-group min-vh-50 bg-card border rounded p-2 shadow-sm"
                             style="min-height: 400px;">
                             <!-- Items will be injected here -->
                         </div>
@@ -125,12 +125,12 @@
 
         function createStepEl(step, isActive) {
             const item = document.createElement('div');
-            item.className = 'list-group-item p-3 mb-2 border rounded shadow-sm bg-white cursor-move step-item';
+            item.className = 'list-group-item p-3 mb-2 border rounded shadow-sm bg-surface cursor-move step-item';
             // Use ID for tracking
             item.dataset.id = step.id;
 
             let badgeClass = 'bg-secondary';
-            if (step.module_name === 'registration') badgeClass = 'bg-info text-dark';
+            if (step.module_name === 'registration') badgeClass = 'badge-info';
 
             item.innerHTML = `
                 <div class="d-flex align-items-center">
@@ -139,7 +139,7 @@
                         <div class="fw-bold">${step.name}</div>
                         <div class="small text-muted">${step.description || step.id}</div>
                         <div class="mt-1">
-                            <span class="badge ${badgeClass} border bg-opacity-10 text-dark opacity-75 small p-1 px-2 rounded-pill">
+                            <span class="badge ${badgeClass} border opacity-75 small p-1 px-2 rounded-pill">
                                 ${step.module_name}
                             </span>
                         </div>
@@ -166,7 +166,7 @@
         const ops = {
             group: 'shared', // shared group allows dragging between lists
             animation: 150,
-            ghostClass: 'bg-light',
+            ghostClass: 'bg-primary-subtle',
             handle: '.step-item, .drag-handle', // Make whole item draggable usually better UX
             sort: true,
         };

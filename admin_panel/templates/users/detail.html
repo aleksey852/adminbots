@@ -292,7 +292,7 @@
                         <tbody>
                             {% for t in manual_tickets %}
                             <tr>
-                                <td><span class="badge bg-warning text-dark">+{{ t.tickets }}</span></td>
+                                <td><span class="badge badge-warning">+{{ t.tickets }}</span></td>
                                 <td>{{ t.reason or '—' }}</td>
                                 <td><small class="text-muted">{{ t.created_by or '—' }}</small></td>
                                 <td><small>{{ t.created_at.strftime('%d.%m.%Y %H:%M') if t.created_at else '—'

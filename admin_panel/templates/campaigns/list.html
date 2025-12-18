@@ -28,9 +28,9 @@
                             {% if c.type == 'broadcast' %}
                             <span class="badge bg-primary">Рассылка</span>
                             {% elif c.type == 'raffle' %}
-                            <span class="badge bg-warning text-dark">Розыгрыш</span>
+                            <span class="badge badge-warning">Розыгрыш</span>
                             {% elif c.type == 'message' %}
-                            <span class="badge bg-info text-dark">Сообщение</span>
+                            <span class="badge badge-info">Сообщение</span>
                             {% else %}
                             <span class="badge bg-secondary">{{ c.type }}</span>
                             {% endif %}
@@ -41,7 +41,7 @@
                             {% elif c.is_completed %}
                             <span class="badge badge-completed">✓ Завершена</span>
                             {% elif c.status == 'running' %}
-                            <span class="badge bg-info text-dark">🚀 Выполняется</span>
+                            <span class="badge badge-info">🚀 Выполняется</span>
                             {% elif c.scheduled_for %}
                             <span class="badge badge-scheduled">⏰ Ожидает</span>
                             {% else %}
