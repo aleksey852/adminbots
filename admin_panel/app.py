@@ -263,6 +263,12 @@ app.include_router(texts.router)
 
 
 # Modules and Pipelines router
+modules.setup_routes(
+    templates,
+    auth.get_current_user,
+    auth.verify_csrf_token,
+    get_template_context
+)
 app.include_router(modules.router)
 
 

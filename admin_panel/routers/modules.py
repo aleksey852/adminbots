@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from typing import Dict
 
 from database.panel_db import (
     get_bot_by_id, 
@@ -13,148 +14,130 @@ from database.panel_db import (
 )
 from modules.base import module_loader
 from modules.workflow import workflow_manager
-from utils.auth import get_current_user
-from admin_panel.app import templates  # Assuming templates is importable or we re-init
 
 router = APIRouter(prefix="/bots/{bot_id}", tags=["modules"])
 
-@router.get("/modules", response_class=HTMLResponse)
-async def list_modules_page(request: Request, bot_id: int, user = Depends(get_current_user)):
-    bot = await get_bot_by_id(bot_id)
-    if not bot:
-        raise HTTPException(status_code=404, detail="Bot not found")
+def setup_routes(
+    templates: Jinja2Templates,
+    get_current_user,
+    verify_csrf_token,
+    get_template_context
+):
     
-    enabled_modules = set(await get_bot_enabled_modules(bot_id))
-    all_modules = module_loader.get_all_modules()
-    
-    modules_data = []
-    for mod in all_modules:
-        settings = await mod.get_settings(bot_id)
-        modules_data.append({
-            "name": mod.name,
-            "description": mod.description,
-            "version": mod.version,
-            "is_enabled": mod.name in enabled_modules,
-            "settings": settings,
-            "schema": mod.settings_schema,
-            "is_core": mod.name == "core"  # Core module usually shouldn't be disabled?
-        })
-    
-    return templates.TemplateResponse("modules/list.html", {
-        "request": request,
-        "bot": bot,
-        "modules": modules_data
-    })
-
-@router.post("/modules/{module_name}/toggle")
-async def toggle_module(bot_id: int, module_name: str, enable: bool, user = Depends(get_current_user)):
-    """Enable or disable a module"""
-    # Verify module exists
-    mod = module_loader.get_module(module_name)
-    if not mod:
-        raise HTTPException(404, "Module not found")
+    @router.get("/modules", response_class=HTMLResponse)
+    async def list_modules_page(request: Request, bot_id: int, user: Dict = Depends(get_current_user)):
+        bot = await get_bot_by_id(bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail="Bot not found")
         
-    enabled_modules = set(await get_bot_enabled_modules(bot_id))
-    
-    if enable:
-        enabled_modules.add(module_name)
-        await mod.on_enable(bot_id)
-    else:
-        if module_name == "core":
-             raise HTTPException(400, "Cannot disable core module")
-        enabled_modules.discard(module_name)
-        await mod.on_disable(bot_id)
-    
-    await update_bot_modules(bot_id, list(enabled_modules))
-    
-    # Reload config in running bot process? 
-    # For now, relying on periodic fetch or restart. 
-    # Ideally should send NOTIFY if architecture supports instant reload without restart.
-    
-    return {"status": "success", "enabled": enable}
-
-@router.post("/modules/{module_name}/settings")
-async def save_module_settings_endpoint(bot_id: int, module_name: str, settings: dict, user = Depends(get_current_user)):
-    mod = module_loader.get_module(module_name)
-    if not mod:
-        raise HTTPException(404, "Module not found")
+        enabled_modules = set(await get_bot_enabled_modules(bot_id))
+        all_modules = module_loader.get_all_modules()
         
-    # Basic validation against schema could go here
-    
-    await mod.save_settings(bot_id, settings)
-    return {"status": "success"}
-
-
-# === Pipeline Routes ===
-
-@router.get("/pipelines", response_class=HTMLResponse)
-async def list_pipelines_page(request: Request, bot_id: int, user = Depends(get_current_user)):
-    bot = await get_bot_by_id(bot_id)
-    if not bot:
-        raise HTTPException(404, "Bot not found")
+        modules_data = []
+        for mod in all_modules:
+            settings = await mod.get_settings(bot_id)
+            modules_data.append({
+                "name": mod.name,
+                "description": mod.description,
+                "version": mod.version,
+                "is_enabled": mod.name in enabled_modules,
+                "settings": settings,
+                "schema": mod.settings_schema,
+                "is_core": mod.name == "core"
+            })
         
-    # Get all chains
-    chains = workflow_manager.chains.keys()
-    
-    pipelines_data = []
-    for chain_name in chains:
-        # Get raw default steps
+        return templates.TemplateResponse("modules/list.html", get_template_context(
+            request, 
+            user=user,
+            bot=bot,
+            modules=modules_data
+        ))
+
+    @router.post("/modules/{module_name}/toggle")
+    async def toggle_module(bot_id: int, module_name: str, enable: bool, user: Dict = Depends(get_current_user)):
+        """Enable or disable a module"""
+        # Verify module exists
+        mod = module_loader.get_module(module_name)
+        if not mod:
+            raise HTTPException(404, "Module not found")
+            
+        enabled_modules = set(await get_bot_enabled_modules(bot_id))
+        
+        if enable:
+            enabled_modules.add(module_name)
+            await mod.on_enable(bot_id)
+        else:
+            if module_name == "core":
+                 raise HTTPException(400, "Cannot disable core module")
+            enabled_modules.discard(module_name)
+            await mod.on_disable(bot_id)
+        
+        await update_bot_modules(bot_id, list(enabled_modules))
+        
+        return {"status": "success", "enabled": enable}
+
+    @router.post("/modules/{module_name}/settings")
+    async def save_module_settings_endpoint(bot_id: int, module_name: str, settings: dict, user: Dict = Depends(get_current_user)):
+        mod = module_loader.get_module(module_name)
+        if not mod:
+            raise HTTPException(404, "Module not found")
+            
+        await mod.save_settings(bot_id, settings)
+        return {"status": "success"}
+
+
+    # === Pipeline Routes ===
+
+    @router.get("/pipelines", response_class=HTMLResponse)
+    async def list_pipelines_page(request: Request, bot_id: int, user: Dict = Depends(get_current_user)):
+        bot = await get_bot_by_id(bot_id)
+        if not bot:
+            raise HTTPException(404, "Bot not found")
+            
+        # Get all chains
+        chains = workflow_manager.chains.keys()
+        
+        return templates.TemplateResponse("modules/pipelines.html", get_template_context(
+            request,
+            user=user,
+            bot=bot,
+            chains=list(chains)
+        ))
+
+
+    @router.get("/pipelines/{chain_name}")
+    async def get_pipeline_details(bot_id: int, chain_name: str, user: Dict = Depends(get_current_user)):
+        """API to get steps for drag-n-drop editor"""
         default_steps = workflow_manager.get_steps(chain_name)
+        custom_order_names = await get_all_pipeline_configs(bot_id)
+        custom_order = custom_order_names.get(chain_name, [])
         
-        # Get effective steps (inc. custom order) to show CURRENT state
-        # But for editing we might want to distinct visuals. 
-        # For simplicity, let's just show the ordered list we would execute.
-        
-        # We need to simulate get_next_step logic to get the full ordered list
-        # Or expose a helper in workflow_manager to get "steps_ordered"
-        
-        # Let's rebuild the logic here or add helper. 
-        # Adding helper catch in workflow.py is better practice only if we do it cleanly.
-        # But we already simulated it in get_next_step. 
-        # Let's fetch config and sort manually here to display UI.
-        
-        # We need to show ALL steps, even disabled ones, so user can reorder them?
-        # Or helper should handle it?
-        pass
+        # Sort
+        if custom_order:
+            step_map = {s["name"]: s for s in default_steps}
+            final_steps = []
+            for name in custom_order:
+                if name in step_map:
+                    final_steps.append(step_map[name])
+            for s in default_steps:
+                if s["name"] not in custom_order:
+                    final_steps.append(s)
+        else:
+            final_steps = default_steps
+            
+        return {
+            "chain": chain_name,
+            "steps": final_steps
+        }
 
-    return templates.TemplateResponse("modules/pipelines.html", {
-        "request": request,
-        "bot": bot,
-        "chains": list(chains) # Pass list of chain names, fetch details via API or simple template loop
-    })
-
-
-@router.get("/pipelines/{chain_name}")
-async def get_pipeline_details(bot_id: int, chain_name: str, user = Depends(get_current_user)):
-    """API to get steps for drag-n-drop editor"""
-    default_steps = workflow_manager.get_steps(chain_name)
-    custom_order_names = await get_all_pipeline_configs(bot_id) # Optimization: fetch single?
-    custom_order = custom_order_names.get(chain_name, [])
+    @router.post("/pipelines/{chain_name}/order")
+    async def save_pipeline_order(bot_id: int, chain_name: str, order: list[str], user: Dict = Depends(get_current_user)):
+        """Save new step order"""
+        # Verify these steps exist in the chain definition
+        valid_steps = {s["name"] for s in workflow_manager.get_steps(chain_name)}
+        filtered_order = [name for name in order if name in valid_steps]
+        
+        await set_pipeline_config(bot_id, chain_name, filtered_order)
+        return {"status": "success"}
     
-    # Sort
-    if custom_order:
-        step_map = {s["name"]: s for s in default_steps}
-        final_steps = []
-        for name in custom_order:
-            if name in step_map:
-                final_steps.append(step_map[name])
-        for s in default_steps:
-            if s["name"] not in custom_order:
-                final_steps.append(s)
-    else:
-        final_steps = default_steps
-        
-    return {
-        "chain": chain_name,
-        "steps": final_steps
-    }
-
-@router.post("/pipelines/{chain_name}/order")
-async def save_pipeline_order(bot_id: int, chain_name: str, order: list[str], user = Depends(get_current_user)):
-    """Save new step order"""
-    # Verify these steps exist in the chain definition
-    valid_steps = {s["name"] for s in workflow_manager.get_steps(chain_name)}
-    filtered_order = [name for name in order if name in valid_steps]
-    
-    await set_pipeline_config(bot_id, chain_name, filtered_order)
-    return {"status": "success"}
+    return router
