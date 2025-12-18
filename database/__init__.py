@@ -35,7 +35,7 @@ from database.bot_methods import (
     get_user_tickets_count, get_all_receipts_paginated, get_total_receipts_count,
     # Campaigns
     add_campaign, get_pending_campaigns, mark_campaign_completed,
-    get_recent_campaigns,
+    get_recent_campaigns, cancel_campaign, is_campaign_cancelled,
     # Winners & Raffle
     get_raffle_participants, get_participants_count, get_participants_with_tickets,
     get_total_tickets_count, save_winners_atomic, add_winner, select_random_winners_db,
