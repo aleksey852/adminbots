@@ -138,7 +138,7 @@ def setup_routes(
 
     @router.get("/{bot_id}/edit", response_class=HTMLResponse)
     async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
-        from database import get_stats
+        from database.methods import get_stats
         
         edit_bot = await get_bot_by_id(bot_id)
         if not edit_bot:
@@ -159,11 +159,11 @@ def setup_routes(
         type: str = Form(...),
         user: str = Depends(get_current_user)
     ):
-        from database import get_connection
+        from database.panel_db import get_panel_connection
         
-        async with get_connection() as db:
+        async with get_panel_connection() as db:
             await db.execute(
-                "UPDATE bots SET name = $2, type = $3 WHERE id = $1",
+                "UPDATE bot_registry SET name = $2, type = $3 WHERE id = $1",
                 bot_id, name, type
             )
         
@@ -179,7 +179,7 @@ def setup_routes(
         admin_ids: str = Form(""),
         user: str = Depends(get_current_user)
     ):
-        from database import update_bot_admins_array, get_connection
+        from database.panel_db import get_panel_connection, update_bot
         
         parsed_ids = []
         if admin_ids.strip():
@@ -190,16 +190,7 @@ def setup_routes(
                 except ValueError:
                     pass
         
-        await update_bot_admins_array(bot_id, parsed_ids)
-        
-        async with get_connection() as db:
-            await db.execute("DELETE FROM bot_admins WHERE bot_id = $1", bot_id)
-            for aid in parsed_ids:
-                await db.execute("""
-                    INSERT INTO bot_admins (bot_id, telegram_id, role)
-                    VALUES ($1, $2, 'admin')
-                    ON CONFLICT DO NOTHING
-                """, bot_id, aid)
+        await update_bot(bot_id, admin_ids=parsed_ids)
         
         return RedirectResponse(
             url=f"/bots/{bot_id}/edit?msg=Админы+обновлены",
@@ -229,19 +220,23 @@ def setup_routes(
 
     @router.get("/{bot_id}/export")
     async def export_bot(request: Request, bot_id: int, user: Dict = Depends(require_superadmin)):
-        from database import get_connection
-        
         bot = await get_bot_by_id(bot_id)
         if not bot:
             raise HTTPException(status_code=404, detail="Bot not found")
         
-        async with get_connection() as db:
-            users = await db.fetch("SELECT * FROM users WHERE bot_id = $1", bot_id)
-            receipts = await db.fetch("SELECT * FROM receipts WHERE bot_id = $1", bot_id)
-            promo_codes = await db.fetch("SELECT * FROM promo_codes WHERE bot_id = $1", bot_id)
-            settings = await db.fetch("SELECT * FROM settings WHERE bot_id = $1", bot_id)
-            messages = await db.fetch("SELECT * FROM messages WHERE bot_id = $1", bot_id)
-            winners = await db.fetch("SELECT * FROM winners WHERE bot_id = $1", bot_id)
+        # Connect to bot's database
+        if not bot_db_manager.get(bot_id):
+            bot_db_manager.register(bot_id, bot['database_url'])
+            await bot_db_manager.connect(bot_id)
+        
+        bot_db = bot_db_manager.get(bot_id)
+        async with bot_db.get_connection() as db:
+            users = await db.fetch("SELECT * FROM users")
+            receipts = await db.fetch("SELECT * FROM receipts")
+            promo_codes = await db.fetch("SELECT * FROM promo_codes")
+            settings = await db.fetch("SELECT * FROM settings")
+            messages = await db.fetch("SELECT * FROM messages")
+            winners = await db.fetch("SELECT * FROM winners")
         
         def record_to_dict(record):
             d = dict(record)
@@ -285,7 +280,7 @@ def setup_routes(
         confirm: str = Form(...),
         user: Dict = Depends(require_superadmin)
     ):
-        from database import get_connection
+        from database.panel_db import delete_bot_registry
         
         bot = await get_bot_by_id(bot_id)
         if not bot:
@@ -297,17 +292,27 @@ def setup_routes(
                 status_code=status.HTTP_303_SEE_OTHER
             )
         
-        async with get_connection() as db:
-            await db.execute("DELETE FROM winners WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM promo_codes WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM receipts WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM campaigns WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM messages WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM settings WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM bot_admins WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM module_settings WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM users WHERE bot_id = $1", bot_id)
-            await db.execute("DELETE FROM bots WHERE id = $1", bot_id)
+        # Delete data from bot's database
+        if not bot_db_manager.get(bot_id):
+            bot_db_manager.register(bot_id, bot['database_url'])
+            await bot_db_manager.connect(bot_id)
+        
+        bot_db = bot_db_manager.get(bot_id)
+        async with bot_db.get_connection() as db:
+            await db.execute("DELETE FROM winners")
+            await db.execute("DELETE FROM promo_codes")
+            await db.execute("DELETE FROM receipts")
+            await db.execute("DELETE FROM campaigns")
+            await db.execute("DELETE FROM messages")
+            await db.execute("DELETE FROM settings")
+            await db.execute("DELETE FROM manual_tickets")
+            await db.execute("DELETE FROM users")
+        
+        # Disconnect and remove bot database connection
+        await bot_db_manager.disconnect(bot_id)
+        
+        # Delete from panel registry
+        await delete_bot_registry(bot_id)
         
         if request.session.get("active_bot_id") == bot_id:
             request.session.pop("active_bot_id", None)
