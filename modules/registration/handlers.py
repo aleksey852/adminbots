@@ -44,28 +44,7 @@ class RegistrationModule(BotModule):
     
     
     def _setup_handlers(self):
-        """Setup registration handlers"""
-        from modules.workflow import workflow_manager
-        
-        # Register steps
-        # Register steps in the "Lake"
-        workflow_manager.register_step(
-            step_id="registration.name",
-            name="Имя",
-            module_name="registration",
-            state_name=Registration.name,
-            description="Запрос имени пользователя"
-        )
-        workflow_manager.register_step(
-            step_id="registration.phone",
-            name="Телефон",
-            module_name="registration",
-            state_name=Registration.phone,
-            description="Запрос номера телефона"
-        )
-        
-        # Define default flow
-        workflow_manager.register_default_chain("registration", ["registration.name", "registration.phone"])
+        """Setup registration handlers - fixed flow: name -> phone -> done"""
         
         @self.router.message(Registration.name)
         async def process_name(message: Message, state: FSMContext, bot_id: int = None):
@@ -94,15 +73,7 @@ class RegistrationModule(BotModule):
             ).format(name=message.text)
             
             await message.answer(prompt, reply_markup=get_contact_keyboard())
-            
-            # Use workflow to find next state (usually phone, but could be injected)
-            from modules.workflow import workflow_manager
-            next_step = workflow_manager.get_next_step("registration", "registration.name", bot_id)
-            if next_step and next_step.get("state"):
-                 await state.set_state(next_step["state"])
-            else:
-                 # Fallback if phone is somehow disabled (?) - though it is core here
-                 await state.set_state(Registration.phone)
+            await state.set_state(Registration.phone)
         
         @self.router.message(Registration.phone)
         async def process_phone(message: Message, state: FSMContext, bot_id: int = None):
@@ -155,28 +126,7 @@ class RegistrationModule(BotModule):
                 phone
             )
             
-            # --- WORKFLOW CHECK ---
-            from modules.workflow import workflow_manager
-            next_step = workflow_manager.get_next_step("registration", "registration.phone", bot_id)
-            
-            if next_step and next_step.get("state"):
-                # Transition to next step in workflow
-                await message.answer(f"Переходим к шагу: {next_step['name']}")
-                # We need to resolve the state object from name if we stored string, 
-                # or we trust the module that registered it to handle the transition?
-                # Ideally, the step registration should include the actual State object or we have a map.
-                # For this MVP, let's assume if there is a next step, we let that module's handler pick it up?
-                # Actually, we explicitly set state here.
-                # If we stored State object we can use it.
-                # Let's assume we store state object in meta or directly in 'state' field if possible.
-                
-                next_state = next_step.get("state")
-                if next_state:
-                     await state.set_state(next_state)
-                     # Optional: trigger entry message?
-                     return
-            
-            # End of workflow
+            # Registration complete
             await state.clear()
             
             bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
@@ -201,3 +151,4 @@ class RegistrationModule(BotModule):
 
 # Module instance
 registration_module = RegistrationModule()
+
