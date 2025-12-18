@@ -813,6 +813,38 @@ async def get_job(job_id: int) -> Optional[Dict]:
         return await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
 
 
+async def update_job(job_id: int, *, status: str = None, progress: int = None, details: Dict = None):
+    """Update job status and progress"""
+    fields = []
+    values = []
+    import json
+    
+    if status is not None:
+        fields.append("status = $" + str(len(values) + 1))
+        values.append(status)
+    if progress is not None:
+        fields.append("progress = $" + str(len(values) + 1))
+        values.append(progress)
+    if details is not None:
+        fields.append("details = COALESCE(details, '{}'::jsonb) || $" + str(len(values) + 1))
+        # Ensure details is valid JSON string
+        values.append(json.dumps(details) if isinstance(details, dict) else details)
+        
+    fields.append("updated_at = NOW()")
+    
+    if not fields:
+        return
+
+    values.append(job_id)
+    
+    db = get_current_bot_db()
+    async with db.get_connection() as conn:
+        await conn.execute(
+            f"UPDATE jobs SET {', '.join(fields)} WHERE id = ${len(values)}",
+            *values
+        )
+
+
 
 # === Admin Panel Methods ===
 

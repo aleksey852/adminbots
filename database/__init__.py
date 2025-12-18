@@ -68,5 +68,5 @@ from database.bot_methods import (
     add_manual_tickets, get_user_manual_tickets, get_user_total_tickets,
     get_all_tickets_for_final_raffle,
     # Jobs
-    create_job, get_active_jobs, get_job,
+    create_job, get_active_jobs, get_job, update_job,
 )

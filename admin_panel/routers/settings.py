@@ -12,12 +12,8 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 # Editable promo settings
 PROMO_FIELDS = [
-    ("PROMO_NAME", "Название акции"),
     ("PROMO_START_DATE", "Дата начала (YYYY-MM-DD)"),
     ("PROMO_END_DATE", "Дата окончания (YYYY-MM-DD)"),
-    ("PROMO_PRIZES", "Призы (через запятую)"),
-    ("TARGET_KEYWORDS", "Ключевые слова товаров (через запятую)"),
-    ("EXCLUDED_KEYWORDS", "Слова-исключения товаров (через запятую)"),
 ]
 
 SUPPORT_FIELDS = [
@@ -67,6 +63,16 @@ def setup_routes(
         for key, label in PROMO_FIELDS:
             val = config_manager.get_setting(key, getattr(config, key, ""), bot_id)
             promo_fields.append((key, label, val))
+            
+        # Add keyword settings only for receipt bots
+        if bot.get('type') == 'receipt':
+            keyword_fields = [
+                ("TARGET_KEYWORDS", "Ключевые слова товаров (через запятую)"),
+                ("EXCLUDED_KEYWORDS", "Слова-исключения товаров (через запятую)")
+            ]
+            for key, label in keyword_fields:
+                val = config_manager.get_setting(key, getattr(config, key, ""), bot_id)
+                promo_fields.append((key, label, val))
         
         db_settings = await config_manager.get_all_settings(bot_id)
         
