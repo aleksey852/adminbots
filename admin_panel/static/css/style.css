@@ -1,18 +1,22 @@
 :root {
     /* Colors - Deep Space Theme */
-    --bg-body: #020617;
-    --bg-surface: #0f172a;
-    --bg-surface-glass: rgba(15, 23, 42, 0.7);
-    --bg-card: rgba(30, 41, 59, 0.4);
-    --bg-card-hover: rgba(30, 41, 59, 0.6);
-    
+    --bg-body: #000000;
+    /* True black for depth */
+    --bg-surface: #0b1121;
+    /* Slightly lighter than black */
+    --bg-surface-glass: rgba(11, 17, 33, 0.85);
+    /* Less transparent */
+    --bg-card: rgba(30, 41, 59, 0.3);
+    /* Subtle tint */
+    --bg-card-hover: rgba(30, 41, 59, 0.5);
+
     /* Primary Accent - Indigo to Violet */
     --primary-hue: 250;
     --primary: #6366f1;
     --primary-dark: #4f46e5;
     --primary-light: #818cf8;
     --primary-glow: rgba(99, 102, 241, 0.5);
-    
+
     /* Semantic Colors */
     --success: #10b981;
     --success-glow: rgba(16, 185, 129, 0.4);
@@ -21,19 +25,21 @@
     --danger: #ef4444;
     --danger-glow: rgba(239, 68, 68, 0.4);
     --info: #0ea5e9;
-    
+
     /* Text */
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
     --text-dim: #64748b;
-    
+
     /* Borders & Effects */
     --border-color: rgba(255, 255, 255, 0.08);
-    --border-hover: rgba(255, 255, 255, 0.15);
+    /* Keep subtle */
+    --border-hover: rgba(255, 255, 255, 0.2);
     --glass-border: 1px solid rgba(255, 255, 255, 0.08);
-    --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
+    /* Stronger shadow */
     --neon-shadow: 0 0 10px var(--primary-glow);
-    
+
     /* Layout */
     --sidebar-width: 280px;
     --header-height: 70px;
@@ -72,7 +78,12 @@ body {
 }
 
 /* Typography Overrides */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
     color: var(--text-main);
     font-weight: 600;
     letter-spacing: -0.025em;
@@ -138,7 +149,8 @@ a:hover {
     left: 0;
     height: 100vh;
     width: var(--sidebar-width);
-    background: var(--bg-surface); /* Solid background for legibility */
+    width: var(--sidebar-width);
+    background: var(--bg-surface);
     border-right: 1px solid var(--border-color);
     z-index: 1000;
     display: flex;
@@ -165,15 +177,20 @@ a:hover {
     font-size: 1.5rem;
     color: var(--primary);
     filter: drop-shadow(0 0 8px var(--primary-glow));
+    background: rgba(99, 102, 241, 0.1);
+    padding: 6px;
+    border-radius: 8px;
 }
 
 .nav-section-title {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--text-dim);
-    margin: 1.5rem 0 0.5rem 0.75rem;
-    font-weight: 600;
+    color: var(--primary-light);
+    /* Highlight section titles */
+    margin: 1.5rem 0 0.5rem 1rem;
+    font-weight: 700;
+    opacity: 0.8;
 }
 
 .nav-link {
@@ -279,7 +296,8 @@ a:hover {
 }
 
 /* Form Controls */
-.form-control, .form-select {
+.form-control,
+.form-select {
     background: rgba(15, 23, 42, 0.6);
     border: 1px solid var(--border-color);
     color: var(--text-main);
@@ -287,11 +305,14 @@ a:hover {
     padding: 0.75rem 1rem;
 }
 
-.form-control:focus, .form-select:focus {
-    background: rgba(15, 23, 42, 0.8);
+.form-control:focus,
+.form-select:focus {
+    background: rgba(30, 41, 59, 0.8);
+    /* Lighter on focus */
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-    color: var(--text-main);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+    /* Bolder ring */
+    color: white;
 }
 
 /* Tables */
@@ -319,7 +340,18 @@ a:hover {
 }
 
 .table-hover tbody tr:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.05);
+    /* Brighter hover */
+    cursor: pointer;
+}
+
+.table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.table tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.015);
+    /* Zebra striping */
 }
 
 /* Badges */
@@ -330,10 +362,29 @@ a:hover {
     letter-spacing: 0.02em;
 }
 
-.badge-success { background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
-.badge-warning { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
-.badge-danger { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
-.badge-primary { background: rgba(99, 102, 241, 0.1); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2); }
+.badge-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.badge-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.badge-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.badge-primary {
+    background: rgba(99, 102, 241, 0.1);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
 
 /* Quick Actions Grid */
 .quick-action-card {
@@ -397,15 +448,23 @@ a:hover {
     padding: 0.6rem 1rem;
 }
 
-.bot-selector .dropdown-item:hover, .bot-selector .dropdown-item.active {
+.bot-selector .dropdown-item:hover,
+.bot-selector .dropdown-item.active {
     background: var(--primary);
     color: white;
 }
 
 /* Animations */
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .animate-fade-in {
@@ -417,16 +476,16 @@ a:hover {
     .sidebar {
         transform: translateX(-100%);
     }
-    
+
     .sidebar.show {
         transform: translateX(0);
     }
-    
+
     .main-content {
         margin-left: 0;
         padding-top: 80px;
     }
-    
+
     .mobile-header {
         position: fixed;
         top: 0;
