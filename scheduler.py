@@ -34,7 +34,8 @@ async def pg_listener(
             
             await conn.add_listener("new_bot", notify_handler)
             await conn.add_listener("restart_bot", notify_handler)
-            logger.info("🔊 PostgreSQL Listener attached to 'new_bot' and 'restart_bot'")
+            await conn.add_listener("reload_config", notify_handler)
+            logger.info("🔊 PostgreSQL Listener attached to 'new_bot', 'restart_bot', 'reload_config'")
             
             while not shutdown_event.is_set():
                 try:
@@ -53,6 +54,37 @@ async def pg_listener(
                                 else:
                                     logger.warning("⚠️ PollingManager not initialized, cannot reload")
                             
+                            elif channel == "reload_config":
+                                logger.info(f"🔔 Notification: Reload Config for Bot #{payload}")
+                                try:
+                                    bot_id = int(payload)
+                                    # Reload config for this bot
+                                    from utils.config_manager import config_manager
+                                    # Use DB context manager to ensure connection
+                                    try:
+                                        # Manually invoke load_for_single_bot logic
+                                        # But config_manager.load_for_bot expects to run inside a request/context where get_current_bot_db() works?
+                                        # No, wait. config_manager.load_for_bot uses get_current_bot_db().
+                                        # We need to set the context variable or pass the db explicitly?
+                                        # load_for_bot source:
+                                        # async with db.get_connection() as conn:
+                                        # It gets db from bot_methods.get_current_bot_db()
+                                        
+                                        # We need to set context manually here
+                                        from database.bot_methods import bot_context
+                                        token = bot_context.set(bot_id)
+                                        try:
+                                            await config_manager.load_for_bot(bot_id)
+                                            logger.info(f"✅ Config reloaded for bot {bot_id}")
+                                        finally:
+                                            bot_context.reset(token)
+                                            
+                                    except Exception as e:
+                                        logger.error(f"Failed to reload config for bot {bot_id}: {e}")
+                                        
+                                except ValueError:
+                                    logger.error(f"Invalid payload for reload_config: {payload}")
+
                             elif channel == "restart_bot":
                                 logger.info(f"🔔 Notification: Restart Bot #{payload}")
                                 if polling_manager:

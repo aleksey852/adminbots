@@ -28,7 +28,7 @@ from database.panel_db import (
 from database.bot_db import bot_db_manager
 
 # Routers
-from admin_panel.routers import auth, bots, users, campaigns, settings, system
+from admin_panel.routers import auth, bots, users, campaigns, settings, system, texts
 
 # Setup logging
 logging.basicConfig(
@@ -265,6 +265,16 @@ system.setup_routes(
     BASE_DIR
 )
 app.include_router(system.router)
+ 
+ 
+ # Texts router
+texts.setup_routes(
+    templates,
+    auth.get_current_user,
+    auth.verify_csrf_token,
+    get_template_context
+)
+app.include_router(texts.router)
 
 
 # === Dashboard (main page) ===
