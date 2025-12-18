@@ -111,12 +111,19 @@ class BotDatabase:
                     content JSONB NOT NULL,
                     scheduled_for TIMESTAMP,
                     is_completed BOOLEAN DEFAULT FALSE,
+                    status TEXT DEFAULT 'pending', -- pending, running, completed, cancelled
                     created_at TIMESTAMP DEFAULT NOW(),
                     completed_at TIMESTAMP,
                     sent_count INTEGER DEFAULT 0,
                     failed_count INTEGER DEFAULT 0
                 );
             """)
+            
+            # Migration: Add status column if not exists (for existing databases)
+            try:
+                await db.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending'")
+            except Exception as e:
+                logger.warning(f"Migration warning: {e}")
             
             # Winners
             await db.execute("""

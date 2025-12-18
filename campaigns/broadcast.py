@@ -31,6 +31,12 @@ async def execute_broadcast(
     batch_size = config.BROADCAST_BATCH_SIZE
     
     while True:
+        # Check cancellation
+        if await bot_methods.is_campaign_cancelled(campaign_id):
+            logger.info(f"Broadcast #{campaign_id}: Cancelled by user")
+            await bot_methods.delete_broadcast_progress(campaign_id)
+            return
+
         users = await bot_methods.get_user_ids_paginated(last_id, batch_size)
         if not users:
             break

@@ -38,6 +38,11 @@ async def execute_raffle(
     total_count = sum(p['count'] for p in prizes)
     logger.info(f"🎁 Raffle #{campaign_id} ({raffle_type}): {total_count} winners, {len(prizes)} prize types")
     
+    # Check cancellation start
+    if await bot_methods.is_campaign_cancelled(campaign_id):
+        logger.info(f"Raffle #{campaign_id}: Cancelled at start")
+        return
+
     # 1. Check if winners already exist (resume case)
     existing_winners = await bot_methods.get_campaign_winners(campaign_id)
     
@@ -83,7 +88,11 @@ async def execute_raffle(
     # 2. Notify Winners (only those not yet notified)
     
     sent_win = 0
-    for w in existing_winners:
+    for i, w in enumerate(existing_winners):
+        if i % 5 == 0 and await bot_methods.is_campaign_cancelled(campaign_id):
+            logger.info(f"Raffle #{campaign_id}: Cancelled during winner notification")
+            return
+            
         if shutdown_event.is_set():
             logger.info(f"Raffle #{campaign_id}: Paused during winner notification")
             return
@@ -140,6 +149,11 @@ async def execute_raffle(
         batch_size = config.BROADCAST_BATCH_SIZE
         
         while True:
+            if await bot_methods.is_campaign_cancelled(campaign_id):
+                logger.info(f"Raffle #{campaign_id}: Cancelled during loser notification")
+                await bot_methods.delete_broadcast_progress(campaign_id)
+                return
+
             losers = await bot_methods.get_raffle_losers_paginated(campaign_id, last_id, batch_size)
             if not losers:
                 break

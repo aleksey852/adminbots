@@ -95,6 +95,16 @@ def setup_routes(
         if not request.state.bot: return RedirectResponse("/")
         return templates.TemplateResponse("campaigns/list.html", get_template_context(request, user=user, campaigns=await get_recent_campaigns(50), title="Кампании"))
 
+    @router.post("/campaigns/{cid}/cancel", dependencies=[Depends(verify_csrf_token)])
+    async def cancel_campaign_route(request: Request, cid: int, user: str = Depends(get_current_user)):
+        from database import cancel_campaign, bot_db_context
+        if not (bot := request.state.bot): return RedirectResponse("/")
+        
+        async with bot_db_context(bot['id']):
+            await cancel_campaign(cid)
+            
+        return RedirectResponse("/campaigns", 303)
+
     @router.get("/codes", response_class=HTMLResponse)
     async def codes_list(request: Request, user: str = Depends(get_current_user), page: int = 1, q: str = None):
         from database import get_promo_stats, get_promo_codes_paginated

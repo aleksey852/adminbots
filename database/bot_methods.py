@@ -111,7 +111,7 @@ async def add_promo_codes(codes: List[str], tickets: int = 1) -> int:
 
 async def add_campaign(type: str, content: Dict, scheduled: datetime = None):
     async with get_current_bot_db().get_connection() as conn:
-        return await conn.fetchval("INSERT INTO campaigns (type, content, scheduled_for) VALUES ($1, $2, $3) RETURNING id", type, json.dumps(content), scheduled)
+        return await conn.fetchval("INSERT INTO campaigns (type, content, scheduled_for, status) VALUES ($1, $2, $3, 'pending') RETURNING id", type, json.dumps(content), scheduled)
 
 async def get_pending_campaigns():
     async with get_current_bot_db().get_connection() as conn:
@@ -119,7 +119,16 @@ async def get_pending_campaigns():
 
 async def mark_campaign_completed(cid: int, s: int = 0, f: int = 0):
     async with get_current_bot_db().get_connection() as conn:
-        await conn.execute("UPDATE campaigns SET is_completed=TRUE, completed_at=NOW(), sent_count=$2, failed_count=$3 WHERE id=$1", cid, s, f)
+        await conn.execute("UPDATE campaigns SET is_completed=TRUE, status='completed', completed_at=NOW(), sent_count=$2, failed_count=$3 WHERE id=$1", cid, s, f)
+
+async def cancel_campaign(cid: int):
+    async with get_current_bot_db().get_connection() as conn:
+        await conn.execute("UPDATE campaigns SET is_completed=TRUE, status='cancelled', completed_at=NOW() WHERE id=$1", cid)
+
+async def is_campaign_cancelled(cid: int) -> bool:
+    async with get_current_bot_db().get_connection() as conn:
+        status = await conn.fetchval("SELECT status FROM campaigns WHERE id=$1", cid)
+        return status == 'cancelled'
 
 async def add_winner(cid: int, uid: int, tg_id: int, prize: str):
     async with get_current_bot_db().get_connection() as conn:
