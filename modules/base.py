@@ -121,6 +121,65 @@ class ModuleLoader:
         """Get set of module names that are enabled by default."""
         return {m.name for m in self.modules.values() if m.default_enabled}
 
+    def discover_modules(self, package_path: str = "modules"):
+        """
+        Automatically discover and register modules in the given package path.
+        """
+        import importlib
+        import os
+        import inspect
+        import pkgutil
+
+        # Assume package_path is relative to project root
+        project_root = os.getcwd()
+        full_path = os.path.join(project_root, package_path)
+        
+        if not os.path.exists(full_path):
+            logger.error(f"Module path not found: {full_path}")
+            return
+
+        logger.info(f"Discovering modules in {package_path}...")
+
+        # Helper to process a module object
+        def register_from_module(mod):
+            try:
+                found = False
+                for name, obj in inspect.getmembers(mod):
+                    # We look for INSTANTIATED BotModules (like core_module = CoreModule())
+                    # to avoid re-instantiation issues if they need params.
+                    if isinstance(obj, BotModule) and obj.__class__ != BotModule:
+                        self.register(obj)
+                        found = True
+                if not found:
+                    # Optional: Look for classes? For now strict to instances to match current pattern.
+                    pass
+            except Exception as e:
+                logger.error(f"Error scanning module {mod}: {e}")
+
+        # Scan directory
+        for item in os.listdir(full_path):
+            # Skip hidden files, __init__, base, and workflow (utility)
+            if item.startswith('.') or item == "__init__.py" or item == "base.py" or item == "workflow.py":
+                continue
+
+            module_name = None
+            
+            # Case 1: Subdirectory (package) like 'modules/core'
+            if os.path.isdir(os.path.join(full_path, item)):
+                 if os.path.exists(os.path.join(full_path, item, "__init__.py")):
+                     module_name = f"{package_path}.{item}"
+            
+            # Case 2: Single file like 'modules/subscription.py'
+            elif item.endswith(".py"):
+                 module_name = f"{package_path}.{item[:-3]}"
+
+            if module_name:
+                try:
+                    mod = importlib.import_module(module_name)
+                    register_from_module(mod)
+                except Exception as e:
+                    logger.error(f"Failed to import module {module_name}: {e}")
+
 
 # Global module loader instance
 module_loader = ModuleLoader()

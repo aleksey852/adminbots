@@ -42,8 +42,14 @@ class RegistrationModule(BotModule):
     # Allows + (optional) followed by 10-15 digits
     PHONE_PATTERN = re.compile(r'^\+?[1-9]\d{9,14}$')
     
+    
     def _setup_handlers(self):
         """Setup registration handlers"""
+        from modules.workflow import workflow_manager
+        
+        # Register steps
+        workflow_manager.register_step("registration", "name", 10, Registration.name)
+        workflow_manager.register_step("registration", "phone", 20, Registration.phone)
         
         @self.router.message(Registration.name)
         async def process_name(message: Message, state: FSMContext, bot_id: int = None):
@@ -116,6 +122,7 @@ class RegistrationModule(BotModule):
                 await message.answer(msg)
                 return
             
+            
             data = await state.get_data()
             await add_user(
                 message.from_user.id,
@@ -124,6 +131,28 @@ class RegistrationModule(BotModule):
                 phone
             )
             
+            # --- WORKFLOW CHECK ---
+            from modules.workflow import workflow_manager
+            next_step = workflow_manager.get_next_step("registration", "phone")
+            
+            if next_step and next_step.get("state"):
+                # Transition to next step in workflow
+                await message.answer(f"Переходим к шагу: {next_step['name']}")
+                # We need to resolve the state object from name if we stored string, 
+                # or we trust the module that registered it to handle the transition?
+                # Ideally, the step registration should include the actual State object or we have a map.
+                # For this MVP, let's assume if there is a next step, we let that module's handler pick it up?
+                # Actually, we explicitly set state here.
+                # If we stored State object we can use it.
+                # Let's assume we store state object in meta or directly in 'state' field if possible.
+                
+                next_state = next_step.get("state")
+                if next_state:
+                     await state.set_state(next_state)
+                     # Optional: trigger entry message?
+                     return
+            
+            # End of workflow
             await state.clear()
             
             bot_type = bot_manager.bot_types.get(bot_id, 'receipt')

@@ -18,11 +18,6 @@ from database.panel_db import init_panel_db, close_panel_db
 from database.bot_db import bot_db_manager
 from bot_manager import bot_manager, PollingManager
 from modules.base import module_loader
-from modules.core import core_module
-from modules.registration import registration_module
-from modules.receipts import receipts_module
-from modules.promo import promo_module
-from modules.admin import admin_module
 from utils.bot_middleware import BotMiddleware, get_enabled_modules
 from utils.rate_limiter import init_rate_limiter, close_rate_limiter
 from scheduler import scheduler
@@ -66,11 +61,7 @@ async def on_startup():
         logger.error(f"Config Validation Error: {errors}")
     
     # Setup Modules
-    module_loader.register(core_module)
-    module_loader.register(registration_module)
-    module_loader.register(receipts_module)
-    module_loader.register(promo_module)
-    module_loader.register(admin_module)
+    module_loader.discover_modules()
     
     # Include Routers from modules
     for module in module_loader.get_all_modules():
