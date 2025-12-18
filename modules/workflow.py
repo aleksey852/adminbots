@@ -65,6 +65,14 @@ class WorkflowManager:
                 steps.append(self.step_registry[sid])
         return steps
 
+    def get_steps_by_module(self, module_name: str) -> List[Dict]:
+        """Get all steps belonging to a module (compatibility helper)"""
+        steps = []
+        for step in self.step_registry.values():
+            if step['module_name'] == module_name:
+                steps.append(step)
+        return steps
+
     async def get_next_step(self, chain_name: str, current_step_id: str, bot_id: int) -> Optional[Dict]:
         """
         Get the next ENABLED step ID in the chain for a specific bot.
