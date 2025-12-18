@@ -812,18 +812,7 @@
                 </ul>
             </div>
 
-            <div class="nav-section">
-                <div class="nav-section-title">Настройки</div>
-                <ul class="nav flex-column">
-                    <li><a class="nav-link {% if request.url.path == '/settings' %}active{% endif %}" href="/settings">
-                            <i class="bi bi-gear-fill"></i>Промо
-                        </a></li>
 
-                    <li><a class="nav-link {% if '/texts' in request.url.path %}active{% endif %}" href="/texts">
-                            <i class="bi bi-chat-square-text-fill"></i>Тексты
-                        </a></li>
-                </ul>
-            </div>
 
             {% if is_superadmin %}
             <div class="nav-section">

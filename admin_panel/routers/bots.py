@@ -134,19 +134,8 @@ def setup_routes(
                     'settings': settings
                 })
 
-        # Subscription settings (Legacy check, maybe move to module schema later?)
-        # Keeping as is for now as requested in plan
-        SUBSCRIPTION_FIELDS = [
-            ("SUBSCRIPTION_REQUIRED", "Требовать подписку на канал"),
-            ("SUBSCRIPTION_CHANNEL_ID", "ID канала (напр. -1001234567890)"),
-            ("SUBSCRIPTION_CHANNEL_URL", "Ссылка на канал"),
-        ]
-        defaults = {"SUBSCRIPTION_REQUIRED": "false", "SUBSCRIPTION_CHANNEL_ID": "", "SUBSCRIPTION_CHANNEL_URL": ""}
-        sub_settings = [(k, l, config_manager.get_setting(k, defaults.get(k, ""), bot_id)) for k, l in SUBSCRIPTION_FIELDS]
-
         return templates.TemplateResponse("bots/edit.html", get_template_context(
             request, user=user, title=f"Бот: {bot['name']}", edit_bot=bot, stats=stats, message=msg,
-            subscription_settings=sub_settings,
             modules=modules_data
         ))
 

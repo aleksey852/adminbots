@@ -28,7 +28,7 @@ from database.panel_db import (
 from database.bot_db import bot_db_manager
 
 # Routers
-from admin_panel.routers import auth, bots, users, campaigns, settings, system, texts
+from admin_panel.routers import auth, bots, users, campaigns, system, texts
 
 # Setup logging
 logging.basicConfig(
@@ -66,12 +66,14 @@ async def lifespan(app: FastAPI):
         from modules.receipts import receipts_module
         from modules.promo import promo_module
         from modules.admin import admin_module
+        from modules.subscription import subscription_module
         
         module_loader.register(core_module)
         module_loader.register(registration_module)
         module_loader.register(receipts_module)
         module_loader.register(promo_module)
         module_loader.register(admin_module)
+        module_loader.register(subscription_module)
         
         if config.ADMIN_PANEL_USER and config.ADMIN_PANEL_PASSWORD:
             import bcrypt
@@ -246,14 +248,7 @@ campaigns.setup_routes(
 )
 app.include_router(campaigns.router)
 
-# Settings router
-settings.setup_routes(
-    templates,
-    auth.get_current_user,
-    auth.verify_csrf_token,
-    get_template_context
-)
-app.include_router(settings.router)
+
 
 # System router
 system.setup_routes(
