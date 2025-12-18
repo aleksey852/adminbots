@@ -904,3 +904,114 @@ h6 {
     backdrop-filter: blur(4px);
     z-index: -1;
 }
+
+/* =========================================
+   Phase 2: UX Standards & Terminal
+   ========================================= */
+
+/* Premium Page Header */
+.page-header-premium {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    padding: 1.5rem 2rem;
+    margin: -2rem -2rem 2rem -2rem; /* Negative margin to stretch full width */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    backdrop-filter: blur(var(--backdrop-blur));
+    position: sticky;
+    top: 0;
+    z-index: 900;
+}
+.page-header-premium .title-area h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+}
+.page-header-premium .title-area p {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 0;
+}
+
+/* Terminal / Console UI */
+.terminal-window {
+    background: #0f172a; /* Always dark for terminal */
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+.terminal-header {
+    background: #1e293b;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.terminal-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+.terminal-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+.terminal-dot.red { background: #ef4444; }
+.terminal-dot.yellow { background: #f59e0b; }
+.terminal-dot.green { background: #10b981; }
+
+.terminal-body {
+    padding: 0;
+    max-height: 75vh;
+    overflow-y: auto;
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+.terminal-body::-webkit-scrollbar {
+    background: #0f172a;
+    width: 10px;
+}
+.terminal-body::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 5px;
+    border: 2px solid #0f172a;
+}
+.log-line {
+    padding: 0.1rem 1rem;
+    border-left: 3px solid transparent;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+.log-line:hover {
+    background: rgba(255,255,255,0.03);
+}
+.log-line.error {
+    color: #f87171;
+    border-left-color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+.log-line.warning {
+    color: #fbbf24;
+    border-left-color: #f59e0b;
+}
+.log-line.info {
+    color: #38bdf8;
+}
+.log-line .timestamp {
+    color: #64748b;
+    margin-right: 0.75rem;
+    user-select: none;
+}
+
+/* Toolbar for Logs */
+.logs-toolbar {
+    background: var(--bg-surface-subtle);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+}

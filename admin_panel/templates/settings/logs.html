@@ -1,74 +1,120 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0 text-gray-800">📋 Системные Логи</h1>
-
-        <div class="btn-group">
+<div class="page-header-premium">
+    <div class="title-area">
+        <h1>Системные Логи</h1>
+        <p>Мониторинг активности и диагностика</p>
+    </div>
+    <div class="actions-area d-flex gap-2">
+        <div class="btn-group" role="group">
             <a href="?service=admin_bots&lines={{ lines }}"
-                class="btn btn-sm {% if active_service == 'admin_bots' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                Bot Service
+                class="btn {% if active_service == 'admin_bots' %}btn-primary{% else %}btn-secondary{% endif %}">
+                <i class="bi bi-robot me-2"></i>Bots
             </a>
             <a href="?service=admin_panel&lines={{ lines }}"
-                class="btn btn-sm {% if active_service == 'admin_panel' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                Panel Service
+                class="btn {% if active_service == 'admin_panel' %}btn-primary{% else %}btn-secondary{% endif %}">
+                <i class="bi bi-window-desktop me-2"></i>Panel
             </a>
-        </div>
-    </div>
-
-    <!-- Filters -->
-    <div class="card shadow mb-4">
-        <div class="card-body">
-            <form method="GET" class="row g-3 align-items-end">
-                <input type="hidden" name="service" value="{{ active_service }}">
-
-                <div class="col-md-6">
-                    <label class="form-label">Поиск</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" name="q" value="{{ q or '' }}"
-                            placeholder="grep pattern...">
-                    </div>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Уровень</label>
-                    <select class="form-select" name="level">
-                        <option value="">Все</option>
-                        <option value="error" {% if active_level=='error' %}selected{% endif %}>Error</option>
-                        <option value="warning" {% if active_level=='warning' %}selected{% endif %}>Warning</option>
-                        <option value="info" {% if active_level=='info' %}selected{% endif %}>Info</option>
-                    </select>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Строк</label>
-                    <select class="form-select" name="lines">
-                        <option value="50" {% if lines==50 %}selected{% endif %}>50</option>
-                        <option value="100" {% if lines==100 %}selected{% endif %}>100</option>
-                        <option value="200" {% if lines==200 %}selected{% endif %}>200</option>
-                        <option value="500" {% if lines==500 %}selected{% endif %}>500</option>
-                    </select>
-                </div>
-
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">Обновить</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Logs Output -->
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 bg-dark text-white d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold">Output ({{ active_service }}.service)</h6>
-            <small class="text-white-50">Last {{ lines }} lines</small>
-        </div>
-        <div class="card-body bg-dark p-0">
-            <pre class="m-0 p-3 text-white font-monospace small"
-                style="max-height: 70vh; overflow-y: auto; white-space: pre-wrap;">{{ logs }}</pre>
         </div>
     </div>
 </div>
+
+<div class="container-fluid px-0">
+    <!-- Toolbar -->
+    <div class="logs-toolbar">
+        <form method="GET" class="row g-3 align-items-center">
+            <input type="hidden" name="service" value="{{ active_service }}">
+
+            <div class="col-lg-5 col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text bg-transparent border-end-0 text-muted">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0 ps-0" name="q" value="{{ q or '' }}"
+                        placeholder="Поиск по логам (grep)...">
+                </div>
+            </div>
+
+            <div class="col-lg-2 col-md-3">
+                <select class="form-select" name="level">
+                    <option value="">Все уровни</option>
+                    <option value="ERROR" {% if active_level=='ERROR' %}selected{% endif %}>ERROR</option>
+                    <option value="WARNING" {% if active_level=='WARNING' %}selected{% endif %}>WARNING</option>
+                    <option value="INFO" {% if active_level=='INFO' %}selected{% endif %}>INFO</option>
+                </select>
+            </div>
+
+            <div class="col-lg-2 col-md-3">
+                <select class="form-select" name="lines">
+                    <option value="50" {% if lines==50 %}selected{% endif %}>50 строк</option>
+                    <option value="100" {% if lines==100 %}selected{% endif %}>100 строк</option>
+                    <option value="200" {% if lines==200 %}selected{% endif %}>200 строк</option>
+                    <option value="500" {% if lines==500 %}selected{% endif %}>500 строк</option>
+                </select>
+            </div>
+
+            <div class="col-lg-3 col-md-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Обновить
+                </button>
+                <button type="button" class="btn btn-secondary"
+                    onclick="window.scrollTo(0, document.body.scrollHeight)">
+                    <i class="bi bi-arrow-down"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Terminal Window -->
+    <div class="terminal-window">
+        <div class="terminal-header">
+            <div class="d-flex align-items-center gap-3">
+                <div class="terminal-controls">
+                    <div class="terminal-dot red"></div>
+                    <div class="terminal-dot yellow"></div>
+                    <div class="terminal-dot green"></div>
+                </div>
+                <div class="text-muted small font-monospace">
+                    {{ active_service }}.service &mdash; bash &mdash; {{ lines }} lines
+                </div>
+            </div>
+            <div class="text-muted small">
+                <!-- Additional status info could go here -->
+            </div>
+        </div>
+        <div class="terminal-body" id="terminalOutput">
+            {% if logs %}
+            {% for line in logs.split('\n') %}
+            {% if line.strip() %}
+            {% set lower_line = line.lower() %}
+            {% set class = 'info' %}
+            {% if 'error' in lower_line or 'exception' in lower_line or 'traceback' in lower_line %}
+            {% set class = 'error' %}
+            {% elif 'warning' in lower_line %}
+            {% set class = 'warning' %}
+            {% endif %}
+            <div class="log-line {{ class }}">{{ line }}</div>
+            {% endif %}
+            {% endfor %}
+            {% else %}
+            <div class="log-line text-muted fst-italic p-4 text-center">Нет логов для отображения или сервис не запущен.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Auto-scroll to bottom if not searching
+        const terminal = document.getElementById('terminalOutput');
+        if (terminal && !window.location.search.includes('q=')) {
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+    });
+</script>
 {% endblock %}

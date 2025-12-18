@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">Промокоды</h1>
-    <div class="btn-group">
-        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateModal">
-            <i class="bi bi-plus-circle"></i> Сгенерировать
-        </button>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
-            <i class="bi bi-upload"></i> Загрузить файл
-        </button>
+<div class="page-header-premium">
+    <div class="title-area">
+        <h1>Промокоды</h1>
+        <p>Управление базой кодов и генерация</p>
+    </div>
+    <div class="actions-area">
+        <div class="btn-group">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateModal">
+                <i class="bi bi-magic me-2"></i>Сгенерировать
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                <i class="bi bi-upload me-2"></i>Загрузить
+            </button>
+        </div>
     </div>
 </div>
 
