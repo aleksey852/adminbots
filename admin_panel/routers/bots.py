@@ -138,13 +138,21 @@ def setup_routes(
 
     @router.get("/{bot_id}/edit", response_class=HTMLResponse)
     async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
-        from database.methods import get_stats
+        from database import bot_methods
         
         edit_bot = await get_bot_by_id(bot_id)
         if not edit_bot:
             raise HTTPException(status_code=404, detail="Bot not found")
         
-        stats = await get_stats(bot_id)
+        # Connect to bot's database and set context
+        if not bot_db_manager.get(bot_id):
+            bot_db_manager.register(bot_id, edit_bot['database_url'])
+            await bot_db_manager.connect(bot_id)
+        
+        bot_db = bot_db_manager.get(bot_id)
+        bot_methods.set_current_bot_db(bot_db)
+        
+        stats = await bot_methods.get_stats()
         
         return templates.TemplateResponse("bots/edit.html", get_template_context(
             request, user=user, title=f"Редактирование: {edit_bot['name']}",
