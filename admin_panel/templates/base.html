@@ -40,14 +40,17 @@
             </a>
         </div>
 
-        <div class="sidebar-body">
+        <div class="sidebar-body d-flex flex-column flex-grow-1 overflow-auto">
             <!-- Bot Selector -->
-            <div class="bot-selector">
+            <div class="bot-selector mb-4">
                 <div class="dropdown">
                     <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-telegram me-2"></i>
-                        {% if bot %}{{ bot.name }}{% else %}Выберите бота{% endif %}
-                        <i class="bi bi-chevron-down ms-auto" style="font-size: 0.75rem;"></i>
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-telegram text-primary"></i>
+                            <span class="text-truncate" style="max-width: 140px;">{% if bot %}{{ bot.name }}{% else
+                                %}Выберите бота{% endif %}</span>
+                        </div>
+                        <i class="bi bi-chevron-down text-muted" style="font-size: 0.75rem;"></i>
                     </button>
                     <ul class="dropdown-menu">
                         {% for b in bots %}
@@ -64,7 +67,7 @@
                         {% endfor %}
                         {% if is_superadmin %}
                         <li>
-                            <hr class="dropdown-divider" style="border-color: rgba(255,255,255,0.1);">
+                            <hr class="dropdown-divider" style="border-color: var(--border-color);">
                         </li>
                         <li>
                             <a class="dropdown-item" href="/bots/new">
@@ -75,8 +78,9 @@
                     </ul>
                 </div>
                 {% if bot %}
-                <div class="bot-meta">
-                    ID: {{ bot.id }} • {{ bot.type|upper }}
+                <div class="bot-meta d-flex justify-content-between align-items-center px-1">
+                    <span>ID: {{ bot.id }}</span>
+                    <span class="badge badge-primary" style="font-size: 0.65rem;">{{ bot.type|upper }}</span>
                 </div>
                 {% endif %}
             </div>
@@ -182,7 +186,7 @@
                 </div>
                 <div class="user-details">
                     <div class="user-name">{{ current_user.username }}</div>
-                    <div class="user-role">{{ current_user.role }}</div>
+                    <div class="user-role">{{ current_user.role|upper }}</div>
                 </div>
             </div>
             {% endif %}
@@ -198,7 +202,7 @@
     </nav>
 
     <main class="main-content">
-        <div class="container-fluid p-4">
+        <div class="container-fluid p-0">
             {% block content %}{% endblock %}
         </div>
     </main>
