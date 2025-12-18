@@ -88,7 +88,7 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-app.add_middleware(SessionMiddleware, secret_key=config.ADMIN_SECRET_KEY)
+
 
 
 # === Middleware ===
@@ -160,6 +160,9 @@ async def context_middleware(request: Request, call_next):
     
     return response
 
+
+# Add Session Middleware LAST so it wraps everything (including consumers of session)
+app.add_middleware(SessionMiddleware, secret_key=config.ADMIN_SECRET_KEY)
 
 # === Template Context Helper ===
 
