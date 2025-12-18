@@ -151,28 +151,6 @@ def setup_routes(
             logger.exception(f"❌ Upload error: {e}")
             return JSONResponse({"error": f"Ошибка сохранения: {str(e)}"}, 500)
 
-    @router.post("/codes/generate", dependencies=[Depends(verify_csrf_token)])
-    async def generate_codes(request: Request, quantity: int = Form(...), tickets: int = Form(1)):
-        from database import add_promo_codes, bot_db_context
-        from fastapi.responses import StreamingResponse
-        import secrets, io
-        if not (bot := request.state.bot) or bot.get("type") != "promo": return JSONResponse({"error": "Wrong bot"}, 400)
-        
-        chars = 'ACDEFGHJKLMNPRSTUVWXYZ2345679'
-        codes = set()
-        while len(codes) < min(quantity, 3000000):
-            codes.add(''.join(secrets.choice(chars) for _ in range(12)))
-        
-        codes_list = list(codes)
-        async with bot_db_context(bot['id']):
-            added = await add_promo_codes(codes_list, tickets)
-        
-        return StreamingResponse(
-            io.BytesIO('\n'.join(codes_list).encode()),
-            media_type="text/plain",
-            headers={"Content-Disposition": f'attachment; filename="promo_{quantity}.txt"'}
-        )
-
     @router.get("/api/jobs/active")
     async def get_active_jobs_api(request: Request):
         from database import get_active_jobs, bot_db_context

@@ -4,17 +4,12 @@
 <div class="page-header-premium">
     <div class="title-area">
         <h1>Промокоды</h1>
-        <p>Управление базой кодов и генерация</p>
+        <p>Загрузка и управление базой кодов</p>
     </div>
     <div class="actions-area">
-        <div class="btn-group">
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateModal">
-                <i class="bi bi-magic me-2"></i>Сгенерировать
-            </button>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
-                <i class="bi bi-upload me-2"></i>Загрузить
-            </button>
-        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-upload me-2"></i>Загрузить коды
+        </button>
     </div>
 </div>
 
@@ -212,7 +207,107 @@
     </div>
 </div>
 
+<!-- Generate Reserve Modal -->
+<div class="modal fade" id="generateReserveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-shield-plus me-2"></i>Генерация резервных кодов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Количество кодов</label>
+                    <input type="number" class="form-control" id="reserveQuantity" value="100" min="1" max="100000"
+                        required>
+                    <div class="form-text">От 1 до 100 000 резервных кодов</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Билетов за код</label>
+                    <input type="number" class="form-control" id="reserveTickets" value="1" min="1" max="100">
+                </div>
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Резервные коды</strong> — отдельный пул для ручной выдачи.
+                    Уникальны относительно основных промокодов.
+                </div>
+                <div id="reserveResult" class="alert d-none mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-warning" id="btnReserve" onclick="generateReserveCodes()">
+                    <i class="bi bi-shield-plus"></i> Сгенерировать
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    // === Generate Reserve Codes ===
+    function generateReserveCodes() {
+        const quantity = document.getElementById('reserveQuantity').value;
+        const tickets = document.getElementById('reserveTickets').value;
+        const btn = document.getElementById('btnReserve');
+        const resultAlert = document.getElementById('reserveResult');
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Генерация...';
+        resultAlert.classList.add('d-none');
+
+        const formData = new FormData();
+        formData.append('quantity', quantity);
+        formData.append('tickets', tickets);
+        formData.append('csrf_token', csrfToken);
+
+        fetch('/codes/generate-reserve', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRF-Token': csrfToken }
+        })
+            .then(async resp => {
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ message: 'Ошибка сервера' }));
+                    throw new Error(err.message || 'Ошибка генерации');
+                }
+
+                // Get filename from Content-Disposition
+                const disposition = resp.headers.get('Content-Disposition');
+                let filename = `reserve_codes_${quantity}.txt`;
+                if (disposition && disposition.includes('filename=')) {
+                    const match = disposition.match(/filename="?([^";\n]+)"?/);
+                    if (match) filename = match[1];
+                }
+
+                // Download file
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+
+                // Show success
+                resultAlert.className = 'alert alert-success mt-3';
+                resultAlert.innerText = `✅ Сгенерировано ${quantity} резервных кодов. Файл скачан!`;
+                resultAlert.classList.remove('d-none');
+
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-shield-plus"></i> Сгенерировать';
+            })
+            .catch(err => {
+                resultAlert.className = 'alert alert-danger mt-3';
+                resultAlert.innerText = 'Ошибка: ' + err.message;
+                resultAlert.classList.remove('d-none');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-shield-plus"></i> Сгенерировать';
+            });
+    }
+
     // === Generate Codes ===
     function generateCodes() {
         const quantity = document.getElementById('generateQuantity').value;

@@ -52,7 +52,7 @@ from database.bot_methods import (
     get_all_settings, get_all_messages,
     # Promo
     add_promo_codes, get_promo_code, use_promo_code, get_promo_stats,
-    get_promo_codes_paginated,
+    get_promo_codes_paginated, generate_unique_promo_code,
     # Manual Tickets
     add_manual_tickets, get_user_manual_tickets, get_user_total_tickets,
     get_all_tickets_for_final_raffle,

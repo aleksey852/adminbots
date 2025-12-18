@@ -183,4 +183,46 @@ def setup_routes(
         )
         return RedirectResponse(f"/users/{user_id}?msg=updated", 303)
 
+    @router.post("/{user_id}/send-reserve-code", dependencies=[Depends(verify_csrf_token)])
+    async def send_reserve_code(request: Request, user_id: int, user: str = Depends(get_current_user)):
+        """Generate a unique promo code on-the-fly and send it to user via Telegram"""
+        if not (bot := request.state.bot): return RedirectResponse("/")
+        
+        user_data = await get_user_detail(user_id)
+        if not user_data or user_data['bot_id'] != bot['id']:
+            raise HTTPException(404, "User not found")
+        
+        from database.bot_methods import generate_unique_promo_code, use_promo_code, bot_db_context
+        
+        async with bot_db_context(bot['id']):
+            # Generate unique code on-the-fly
+            promo_code = await generate_unique_promo_code(tickets=1)
+            if not promo_code:
+                return RedirectResponse(f"/users/{user_id}?msg=reserve_error", 303)
+            
+            # Mark as used immediately for this user
+            await use_promo_code(promo_code['id'], user_id)
+        
+        # Send message to user
+        from aiogram import Bot as AiogramBot
+        
+        code = promo_code['code']
+        tickets = promo_code.get('tickets', 1)
+        message_text = (
+            f"🎁 <b>Вам выдан промокод!</b>\n\n"
+            f"🔑 Код: <code>{code}</code>\n"
+            f"🎟 Билетов: {tickets}\n\n"
+            f"Введите его в боте для получения билетов!"
+        )
+        
+        bot_instance = AiogramBot(token=bot['token'])
+        try:
+            await bot_instance.send_message(user_data['telegram_id'], message_text, parse_mode="HTML")
+            return RedirectResponse(f"/users/{user_id}?msg=reserve_sent", 303)
+        except Exception as e:
+            logger.error(f"Failed to send reserve code: {e}")
+            return RedirectResponse(f"/users/{user_id}?msg=reserve_send_error", 303)
+        finally:
+            await bot_instance.session.close()
+
     return router

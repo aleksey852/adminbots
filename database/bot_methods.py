@@ -107,6 +107,26 @@ async def add_promo_codes(codes: List[str], tickets: int = 1) -> int:
         await conn.executemany("INSERT INTO promo_codes (code, tickets, status) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", recs)
     return len(recs)
 
+async def generate_unique_promo_code(tickets: int = 1) -> Optional[Dict]:
+    """Generate a single unique promo code on-the-fly and insert into promo_codes"""
+    import secrets
+    chars = 'ACDEFGHJKLMNPRSTUVWXYZ2345679'
+    
+    async with get_current_bot_db().get_connection() as conn:
+        # Try up to 10 times to generate a unique code
+        for _ in range(10):
+            code = ''.join(secrets.choice(chars) for _ in range(12))
+            try:
+                code_id = await conn.fetchval(
+                    "INSERT INTO promo_codes (code, tickets, status) VALUES ($1, $2, 'active') RETURNING id",
+                    code, tickets
+                )
+                if code_id:
+                    return {"id": code_id, "code": code, "tickets": tickets}
+            except:
+                continue  # Code already exists, try again
+    return None
+
 # === Campaigns & Raffle ===
 
 async def add_campaign(type: str, content: Dict, scheduled: datetime = None):

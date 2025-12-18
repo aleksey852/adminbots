@@ -44,6 +44,18 @@
 <div class="alert alert-danger mb-4">
     <i class="bi bi-x-circle"></i> Ошибка отправки: {{ request.query_params.get('error_text', 'Неизвестная ошибка') }}
 </div>
+{% elif message == 'reserve_sent' %}
+<div class="alert alert-success-custom mb-4">
+    <i class="bi bi-gift"></i> Промокод сгенерирован и отправлен!
+</div>
+{% elif message == 'reserve_error' %}
+<div class="alert alert-danger mb-4">
+    <i class="bi bi-x-circle"></i> Ошибка генерации кода
+</div>
+{% elif message == 'reserve_send_error' %}
+<div class="alert alert-danger mb-4">
+    <i class="bi bi-x-circle"></i> Код сгенерирован, но не удалось отправить сообщение
+</div>
 {% endif %}
 
 <div class="row g-4">
@@ -203,6 +215,16 @@
                             data-bs-target="#addTicketsModal">
                             <i class="bi bi-ticket-perforated"></i> Добавить билеты
                         </button>
+
+                        {% if bot.type == 'promo' %}
+                        <form method="post" action="/users/{{ user_data.id }}/send-reserve-code">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-outline-info w-100"
+                                onclick="return confirm('Выдать резервный промокод этому пользователю?')">
+                                <i class="bi bi-gift"></i> Выдать резервный код
+                            </button>
+                        </form>
+                        {% endif %}
 
                         <form method="post" action="/users/{{ user_data.id }}/block">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
