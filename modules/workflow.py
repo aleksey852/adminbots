@@ -65,27 +65,52 @@ class WorkflowManager:
                     steps.append(step["name"])
         return steps
 
-    def get_next_step(self, chain_name: str, current_step_name: str, bot_id: int = None) -> Optional[Dict]:
+    async def get_next_step(self, chain_name: str, current_step_name: str, bot_id: int = None) -> Optional[Dict]:
         """
         Get the next ENABLED step after the current one.
         If bot_id is provided, checks if the module owning the step is enabled.
+        Also respects custom pipeline order from DB if bot_id is provided.
         """
         from modules.base import module_loader
+        from database.panel_db import get_pipeline_config
         
-        steps = self.chains.get(chain_name, [])
-        if not steps:
+        default_steps = self.chains.get(chain_name, [])
+        if not default_steps:
             return None
+            
+        # Determine effective step order
+        steps_ordered = default_steps
+        
+        if bot_id:
+            custom_order_names = await get_pipeline_config(bot_id, chain_name)
+            if custom_order_names:
+                # Reorder default steps based on custom order
+                # Create a map for quick lookup
+                step_map = {s["name"]: s for s in default_steps}
+                new_order = []
+                
+                # Add customs that exist in definitions
+                for name in custom_order_names:
+                    if name in step_map:
+                        new_order.append(step_map[name])
+                
+                # Add any missing steps at the end (fallback)
+                for step in default_steps:
+                    if step["name"] not in custom_order_names:
+                        new_order.append(step)
+                
+                steps_ordered = new_order
         
         # Find index of current
         idx = -1
-        for i, step in enumerate(steps):
+        for i, step in enumerate(steps_ordered):
             if step["name"] == current_step_name:
                 idx = i
                 break
         
         # Search for the next VALID step starting from idx + 1
-        for i in range(idx + 1, len(steps)):
-            step = steps[i]
+        for i in range(idx + 1, len(steps_ordered)):
+            step = steps_ordered[i]
             # Check if module is enabled
             mod_name = step.get("module_name")
             if bot_id is not None and mod_name:
@@ -97,9 +122,38 @@ class WorkflowManager:
         
         return None
 
-    def get_first_step(self, chain_name: str) -> Optional[Dict]:
-         steps = self.chains.get(chain_name, [])
-         return steps[0] if steps else None
+    async def get_first_step(self, chain_name: str, bot_id: int = None) -> Optional[Dict]:
+         from database.panel_db import get_pipeline_config
+         from modules.base import module_loader
+         
+         default_steps = self.chains.get(chain_name, [])
+         if not default_steps:
+             return None
+             
+         steps_ordered = default_steps
+         
+         if bot_id:
+            custom_order_names = await get_pipeline_config(bot_id, chain_name)
+            if custom_order_names:
+                 step_map = {s["name"]: s for s in default_steps}
+                 new_order = []
+                 for name in custom_order_names:
+                     if name in step_map:
+                         new_order.append(step_map[name])
+                 for step in default_steps:
+                     if step["name"] not in custom_order_names:
+                         new_order.append(step)
+                 steps_ordered = new_order
+
+         # Return first enabled step
+         for step in steps_ordered:
+            mod_name = step.get("module_name")
+            if bot_id is not None and mod_name:
+                if not module_loader.is_enabled(bot_id, mod_name):
+                    continue
+            return step
+            
+         return None
 
 # Global instance
 workflow_manager = WorkflowManager()

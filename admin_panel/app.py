@@ -28,7 +28,7 @@ from database.panel_db import (
 from database.bot_db import bot_db_manager
 
 # Routers
-from admin_panel.routers import auth, bots, users, campaigns, system, texts
+from admin_panel.routers import auth, bots, users, campaigns, system, texts, modules
 
 # Setup logging
 logging.basicConfig(
@@ -260,6 +260,10 @@ texts.setup_routes(
     get_template_context
 )
 app.include_router(texts.router)
+
+
+# Modules and Pipelines router
+app.include_router(modules.router)
 
 
 # === Dashboard (main page) ===

@@ -57,6 +57,24 @@ class BotModule(ABC):
         """Get the aiogram Router for this module."""
         return self.router
 
+    async def get_settings(self, bot_id: int) -> Dict[str, Any]:
+        """
+        Get effective settings for this module and bot.
+        Merges default_settings with database overrides.
+        """
+        from database.panel_db import get_module_settings
+        db_settings = await get_module_settings(bot_id, self.name)
+        
+        # Merge: start with defaults, override with DB
+        settings = self.default_settings.copy()
+        settings.update(db_settings)
+        return settings
+
+    async def save_settings(self, bot_id: int, settings: Dict[str, Any]):
+        """Save settings for this module and bot."""
+        from database.panel_db import set_module_settings
+        await set_module_settings(bot_id, self.name, settings)
+
     def get_handlers(self) -> List[str]:
         """Get names of all handlers registered in this module's router."""
         handlers = []

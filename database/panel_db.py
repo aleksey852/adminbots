@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Optional, Any, List, Dict
 from datetime import datetime
 import asyncpg
+import json
 from database.bot_db import DBWrapper
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,29 @@ async def _create_panel_schema():
                 last_login TIMESTAMP
             );
         """)
+
+        # Module Settings - Stores JSON configuration for modules per bot
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS module_settings (
+                bot_id INTEGER NOT NULL REFERENCES bot_registry(id) ON DELETE CASCADE,
+                module_name TEXT NOT NULL,
+                settings JSONB DEFAULT '{}'::jsonb,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY (bot_id, module_name)
+            );
+        """)
+
+        # Pipeline Config - Stores step order for workflows
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS pipeline_config (
+                bot_id INTEGER NOT NULL REFERENCES bot_registry(id) ON DELETE CASCADE,
+                chain_name TEXT NOT NULL,
+                steps JSONB DEFAULT '[]'::jsonb,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY (bot_id, chain_name)
+            );
+        """)
+
         
         # Indexes
         await db.execute("CREATE INDEX IF NOT EXISTS idx_bot_registry_active ON bot_registry(is_active) WHERE archived_at IS NULL")
@@ -244,6 +268,74 @@ async def ensure_initial_superadmin(username: str, password_hash: str):
                 username, password_hash
             )
             logger.info(f"Created initial superadmin user: {username}")
+
+# === Module Settings Methods ===
+
+async def get_module_settings(bot_id: int, module_name: str) -> Dict[str, Any]:
+    """Get settings for a specific module"""
+    async with get_panel_connection() as db:
+        row = await db.fetchrow(
+            "SELECT settings FROM module_settings WHERE bot_id = $1 AND module_name = $2",
+            bot_id, module_name
+        )
+        return json.loads(row['settings']) if row else {}
+
+async def set_module_settings(bot_id: int, module_name: str, settings: Dict[str, Any]):
+    """Save settings for a module"""
+    import json
+    async with get_panel_connection() as db:
+        await db.execute("""
+            INSERT INTO module_settings (bot_id, module_name, settings, updated_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (bot_id, module_name) 
+            DO UPDATE SET settings = $3, updated_at = NOW()
+        """, bot_id, module_name, json.dumps(settings))
+
+async def get_all_module_settings(bot_id: int) -> Dict[str, Dict]:
+    """Get all module settings for a bot"""
+    async with get_panel_connection() as db:
+        rows = await db.fetch("SELECT module_name, settings FROM module_settings WHERE bot_id = $1", bot_id)
+        return {row['module_name']: json.loads(row['settings']) for row in rows}
+
+# === Pipeline Config Methods ===
+
+async def get_pipeline_config(bot_id: int, chain_name: str) -> List[str]:
+    """Get custom step order for a pipeline"""
+    async with get_panel_connection() as db:
+        row = await db.fetchrow(
+            "SELECT steps FROM pipeline_config WHERE bot_id = $1 AND chain_name = $2",
+            bot_id, chain_name
+        )
+        if row:
+            val = row['steps']
+            if isinstance(val, str):
+                return json.loads(val)
+            return val
+        return []
+
+async def set_pipeline_config(bot_id: int, chain_name: str, steps: List[str]):
+    """Save custom step order"""
+    import json
+    async with get_panel_connection() as db:
+        await db.execute("""
+            INSERT INTO pipeline_config (bot_id, chain_name, steps, updated_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (bot_id, chain_name)
+            DO UPDATE SET steps = $3, updated_at = NOW()
+        """, bot_id, chain_name, json.dumps(steps))
+
+async def get_all_pipeline_configs(bot_id: int) -> Dict[str, List[str]]:
+    """Get all pipeline configs for a bot"""
+    async with get_panel_connection() as db:
+        rows = await db.fetch("SELECT chain_name, steps FROM pipeline_config WHERE bot_id = $1", bot_id)
+        result = {}
+        for row in rows:
+            val = row['steps']
+            if isinstance(val, str):
+                val = json.loads(val)
+            result[row['chain_name']] = val
+        return result
+
 
 # === Utility Methods ===
 
