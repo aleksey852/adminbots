@@ -117,7 +117,7 @@
                     </div>
 
                     <div id="uploadProgressContainer" class="d-none">
-                        <label class="form-label">Загрузка файла...</label>
+                        <label id="uploadPhaseLabel" class="form-label">Загрузка файла...</label>
                         <div class="progress mb-2">
                             <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
                                 role="progressbar" style="width: 0%">0%</div>
@@ -258,76 +258,63 @@
         const progressContainer = document.getElementById('uploadProgressContainer');
         const progressBar = document.getElementById('uploadProgressBar');
         const statusText = document.getElementById('uploadStatusText');
+        const phaseLabel = document.getElementById('uploadPhaseLabel');
         const resultAlert = document.getElementById('uploadResult');
         const closeBtn = document.getElementById('btnCloseUpload');
 
         progressContainer.classList.remove('d-none');
+        phaseLabel.innerText = "Идет обработка на сервере...";
+        progressBar.classList.add('bg-success'); // Green color for processing phase
         closeBtn.disabled = false;
 
         const poll = () => {
             fetch(`/api/jobs/${jobId}`)
                 .then(async (resp) => {
                     const data = await resp.json().catch(() => null);
-                    if (data === null) {
-                        throw new Error("Сессия истекла или сервер вернул не-JSON");
-                    }
-                    if (!resp.ok) {
-                        throw new Error(data.detail || `HTTP ${resp.status}`);
-                    }
-                    if (typeof data.id !== 'number') {
-                        throw new Error("Некорректный ответ сервера");
-                    }
+                    if (!resp.ok) throw new Error((data && data.error) || `HTTP ${resp.status}`);
                     return data;
                 })
                 .then((job) => {
                     const details = job.details || {};
+                    const progress = job.progress || 0;
 
-                    if (typeof job.progress === 'number') {
-                        progressBar.style.width = job.progress + '%';
-                        progressBar.innerText = job.progress + '%';
-                    }
+                    progressBar.style.width = progress + '%';
+                    progressBar.innerText = progress + '%';
 
                     let detailsTxt = '';
-                    if (typeof details.processed === 'number' && typeof details.total_lines === 'number') {
-                        detailsTxt = `${details.processed} / ${details.total_lines}`;
+                    if (details.processed !== undefined && details.total_lines !== undefined) {
+                        const processed = parseInt(details.processed).toLocaleString();
+                        const total = parseInt(details.total_lines).toLocaleString();
+                        detailsTxt = `${processed} / ${total}`;
                     }
-                    const addedTxt = typeof details.added === 'number' ? `, добавлено: ${details.added}` : '';
+                    const addedTxt = details.added !== undefined ? `, добавлено: ${parseInt(details.added).toLocaleString()}` : '';
 
-                    statusText.innerText = `Импорт #${job.id}: ${job.status}${detailsTxt ? ` (${detailsTxt}${addedTxt})` : addedTxt}`;
+                    statusText.innerHTML = `<strong>Обработка #${job.id}</strong>: ${job.status}<br><small>${detailsTxt}${addedTxt}</small>`;
 
                     if (job.status === 'completed') {
                         resultAlert.className = 'alert alert-success mt-3';
-                        resultAlert.innerText = `✅ Импорт #${job.id} завершен${typeof details.added === 'number' ? `. Добавлено: ${details.added}` : ''}`;
+                        resultAlert.innerHTML = `✅ <strong>Импорт завершен!</strong><br>Добавлено кодов: ${parseInt(details.added || 0).toLocaleString()}`;
                         resultAlert.classList.remove('d-none');
                         btn.disabled = true;
-                        closeBtn.disabled = false;
-                        jobPollTimer = setTimeout(() => {
-                            const modalEl = document.getElementById('uploadModal');
-                            if (modalEl && modalEl.classList.contains('show')) {
-                                location.reload();
-                            }
-                        }, 1500);
+                        phaseLabel.innerText = "Завершено";
+                        setTimeout(() => location.reload(), 3000);
                         return;
                     }
 
                     if (job.status === 'failed') {
                         resultAlert.className = 'alert alert-danger mt-3';
-                        resultAlert.innerText = `❌ Импорт #${job.id} завершился ошибкой: ${details.error || 'unknown error'}`;
+                        resultAlert.innerText = `❌ Ошибка: ${details.error || 'Неизвестная ошибка'}`;
                         resultAlert.classList.remove('d-none');
                         btn.disabled = false;
-                        closeBtn.disabled = false;
                         return;
                     }
 
-                    jobPollTimer = setTimeout(poll, 1000);
+                    jobPollTimer = setTimeout(poll, 1500);
                 })
                 .catch((err) => {
                     console.error(err);
-                    resultAlert.className = 'alert alert-warning mt-3';
-                    resultAlert.innerText = `Не удалось получить статус импорта #${jobId}: ${err.message}. Обновите страницу.`;
-                    resultAlert.classList.remove('d-none');
-                    btn.disabled = false;
-                    closeBtn.disabled = false;
+                    statusText.innerText = `Ошибка получения статуса: ${err.message}`;
+                    jobPollTimer = setTimeout(poll, 3000); // Try again despite error
                 });
         };
 
@@ -490,31 +477,28 @@
                 container.classList.remove('d-none');
                 list.innerHTML = jobs.map(job => {
                     let detailsTxt = '';
-                    if (
-                        job.details
-                        && typeof job.details.processed === 'number'
-                        && typeof job.details.total_lines === 'number'
-                    ) {
-                        detailsTxt = `${job.details.processed} / ${job.details.total_lines}`;
+                    if (job.details && job.details.processed !== undefined && job.details.total_lines !== undefined) {
+                        detailsTxt = `${parseInt(job.details.processed).toLocaleString()} / ${parseInt(job.details.total_lines).toLocaleString()}`;
                     }
+                    const addedTxt = job.details && job.details.added !== undefined ? `<br>Добавлено: ${parseInt(job.details.added).toLocaleString()}` : '';
 
                     return `
                 <div class="mb-2">
                     <div class="d-flex justify-content-between mb-1">
-                        <span>${job.type === 'import_promo' ? 'Импорт промокодов' : job.type}</span>
-                        <small>${job.progress}%</small>
+                        <span><strong>${job.type === 'import_promo' ? 'Импорт промокодов' : job.type}</strong></span>
+                        <small class="fw-bold">${job.progress}%</small>
                     </div>
-                    <div class="progress" style="height: 10px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                    <div class="progress" style="height: 12px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
                              style="width: ${job.progress}%"></div>
                     </div>
                     <div class="d-flex justify-content-between mt-1 text-muted small">
-                        <span>${detailsTxt}</span>
-                        <span>${job.status}</span>
+                        <span>${detailsTxt}${addedTxt}</span>
+                        <span class="badge bg-light text-dark">${job.status}</span>
                     </div>
                 </div>
                 `;
-                }).join('<hr>');
+                }).join('<hr class="my-3">');
             })
             .catch(err => console.error(err));
     }

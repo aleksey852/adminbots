@@ -157,6 +157,15 @@ def setup_routes(
             jobs = await get_active_jobs()
         return JSONResponse([{**dict(j), "details": json.loads(j['details']) if isinstance(j['details'], str) else j['details'], "created_at": j['created_at'].isoformat()} for j in jobs])
 
+    @router.get("/api/jobs/{jid}")
+    async def get_job_api(request: Request, jid: int):
+        from database import get_job, bot_db_context
+        if not (bot := request.state.bot): return JSONResponse({"error": "No bot"}, 404)
+        async with bot_db_context(bot['id']):
+            job = await get_job(jid)
+        if not job: return JSONResponse({"error": "Not found"}, 404)
+        return JSONResponse({**dict(job), "details": json.loads(job['details']) if isinstance(job['details'], str) else job['details'], "created_at": job['created_at'].isoformat()})
+
     @router.get("/raffle", response_class=HTMLResponse)
     async def raffle_page(request: Request, user: str = Depends(get_current_user), created: str = None):
         if not request.state.bot: return RedirectResponse("/")
