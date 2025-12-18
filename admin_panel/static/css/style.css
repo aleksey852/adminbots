@@ -1567,3 +1567,113 @@ h6 {
     border-color: var(--primary-color);
     box-shadow: var(--shadow-sm);
 }
+
+/* =========================================
+   Phase 6: UI/UX Audit Fixes
+   ========================================= */
+
+/* Missing Badge Styles */
+.badge-valid {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.badge-pending {
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.badge-scheduled {
+    background: var(--info-bg);
+    color: var(--info-text);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.badge-completed {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+/* Custom Alerts */
+.alert-info-custom {
+    background: var(--info-bg);
+    color: var(--info-text);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+}
+
+.alert-success-custom {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+}
+
+/* Code Element Dark Theme */
+code {
+    background: rgba(99, 102, 241, 0.08);
+    color: var(--primary-600);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+[data-theme="dark"] code {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--primary-300);
+}
+
+/* Pagination Dark Mode */
+[data-theme="dark"] .pagination .page-link {
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .pagination .page-link:hover {
+    background: var(--bg-surface-subtle);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .pagination .page-item.disabled .page-link {
+    background: var(--primary-600);
+    color: white;
+    border-color: var(--primary-600);
+}
+
+/* Stat Card Icon Box Variants */
+.stat-card.primary .icon-box {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary-500);
+}
+
+.stat-card.success .icon-box {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-text);
+}
+
+.stat-card.warning .icon-box {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning-text);
+}
+
+/* Page Header Premium Responsive */
+.page-header-premium .action-area,
+.page-header-premium .actions-area {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+@media (max-width: 991.98px) {
+    .page-header-premium {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+}
