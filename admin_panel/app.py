@@ -128,10 +128,12 @@ async def context_middleware(request: Request, call_next):
         
         if not bot_db_manager.get(bot_id):
             bot_db_manager.register(bot_id, db_url)
-            try:
-                await bot_db_manager.connect(bot_id)
-            except Exception as e:
-                logger.error(f"Failed to connect to bot {bot_id} database: {e}")
+            
+        # Always ensure connected (BotDatabase.connect handles idempotency)
+        try:
+            await bot_db_manager.connect(bot_id)
+        except Exception as e:
+            logger.error(f"Failed to connect to bot {bot_id} database: {e}")
         
         bot_db = bot_db_manager.get(bot_id)
         request.state.bot_db = bot_db

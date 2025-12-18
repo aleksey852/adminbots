@@ -65,10 +65,15 @@ EOF
 sysctl -p /etc/sysctl.d/99-admin-bots.conf
 
 # 3. Create service user
-if ! id "$SERVICE_USER" &>/dev/null; then
     useradd -m -s /bin/bash "$SERVICE_USER"
     usermod -aG systemd-journal "$SERVICE_USER"
 fi
+
+# 3.1 Configure Sudoers for Script Execution
+log "Configuring sudoers..."
+echo "$SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/bash $PROJECT_DIR/scripts/setup_domain.sh *" > /etc/sudoers.d/adminbots
+chmod 0440 /etc/sudoers.d/adminbots
+
 
 # 4. Copy project
 log "Setting up project..."
@@ -77,9 +82,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
 
 if [[ -f "$SOURCE_DIR/main.py" ]]; then
-    # Copy all files ignoring venv/git
-    rsync -a --exclude 'venv' --exclude '.git' --exclude '__pycache__' --exclude '.env' "$SOURCE_DIR/" "$PROJECT_DIR/"
+    # Copy project files (include .git for updates)
+    rsync -a --exclude 'venv' --exclude '__pycache__' --exclude '.env' "$SOURCE_DIR/" "$PROJECT_DIR/"
 fi
+
+# Ensure .git permissions
+if [ -d "$PROJECT_DIR/.git" ]; then
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_DIR/.git"
+
 
 # Git safe dir
 if [ -d "$PROJECT_DIR" ]; then

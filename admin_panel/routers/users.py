@@ -83,7 +83,6 @@ def setup_routes(
     @router.post("/{user_id}/message", dependencies=[Depends(verify_csrf_token)])
     async def send_user_message(
         request: Request,
-        background_tasks: BackgroundTasks,
         user_id: int,
         text: str = Form(None),
         photo: UploadFile = File(None),
@@ -114,25 +113,27 @@ def setup_routes(
         
         telegram_id = user_data['telegram_id']
         
-        async def send_message_task():
-            from aiogram import Bot as AiogramBot
-            from aiogram.types import FSInputFile
-            try:
-                bot_instance = AiogramBot(token=bot['token'])
-                if "photo_path" in content:
-                    await bot_instance.send_photo(telegram_id, FSInputFile(content["photo_path"]), caption=content.get("caption"))
-                elif "photo" in content:
-                    await bot_instance.send_photo(telegram_id, content["photo"], caption=content.get("caption"))
-                else:
-                    await bot_instance.send_message(telegram_id, content.get("text", ""))
-                await bot_instance.session.close()
-                logger.info(f"Direct message sent to user {telegram_id}")
-            except Exception as e:
-                logger.error(f"Failed to send message to {telegram_id}: {e}")
+        # Send message synchronously to provide feedback
+        from aiogram import Bot as AiogramBot
+        from aiogram.types import FSInputFile
         
-        background_tasks.add_task(send_message_task)
-        
-        return RedirectResponse(url=f"/users/{user_id}?msg=sent", status_code=status.HTTP_303_SEE_OTHER)
+        try:
+            bot_instance = AiogramBot(token=bot['token'])
+            if "photo_path" in content:
+                await bot_instance.send_photo(telegram_id, FSInputFile(content["photo_path"]), caption=content.get("caption"))
+            else:
+                await bot_instance.send_message(telegram_id, content.get("text", ""))
+                
+            await bot_instance.session.close()
+            logger.info(f"Direct message sent to user {telegram_id}")
+            return RedirectResponse(url=f"/users/{user_id}?msg=sent", status_code=status.HTTP_303_SEE_OTHER)
+            
+        except Exception as e:
+            logger.error(f"Failed to send message to {telegram_id}: {e}")
+            await bot_instance.session.close()
+            import urllib.parse
+            error_text = urllib.parse.quote(str(e)[:100])
+            return RedirectResponse(url=f"/users/{user_id}?msg=error&error_text={error_text}", status_code=status.HTTP_303_SEE_OTHER)
 
     @router.post("/{user_id}/add-receipt", dependencies=[Depends(verify_csrf_token)])
     async def add_user_receipt(request: Request, user_id: int, user: str = Depends(get_current_user)):

@@ -40,6 +40,10 @@
 <div class="alert alert-danger mb-4">
     <i class="bi bi-x-circle"></i> Ошибка: количество билетов от 1 до 10000
 </div>
+{% elif message == 'error' %}
+<div class="alert alert-danger mb-4">
+    <i class="bi bi-x-circle"></i> Ошибка отправки: {{ request.query_params.get('error_text', 'Неизвестная ошибка') }}
+</div>
 {% endif %}
 
 <div class="row g-4">
