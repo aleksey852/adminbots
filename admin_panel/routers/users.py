@@ -203,8 +203,9 @@ def setup_routes(
             # Mark as used immediately for this user
             await use_promo_code(promo_code['id'], user_id)
         
-        # Send message to user
+        # Send message to user with inline button
         from aiogram import Bot as AiogramBot
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         
         code = promo_code['code']
         tickets = promo_code.get('tickets', 1)
@@ -212,12 +213,21 @@ def setup_routes(
             f"🎁 <b>Вам выдан промокод!</b>\n\n"
             f"🔑 Код: <code>{code}</code>\n"
             f"🎟 Билетов: {tickets}\n\n"
-            f"Введите его в боте для получения билетов!"
+            f"Нажмите кнопку ниже для активации:"
         )
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Активировать промокод", callback_data=f"activate_code:{code}")]
+        ])
         
         bot_instance = AiogramBot(token=bot['token'])
         try:
-            await bot_instance.send_message(user_data['telegram_id'], message_text, parse_mode="HTML")
+            await bot_instance.send_message(
+                user_data['telegram_id'], 
+                message_text, 
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
             return RedirectResponse(f"/users/{user_id}?msg=reserve_sent", 303)
         except Exception as e:
             logger.error(f"Failed to send reserve code: {e}")

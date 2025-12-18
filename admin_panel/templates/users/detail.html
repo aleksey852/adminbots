@@ -202,14 +202,15 @@
                 <div class="card h-100">
                     <div class="card-header"><i class="bi bi-gear"></i> Действия</div>
                     <div class="card-body d-flex flex-column gap-2">
+                        {% if bot.type != 'promo' %}
                         <form method="post" action="/users/{{ user_data.id }}/add-receipt">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit" class="btn btn-outline-success w-100"
-                                onclick="return confirm('{% if bot.type == 'promo' %}Начислить активацию/билеты этому пользователю?{% else %}Добавить чек этому пользователю?{% endif %}')">
-                                <i class="bi bi-plus-circle"></i> {% if bot.type == 'promo' %}Начислить{% else %}Выдать
-                                чек{% endif %}
+                                onclick="return confirm('Добавить чек этому пользователю?')">
+                                <i class="bi bi-plus-circle"></i> Выдать чек
                             </button>
                         </form>
+                        {% endif %}
 
                         <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal"
                             data-bs-target="#addTicketsModal">

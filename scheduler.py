@@ -40,11 +40,17 @@ async def pg_listener(
             
             while not shutdown_event.is_set():
                 try:
-                    # Wait for notification
-                    await asyncio.wait_for(notification_queue.get(), timeout=5.0)
+                    # Wait for notification and save it (don't discard!)
+                    first_notification = await asyncio.wait_for(notification_queue.get(), timeout=5.0)
                     
+                    # Process the first notification we just received
+                    notifications_to_process = [first_notification]
+                    
+                    # Also grab any additional notifications that arrived
                     while not notification_queue.empty():
-                        channel, payload = await notification_queue.get()
+                        notifications_to_process.append(await notification_queue.get())
+                    
+                    for channel, payload in notifications_to_process:
                         try:
                             if channel == "new_bot":
                                 logger.info("🔔 Notification: New Bot added. Reloading dynamically...")

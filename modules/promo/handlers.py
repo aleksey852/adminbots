@@ -2,7 +2,7 @@
 Promo Module - Promo code activation
 """
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 import re
 import logging
 
@@ -53,6 +53,82 @@ class PromoModule(BotModule):
             
             text = config_manager.get_message('promo_prompt', self.default_messages['promo_prompt'], bot_id=bot_id)
             await message.answer(text)
+
+        @self.router.callback_query(F.data.startswith("activate_code:"))
+        async def activate_code_callback(callback: CallbackQuery, bot_id: int = None):
+            """Handle inline button activation of promo code"""
+            if not bot_id: return
+            if bot_manager.bot_types.get(bot_id) != 'promo': return
+            
+            # Extract code from callback data
+            code_text = callback.data.split(":", 1)[1] if ":" in callback.data else ""
+            if not code_text:
+                await callback.answer("Ошибка: код не найден", show_alert=True)
+                return
+            
+            try:
+                # Check DB
+                promo = await bot_methods.get_promo_code(code_text)
+                
+                if not promo:
+                    await callback.answer("❌ Промокод не найден", show_alert=True)
+                    return
+                
+                if promo['status'] != 'active':
+                    await callback.answer("⚠️ Промокод уже использован", show_alert=True)
+                    # Update message to show it's already activated
+                    await callback.message.edit_text(
+                        f"✅ Промокод уже активирован!\n\n🔑 Код: <code>{code_text}</code>",
+                        parse_mode="HTML"
+                    )
+                    return
+
+                # Get/create user
+                db_user = await bot_methods.get_user(callback.from_user.id)
+                if not db_user:
+                    await bot_methods.add_user(
+                        callback.from_user.id, 
+                        callback.from_user.username or "", 
+                        callback.from_user.full_name, 
+                        "promo_auto_reg"
+                    )
+                    db_user = await bot_methods.get_user(callback.from_user.id)
+
+                # Use code
+                if await bot_methods.use_promo_code(promo['id'], db_user['id']):
+                    tickets = promo.get('tickets', 1)
+                    
+                    # Add receipt for stats
+                    await bot_methods.add_receipt(
+                        user_id=db_user['id'], 
+                        status='valid', 
+                        data={'code': code_text}, 
+                        fiscal_drive_number='PROMO', 
+                        fiscal_document_number=f"CODE-{promo['id']}", 
+                        fiscal_sign='SIGN', 
+                        total_sum=0, 
+                        tickets=tickets, 
+                        raw_qr=code_text, 
+                        product_name=f"Промокод: {code_text[:8]}..."
+                    )
+                    
+                    total_tickets = await bot_methods.get_user_tickets_count(db_user['id'])
+                    
+                    # Update message to show success
+                    await callback.message.edit_text(
+                        f"✅ <b>Промокод активирован!</b>\n\n"
+                        f"🔑 Код: <code>{code_text}</code>\n"
+                        f"🎟 Получено билетов: {tickets}\n"
+                        f"📊 Всего билетов: {total_tickets}",
+                        parse_mode="HTML"
+                    )
+                    await callback.answer("✅ Промокод активирован!")
+                else:
+                    await callback.answer("❌ Ошибка при активации", show_alert=True)
+                    
+            except Exception as e:
+                logger.error(f"Error activating promo code via callback: {e}")
+                await callback.answer("⚠️ Временная ошибка. Попробуйте позже.", show_alert=True)
 
         @self.router.message(F.text)
         async def process_promo_code(message: Message, bot_id: int = None):
