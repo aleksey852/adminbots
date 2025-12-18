@@ -39,26 +39,41 @@
 
 <div class="row g-4 mb-4">
     <div class="col-md-4">
-        <div class="card stat-card">
+        <div class="card stat-card primary">
             <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="icon-box text-primary me-3">
+                        <i class="bi bi-upc-scan"></i>
+                    </div>
+                    <div class="stat-label">Всего кодов</div>
+                </div>
                 <div class="stat-value">{{ stats.total|default(0) }}</div>
-                <div class="stat-label">Всего кодов</div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card stat-card" style="border-left-color: #10b981;">
+        <div class="card stat-card success">
             <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="icon-box text-success me-3">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div class="stat-label">Доступно</div>
+                </div>
                 <div class="stat-value">{{ stats.active|default(0) }}</div>
-                <div class="stat-label">Доступно</div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card stat-card" style="border-left-color: #f59e0b;">
+        <div class="card stat-card warning">
             <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="icon-box text-warning me-3">
+                        <i class="bi bi-qr-code"></i>
+                    </div>
+                    <div class="stat-label">Использовано</div>
+                </div>
                 <div class="stat-value">{{ stats.used|default(0) }}</div>
-                <div class="stat-label">Использовано</div>
             </div>
         </div>
     </div>

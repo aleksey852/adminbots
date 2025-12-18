@@ -1196,3 +1196,31 @@ h6 {
         padding: 1rem !important;
     }
 }
+
+/* Phase 5: Global Modal & Search Polish */
+[data-theme="dark"] .modal-content {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+[data-theme="dark"] .modal-header {
+    border-bottom-color: var(--border-color);
+}
+[data-theme="dark"] .modal-footer {
+    border-top-color: var(--border-color);
+}
+[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* Texts Page Specifics */
+.text-item-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    transition: all 0.2s;
+}
+.text-item-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
