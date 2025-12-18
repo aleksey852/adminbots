@@ -1015,3 +1015,177 @@ h6 {
     margin-bottom: 1.5rem;
     border: 1px solid var(--border-color);
 }
+
+/* =========================================
+   Phase 3: Visual Polish (Sidebar & Dashboard)
+   ========================================= */
+
+/* Sidebar Footer Refinement */
+.sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-surface-subtle);
+}
+.sidebar-footer .user-info {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.sidebar-footer .d-flex.gap-2 {
+    align-items: center;
+}
+.theme-toggle {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+.theme-toggle:hover {
+    background: var(--bg-surface-subtle);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+.logout-btn {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 1.5rem;
+    border-radius: 10px;
+    background: #fee2e2; /* Light red */
+    color: #ef4444;       /* Red text */
+    border: 1px solid #fecaca;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    text-decoration: none !important;
+}
+[data-theme="dark"] .logout-btn {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+.logout-btn:hover {
+    background: #fecaca;
+    color: #dc2626;
+    transform: translateY(-1px);
+}
+[data-theme="dark"] .logout-btn:hover {
+    background: rgba(239, 68, 68, 0.25);
+    color: #fff;
+}
+
+/* Dashboard Stat Cards - Gradients & Depth */
+.stat-card {
+    position: relative;
+    overflow: hidden;
+    border: none !important;
+    background: var(--bg-card);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary), #8b5cf6);
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+.stat-card .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.25rem;
+}
+.stat-card .stat-label {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+}
+.stat-card .icon-box {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    background: var(--bg-surface-subtle);
+    color: var(--primary);
+}
+
+/* Specific variants for Stat Cards */
+.stat-card.success::before { background: linear-gradient(90deg, #10b981, #34d399); }
+.stat-card.success .stat-value {background: linear-gradient(135deg, #059669, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+[data-theme="dark"] .stat-card.success .stat-value {background: linear-gradient(135deg, #34d399, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.stat-card.warning::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.stat-card.warning .stat-value {background: linear-gradient(135deg, #d97706, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+[data-theme="dark"] .stat-card.warning .stat-value {background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.stat-card.danger::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+.stat-card.danger .stat-value {background: linear-gradient(135deg, #dc2626, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+[data-theme="dark"] .stat-card.danger .stat-value {background: linear-gradient(135deg, #f87171, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+
+/* Phase 3: Danger Zone Styling */
+.danger-zone-card {
+    border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    background: rgba(254, 242, 242, 0.5);
+    overflow: hidden;
+}
+[data-theme="dark"] .danger-zone-card {
+    background: rgba(239, 68, 68, 0.05);
+    border-color: rgba(239, 68, 68, 0.2) !important;
+}
+.danger-zone-header {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.danger-action-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    padding: 1.25rem;
+    border-radius: 0.75rem;
+    height: 100%;
+    transition: all 0.2s;
+}
+.danger-action-card:hover {
+    border-color: #ef4444;
+    box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.1);
+}
+.danger-action-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.danger-action-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    min-height: 2.5rem;
+}

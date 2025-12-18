@@ -8,8 +8,7 @@
             <p class="page-subtitle mb-0 text-muted">Обзор статистики и статуса системы</p>
         </div>
         <div class="d-flex gap-2">
-            <span class="badge d-flex align-items-center gap-2"
-                style="background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border-color);">
+            <span class="badge d-flex align-items-center gap-2 bg-surface text-secondary border">
                 <i class="bi bi-clock"></i> {{ now().strftime('%d.%m.%Y') }}
             </span>
         </div>
@@ -41,7 +40,7 @@
                         <div class="stat-value">{{ stats.total_users if stats else 0 }}</div>
                         <div class="stat-label">Пользователей</div>
                     </div>
-                    <div class="stat-icon">
+                    <div class="icon-box">
                         <i class="bi bi-people-fill"></i>
                     </div>
                 </div>
@@ -63,7 +62,7 @@
                             {% if bot and bot.type == 'promo' %}Активаций{% else %}Принято чеков{% endif %}
                         </div>
                     </div>
-                    <div class="stat-icon">
+                    <div class="icon-box">
                         <i class="bi bi-{% if bot and bot.type == 'promo' %}upc-scan{% else %}receipt{% endif %}"></i>
                     </div>
                 </div>
@@ -83,7 +82,7 @@
                         <div class="stat-value">{{ stats.total_tickets if stats else 0 }}</div>
                         <div class="stat-label">Всего билетов</div>
                     </div>
-                    <div class="stat-icon">
+                    <div class="icon-box">
                         <i class="bi bi-ticket-perforated-fill"></i>
                     </div>
                 </div>
@@ -103,7 +102,7 @@
                         <div class="stat-value">{{ stats.total_winners if stats else 0 }}</div>
                         <div class="stat-label">Победителей</div>
                     </div>
-                    <div class="stat-icon">
+                    <div class="icon-box">
                         <i class="bi bi-trophy-fill"></i>
                     </div>
                 </div>

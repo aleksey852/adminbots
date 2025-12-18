@@ -216,46 +216,65 @@
     </div>
 
     <!-- Danger Zone -->
-    <div class="card shadow-sm border-danger">
-        <div class="card-header bg-danger text-white"><i class="bi bi-exclamation-triangle me-1"></i> Опасная
-            зона</div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <h6>📦 Экспорт данных</h6>
-                    <p class="text-muted small">Скачать все данные бота для переноса на другой сервер.</p>
-                    <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-outline-primary">
-                        <i class="bi bi-download me-1"></i> Скачать JSON
-                    </a>
+    <div class="card danger-zone-card shadow-sm mt-5">
+        <div class="danger-zone-header">
+            <i class="bi bi-exclamation-triangle-fill"></i> Опасная зона
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-4">
+                <!-- Export -->
+                <div class="col-md-6">
+                    <div class="danger-action-card">
+                        <div class="danger-action-title">
+                            <i class="bi bi-box-arrow-down text-primary"></i> Экспорт данных
+                        </div>
+                        <p class="danger-action-desc">Скачать полный дамп базы данных бота в формате JSON для резервного
+                            копирования.</p>
+                        <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-sm btn-outline-primary w-100">
+                            Скачать JSON
+                        </a>
+                    </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <h6>🔄 Миграция данных</h6>
-                    <p class="text-muted small">Перенести пользователей в другого бота на этом сервере.</p>
-                    <a href="/bots/{{ edit_bot.id }}/migrate" class="btn btn-outline-info">
-                        <i class="bi bi-box-arrow-right me-1"></i> Мигрировать
-                    </a>
+                <!-- Migrate -->
+                <div class="col-md-6">
+                    <div class="danger-action-card">
+                        <div class="danger-action-title">
+                            <i class="bi bi-arrow-left-right text-info"></i> Миграция
+                        </div>
+                        <p class="danger-action-desc">Перенос всех пользователей в другого бота на этом же сервере.</p>
+                        <a href="/bots/{{ edit_bot.id }}/migrate" class="btn btn-sm btn-outline-info w-100">
+                            Начать миграцию
+                        </a>
+                    </div>
                 </div>
-            </div>
-            <hr>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <h6>📁 Архивировать бота</h6>
-                    <p class="text-muted small">Бот перестанет работать, но данные сохранятся.</p>
-                    <form method="POST" action="/bots/{{ edit_bot.id }}/archive"
-                        onsubmit="return confirm('Архивировать бота {{ edit_bot.name }}?')">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn btn-outline-warning">
-                            <i class="bi bi-archive me-1"></i> Архивировать
+                <!-- Archive -->
+                <div class="col-md-6">
+                    <div class="danger-action-card">
+                        <div class="danger-action-title">
+                            <i class="bi bi-archive text-warning"></i> Архив
+                        </div>
+                        <p class="danger-action-desc">Отключить бота, но сохранить все исторические данные и файлы.</p>
+                        <form method="POST" action="/bots/{{ edit_bot.id }}/archive"
+                            onsubmit="return confirm('Архивировать бота {{ edit_bot.name }}?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm btn-outline-warning w-100">
+                                Архивировать
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <!-- Delete -->
+                <div class="col-md-6">
+                    <div class="danger-action-card" style="background: rgba(254, 226, 226, 0.3);">
+                        <div class="danger-action-title text-danger">
+                            <i class="bi bi-trash"></i> Удаление
+                        </div>
+                        <p class="danger-action-desc">Полное и безвозвратное удаление бота и всех связанных данных.</p>
+                        <button type="button" class="btn btn-sm btn-danger w-100" data-bs-toggle="modal"
+                            data-bs-target="#deleteModal">
+                            Удалить навсегда
                         </button>
-                    </form>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <h6>🗑️ Удалить полностью</h6>
-                    <p class="text-muted small">Безвозвратно удалить бота и ВСЕ данные.</p>
-                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
-                        data-bs-target="#deleteModal">
-                        <i class="bi bi-trash me-1"></i> Удалить навсегда
-                    </button>
+                    </div>
                 </div>
             </div>
         </div>
