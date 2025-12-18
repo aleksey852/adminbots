@@ -106,19 +106,25 @@ def setup_routes(
             return RedirectResponse("/")
 
         content = {}
-        if photo and photo.filename:
-            ext = Path(photo.filename).suffix or ".jpg"
-            filename = f"{uuid.uuid4()}{ext}"
-            filepath = UPLOADS_DIR / filename
-            async with aiofiles.open(filepath, 'wb') as f:
-                while chunk := await photo.read(1024 * 1024):
-                    await f.write(chunk)
-            content["photo_path"] = str(filepath)
-            content["caption"] = text
-        elif text:
-            content["text"] = text
-        else:
-            raise HTTPException(status_code=400, detail="Message required")
+        try:
+            if photo and photo.filename:
+                ext = Path(photo.filename).suffix or ".jpg"
+                filename = f"{uuid.uuid4()}{ext}"
+                filepath = UPLOADS_DIR / filename
+                async with aiofiles.open(filepath, 'wb') as f:
+                    while chunk := await photo.read(1024 * 1024):
+                        await f.write(chunk)
+                content["photo_path"] = str(filepath)
+                content["caption"] = text
+            elif text and text.strip():
+                content["text"] = text.strip()
+            else:
+                raise HTTPException(status_code=400, detail="Message required")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error saving broadcast file: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save file")
         
         schedule_dt = None
         if scheduled_for and scheduled_for.strip():
@@ -221,8 +227,10 @@ def setup_routes(
             return JSONResponse({"status": "error", "message": "Bot not found or unsupported"}, status_code=400)
         
         # Validate quantity
-        if quantity < 1 or quantity > 100000:
-            return JSONResponse({"status": "error", "message": "Количество должно быть от 1 до 100 000"}, status_code=400)
+        if quantity < 1:
+            return JSONResponse({"status": "error", "message": "Количество должно быть больше 0"}, status_code=400)
+        if quantity > 100000:
+            return JSONResponse({"status": "error", "message": "Максимум 100 000 кодов за раз"}, status_code=400)
         
         # Character set (no ambiguous chars like 0/O, 1/I/L, B/8)
         CHAR_SET = 'ACDEFGHJKLMNPRSTUVWXYZ2345679'

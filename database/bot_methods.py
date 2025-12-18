@@ -21,11 +21,24 @@ def set_current_bot_db(db):
 
 
 def get_current_bot_db():
-    """Get the current bot database context"""
+    """Get the current bot database context. Raises RuntimeError if not set."""
     db = _current_bot_db.get()
     if not db:
-        raise RuntimeError("No bot database context set")
+        raise RuntimeError(
+            "No bot database context set. Ensure you're inside a bot_db_context() "
+            "or that middleware has set the context via set_current_bot_db()."
+        )
     return db
+
+
+def get_current_bot_db_safe():
+    """Get the current bot database context or None if not set (no exception)."""
+    return _current_bot_db.get()
+
+
+def is_bot_db_context_set() -> bool:
+    """Check if bot database context is currently set."""
+    return _current_bot_db.get() is not None
 
 
 @asynccontextmanager
@@ -35,7 +48,9 @@ async def bot_db_context(bot_id: int):
     
     db = bot_db_manager.get(bot_id)
     if not db:
-        raise RuntimeError(f"Bot {bot_id} database not registered")
+        # Try to connect if not registered
+        logger.warning(f"Bot {bot_id} database not registered, attempting to connect...")
+        raise RuntimeError(f"Bot {bot_id} database not registered. Call bot_db_manager.register() first.")
     
     token = _current_bot_db.set(db)
     try:
@@ -79,10 +94,11 @@ async def get_user_with_stats(telegram_id: int) -> Optional[Dict]:
     async with db.get_connection() as conn:
         return await conn.fetchrow("""
             SELECT u.*,
-                   COALESCE(COUNT(r.id), 0) as valid_receipts,
-                   COALESCE(SUM(r.tickets), 0) as total_tickets
+                   COALESCE(COUNT(r.id) FILTER (WHERE r.status = 'valid'), 0) as valid_receipts,
+                   COALESCE(COUNT(r.id), 0) as total_receipts,
+                   COALESCE(SUM(r.tickets) FILTER (WHERE r.status = 'valid'), 0) as total_tickets
             FROM users u
-            LEFT JOIN receipts r ON r.user_id = u.id AND r.status = 'valid'
+            LEFT JOIN receipts r ON r.user_id = u.id
             WHERE u.telegram_id = $1
             GROUP BY u.id
         """, telegram_id)
@@ -220,13 +236,13 @@ async def get_user_tickets_count(user_id: int) -> int:
         ) or 0
 
 
-async def get_user_receipts(user_id: int, limit: int = 50) -> List[Dict]:
+async def get_user_receipts(user_id: int, limit: int = 50, offset: int = 0) -> List[Dict]:
     """Get user's receipts"""
     db = get_current_bot_db()
     async with db.get_connection() as conn:
         return await conn.fetch(
-            "SELECT * FROM receipts WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
-            user_id, limit
+            "SELECT * FROM receipts WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            user_id, limit, offset
         )
 
 
@@ -255,21 +271,40 @@ async def use_promo_code(code_id: int, user_id: int) -> bool:
 
 
 async def add_promo_codes(codes: List[str], tickets: int = 1) -> int:
-    """Bulk add promo codes"""
+    """Bulk add promo codes using batch insert for performance"""
+    if not codes:
+        return 0
+    
     db = get_current_bot_db()
-    inserted = 0
+    # Prepare clean records
+    records = [(code.strip().upper(), tickets, 'active') for code in codes if code.strip()]
+    if not records:
+        return 0
+    
     async with db.get_connection() as conn:
-        for code in codes:
-            try:
-                await conn.execute("""
-                    INSERT INTO promo_codes (code, tickets)
-                    VALUES ($1, $2)
-                    ON CONFLICT (code) DO NOTHING
-                """, code.strip().upper(), tickets)
-                inserted += 1
-            except Exception:
-                pass
-    return inserted
+        try:
+            # Use executemany for batch insert with ON CONFLICT
+            await conn.conn.executemany("""
+                INSERT INTO promo_codes (code, tickets, status)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (code) DO NOTHING
+            """, records)
+            return len(records)
+        except Exception as e:
+            logger.error(f"Bulk promo insert failed: {e}")
+            # Fallback to individual inserts
+            inserted = 0
+            for code, tix, status in records:
+                try:
+                    await conn.execute("""
+                        INSERT INTO promo_codes (code, tickets, status)
+                        VALUES ($1, $2, $3)
+                        ON CONFLICT (code) DO NOTHING
+                    """, code, tix, status)
+                    inserted += 1
+                except Exception:
+                    pass
+            return inserted
 
 
 async def get_promo_stats() -> Dict:
@@ -442,14 +477,33 @@ async def get_all_messages() -> List[Dict]:
 # === Stats ===
 
 async def get_stats() -> Dict:
-    """Get bot statistics"""
+    """Get bot statistics with all required fields for admin panel"""
+    from datetime import datetime, timedelta
     db = get_current_bot_db()
     async with db.get_connection() as conn:
+        now = datetime.now()
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        total_users = await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        total_receipts = await conn.fetchval("SELECT COUNT(*) FROM receipts") or 0
+        valid_receipts = await conn.fetchval("SELECT COUNT(*) FROM receipts WHERE status = 'valid'") or 0
+        total_tickets = await conn.fetchval("SELECT COALESCE(SUM(tickets), 0) FROM receipts WHERE status = 'valid'") or 0
+        participants = await conn.fetchval("SELECT COUNT(DISTINCT user_id) FROM receipts WHERE status = 'valid'") or 0
+        users_today = await conn.fetchval("SELECT COUNT(*) FROM users WHERE registered_at >= $1", today) or 0
+        receipts_today = await conn.fetchval("SELECT COUNT(*) FROM receipts WHERE created_at >= $1", today) or 0
+        total_winners = await conn.fetchval("SELECT COUNT(*) FROM winners") or 0
+        blocked_users = await conn.fetchval("SELECT COUNT(*) FROM users WHERE is_blocked = TRUE") or 0
+        
         return {
-            "total_users": await conn.fetchval("SELECT COUNT(*) FROM users") or 0,
-            "total_receipts": await conn.fetchval("SELECT COUNT(*) FROM receipts WHERE status = 'valid'") or 0,
-            "total_tickets": await conn.fetchval("SELECT COALESCE(SUM(tickets), 0) FROM receipts WHERE status = 'valid'") or 0,
-            "blocked_users": await conn.fetchval("SELECT COUNT(*) FROM users WHERE is_blocked = TRUE") or 0,
+            "total_users": total_users,
+            "total_receipts": total_receipts,
+            "valid_receipts": valid_receipts,
+            "total_tickets": total_tickets,
+            "participants": participants,
+            "users_today": users_today,
+            "receipts_today": receipts_today,
+            "total_winners": total_winners,
+            "blocked_users": blocked_users,
         }
 
 
@@ -513,21 +567,31 @@ async def get_participants_with_tickets() -> List[Dict]:
 
 
 async def save_winners_atomic(campaign_id: int, winners_data: List[Dict]) -> int:
-    """Save multiple winners atomically"""
+    """Save multiple winners atomically within a transaction"""
+    if not winners_data:
+        return 0
+    
     db = get_current_bot_db()
-    saved = 0
     async with db.get_connection() as conn:
-        for w in winners_data:
-            try:
-                await conn.execute("""
-                    INSERT INTO winners (campaign_id, user_id, telegram_id, prize_name)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (campaign_id, user_id) DO NOTHING
-                """, campaign_id, w['user_id'], w['telegram_id'], w['prize_name'])
-                saved += 1
-            except Exception as e:
-                logger.warning(f"Failed to save winner: {e}")
-    return saved
+        try:
+            # Use transaction to ensure atomicity
+            async with conn.conn.transaction():
+                saved = 0
+                for w in winners_data:
+                    try:
+                        result = await conn.execute("""
+                            INSERT INTO winners (campaign_id, user_id, telegram_id, prize_name)
+                            VALUES ($1, $2, $3, $4)
+                            ON CONFLICT (campaign_id, user_id) DO NOTHING
+                        """, campaign_id, w['user_id'], w['telegram_id'], w['prize_name'])
+                        if "INSERT" in result:
+                            saved += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to save winner {w.get('user_id')}: {e}")
+                return saved
+        except Exception as e:
+            logger.error(f"Transaction failed in save_winners_atomic: {e}")
+            return 0
 
 
 async def get_campaign_winners(campaign_id: int) -> List[Dict]:

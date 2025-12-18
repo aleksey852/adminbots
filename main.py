@@ -80,9 +80,9 @@ async def send_message_with_retry(
             if "blocked" in str(e).lower():
                 try:
                     if db_user_id is not None:
-                        await methods.block_user(db_user_id)
+                        await bot_methods.block_user(db_user_id)
                     elif bot_db_id is not None:
-                        await methods.block_user_by_telegram_id(telegram_id, bot_db_id)
+                        await bot_methods.block_user_by_telegram_id(telegram_id)
                 except Exception as block_err:
                     logger.warning(f"Failed to mark user blocked ({telegram_id}): {block_err}")
                 return False
@@ -159,28 +159,33 @@ async def process_campaign(campaign: dict):
     # Campaigns now stored per-bot, bot_id passed via _bot_id from scheduler
     bot_id = campaign.get('_bot_id') or campaign.get('bot_id')
     
+    if not bot_id:
+        logger.error(f"Campaign #{cid} has no bot_id. Skipping.")
+        return
+    
     # Get Bot instance
     bot = bot_manager.bots.get(bot_id)
     if not bot:
         logger.error(f"Bot {bot_id} not found for campaign #{cid}. Skipping.")
         return
     
-    # Set the bot database context for this campaign
-    bot_methods.set_current_bot_db(bot_db_manager.get(bot_id))
-    
     logger.info(f"🚀 Starting campaign #{cid} ({ctype}) for Bot #{bot_id}")
     
+    # Use context manager for safe database context management
     try:
-        if ctype == "broadcast":
-            await execute_broadcast(bot, bot_id, cid, content)
-        elif ctype == "message":
-            await execute_single_message(bot, bot_id, cid, content)
-        elif ctype == "raffle":
-            await execute_raffle(bot, bot_id, cid, content)
-        else:
-            logger.error(f"Unknown campaign type: {ctype}")
+        async with bot_methods.bot_db_context(bot_id):
+            if ctype == "broadcast":
+                await execute_broadcast(bot, bot_id, cid, content)
+            elif ctype == "message":
+                await execute_single_message(bot, bot_id, cid, content)
+            elif ctype == "raffle":
+                await execute_raffle(bot, bot_id, cid, content)
+            else:
+                logger.error(f"Unknown campaign type: {ctype}")
+    except RuntimeError as e:
+        logger.error(f"Campaign #{cid} database context error: {e}")
     except Exception as e:
-        logger.error(f"Campaign #{cid} failed: {e}")
+        logger.error(f"Campaign #{cid} failed: {e}", exc_info=True)
 
 
 async def scheduler():
@@ -362,6 +367,8 @@ async def execute_raffle(bot: Bot, bot_id: int, campaign_id: int, content: dict)
     # 3. Notify Winners
     win_msg_template = content.get("win_msg", {})
     sent_win = 0
+    notified_user_ids = set()  # Track actually notified users
+    
     for w in winners_data:
         msg = win_msg_template.copy() if isinstance(win_msg_template, dict) else {}
         if not msg:
@@ -375,11 +382,13 @@ async def execute_raffle(bot: Bot, bot_id: int, campaign_id: int, content: dict)
             bot_db_id=bot_id,
         ):
             sent_win += 1
+            notified_user_ids.add(w['user_id'])
     
+    # Mark only actually notified winners
     db_winners = await bot_methods.get_campaign_winners(campaign_id)
     for w in db_winners:
-        if sent_win > 0:
-             await bot_methods.mark_winner_notified(w['id'])
+        if w['user_id'] in notified_user_ids:
+            await bot_methods.mark_winner_notified(w['id'])
 
 
     # 4. Notify Losers

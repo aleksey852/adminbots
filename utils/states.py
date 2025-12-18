@@ -28,4 +28,5 @@ class AdminRaffle(StatesGroup):
 
 class AdminManualReceipt(StatesGroup):
     user_id = State()
+    tickets = State()
     confirm = State()

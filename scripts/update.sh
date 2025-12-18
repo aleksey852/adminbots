@@ -21,59 +21,93 @@ if [[ $EUID -ne 0 ]]; then
    err "This script must be run as root: sudo bash scripts/update.sh"
 fi
 
-echo "=== Updating Admin Bots Platform ==="
+echo -e "
+╔════════════════════════════════════════╗
+║    🚀 Admin Bots Platform Updater      ║
+╚════════════════════════════════════════╝
+"
 
 # 1. Update Code
-log "Updating code..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
+log "Starting code update..."
 
-# If running from within the project dir (git repo), pull changes
-if [ -d "$PROJECT_DIR/.git" ]; then
-    log "Pulling latest changes from git..."
-    cd "$PROJECT_DIR"
+# Ensure we are working with safe directory for git
+if [ -d "$PROJECT_DIR" ]; then
     git config --global --add safe.directory "$PROJECT_DIR"
-    git pull origin main || warn "Git pull failed, continuing with local files..."
-    cd - > /dev/null
-elif [ -d "$SOURCE_DIR/.git" ] || [ -d "$SOURCE_DIR" ]; then
-    log "Syncing files from $SOURCE_DIR to $PROJECT_DIR..."
-    rsync -av --exclude 'venv' --exclude '.git' --exclude '__pycache__' --exclude '.env' "$SOURCE_DIR/" "$PROJECT_DIR/"
+fi
+
+if [ -d "$PROJECT_DIR/.git" ]; then
+    log "Detected Git repository in $PROJECT_DIR"
+    cd "$PROJECT_DIR"
+    
+    # Check for local changes
+    if [[ -n $(git status -s) ]]; then
+        warn "Local changes detected. Stashing them..."
+        git stash || warn "Failed to stash changes"
+    fi
+
+    log "Pulling latest changes..."
+    git pull origin main || git pull origin master || err "Failed to pull from git"
+    
+    # Get last commit hash
+    LAST_COMMIT=$(git rev-parse --short HEAD)
+    log "Updated to commit: $LAST_COMMIT"
+    
+elif [ -d "$(pwd)/.git" ]; then
+    # If we are running from a git repo but PROJECT_DIR is different (rsync mode)
+    SOURCE_DIR="$(pwd)"
+    if [ "$SOURCE_DIR" != "$PROJECT_DIR" ]; then
+        log "Syncing files from $SOURCE_DIR to $PROJECT_DIR..."
+        rsync -av --exclude 'venv' --exclude '.git' --exclude '__pycache__' --exclude '.env' "$SOURCE_DIR/" "$PROJECT_DIR/"
+    fi
+else
+    warn "No git repository found in $PROJECT_DIR or current directory."
+    warn "Assuming manual file upload. Proceeding with dependency updates..."
 fi
 
 # 2. Permissions
-log "Setting permissions..."
+log "Fixing permissions..."
 chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_DIR"
 chmod +x "$PROJECT_DIR/scripts/"*.sh
 
 # 3. Dependencies
-log "Updating dependencies..."
+log "Updating Python dependencies..."
 if [ -f "$PROJECT_DIR/requirements.txt" ]; then
-    sudo -u "$SERVICE_USER" "$PROJECT_DIR/venv/bin/pip" install -r "$PROJECT_DIR/requirements.txt"
+    # Use the venv pip
+    sudo -u "$SERVICE_USER" "$PROJECT_DIR/venv/bin/pip" install -r "$PROJECT_DIR/requirements.txt" | grep -v "Requirement already satisfied" || true
+else
+    warn "requirements.txt not found!"
 fi
 
-# 4. Migrations (Texts)
-log "Running migrations..."
-if [ -f "$PROJECT_DIR/scripts/setup/migrate_texts.py" ]; then
-    log "Migrating texts..."
+# 4. Migrations (Optional)
+# Schema migration is auto-handled by bot_db.py on startup
+# This section is for data migrations if any
+if [ -f "$PROJECT_DIR/scripts/setup/migrate.py" ]; then
+    log "Checking for data migrations..."
     cd "$PROJECT_DIR"
-    sudo -u "$SERVICE_USER" PYTHONPATH="$PROJECT_DIR" "$PROJECT_DIR/venv/bin/python" scripts/setup/migrate_texts.py || warn "Text migration failed"
-    cd - > /dev/null
+    sudo -u "$SERVICE_USER" "$PROJECT_DIR/venv/bin/python" scripts/setup/migrate.py || true
 fi
 
-# 5. Server Optimization Check
-if [ ! -f /swapfile ] && [ $(free -m | awk '/^Mem:/{print $2}') -lt 2000 ]; then
-    warn "Low memory detected and no swapfile found."
-    warn "Run 'sudo bash scripts/optimize_server.sh' to apply server optimizations."
-fi
-
-# 6. Restart Services
-log "Restarting services..."
+# 5. Restart Services
+log "Restarting system services..."
 systemctl restart admin_bots
 systemctl restart admin_panel
 
-# 7. Check Status
-sleep 3
-systemctl is-active --quiet admin_bots && log "✅ Bot is running" || warn "⚠️ Bot may have issues"
-systemctl is-active --quiet admin_panel && log "✅ Admin panel is running" || warn "⚠️ Admin panel may have issues"
+# 6. Verify
+sleep 2
+BOT_STATUS=$(systemctl is-active admin_bots)
+PANEL_STATUS=$(systemctl is-active admin_panel)
 
-log "=== Update Complete! ==="
+if [ "$BOT_STATUS" == "active" ]; then
+    log "✅ Bot Service: Active"
+else
+    err "❌ Bot Service: $BOT_STATUS (Check logs: sudo journalctl -u admin_bots -n 50)"
+fi
+
+if [ "$PANEL_STATUS" == "active" ]; then
+    log "✅ Admin Panel: Active"
+else
+    err "❌ Admin Panel: $PANEL_STATUS (Check logs: sudo journalctl -u admin_panel -n 50)"
+fi
+
+echo ""
+log "Update finished successfully! 🚀"

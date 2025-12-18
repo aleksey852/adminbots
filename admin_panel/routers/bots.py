@@ -139,20 +139,20 @@ def setup_routes(
     @router.get("/{bot_id}/edit", response_class=HTMLResponse)
     async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
         from database import bot_methods
+        from database.bot_methods import bot_db_context
         
         edit_bot = await get_bot_by_id(bot_id)
         if not edit_bot:
             raise HTTPException(status_code=404, detail="Bot not found")
         
-        # Connect to bot's database and set context
+        # Connect to bot's database if not connected
         if not bot_db_manager.get(bot_id):
             bot_db_manager.register(bot_id, edit_bot['database_url'])
             await bot_db_manager.connect(bot_id)
         
-        bot_db = bot_db_manager.get(bot_id)
-        bot_methods.set_current_bot_db(bot_db)
-        
-        stats = await bot_methods.get_stats()
+        # Use context manager for database operations
+        async with bot_db_context(bot_id):
+            stats = await bot_methods.get_stats()
         
         return templates.TemplateResponse("bots/edit.html", get_template_context(
             request, user=user, title=f"Редактирование: {edit_bot['name']}",
@@ -232,19 +232,28 @@ def setup_routes(
         if not bot:
             raise HTTPException(status_code=404, detail="Bot not found")
         
-        # Connect to bot's database
-        if not bot_db_manager.get(bot_id):
-            bot_db_manager.register(bot_id, bot['database_url'])
-            await bot_db_manager.connect(bot_id)
-        
-        bot_db = bot_db_manager.get(bot_id)
-        async with bot_db.get_connection() as db:
-            users = await db.fetch("SELECT * FROM users")
-            receipts = await db.fetch("SELECT * FROM receipts")
-            promo_codes = await db.fetch("SELECT * FROM promo_codes")
-            settings = await db.fetch("SELECT * FROM settings")
-            messages = await db.fetch("SELECT * FROM messages")
-            winners = await db.fetch("SELECT * FROM winners")
+        try:
+            # Connect to bot's database
+            if not bot_db_manager.get(bot_id):
+                bot_db_manager.register(bot_id, bot['database_url'])
+                await bot_db_manager.connect(bot_id)
+            
+            bot_db = bot_db_manager.get(bot_id)
+            if not bot_db:
+                raise HTTPException(status_code=500, detail="Failed to connect to bot database")
+            
+            async with bot_db.get_connection() as db:
+                users = await db.fetch("SELECT * FROM users")
+                receipts = await db.fetch("SELECT * FROM receipts")
+                promo_codes = await db.fetch("SELECT * FROM promo_codes")
+                settings = await db.fetch("SELECT * FROM settings")
+                messages = await db.fetch("SELECT * FROM messages")
+                winners = await db.fetch("SELECT * FROM winners")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Export bot {bot_id} failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
         
         def record_to_dict(record):
             d = dict(record)
@@ -300,27 +309,39 @@ def setup_routes(
                 status_code=status.HTTP_303_SEE_OTHER
             )
         
-        # Delete data from bot's database
-        if not bot_db_manager.get(bot_id):
-            bot_db_manager.register(bot_id, bot['database_url'])
-            await bot_db_manager.connect(bot_id)
-        
-        bot_db = bot_db_manager.get(bot_id)
-        async with bot_db.get_connection() as db:
-            await db.execute("DELETE FROM winners")
-            await db.execute("DELETE FROM promo_codes")
-            await db.execute("DELETE FROM receipts")
-            await db.execute("DELETE FROM campaigns")
-            await db.execute("DELETE FROM messages")
-            await db.execute("DELETE FROM settings")
-            await db.execute("DELETE FROM manual_tickets")
-            await db.execute("DELETE FROM users")
-        
-        # Disconnect and remove bot database connection
-        await bot_db_manager.disconnect(bot_id)
+        try:
+            # Delete data from bot's database
+            if not bot_db_manager.get(bot_id):
+                bot_db_manager.register(bot_id, bot['database_url'])
+                await bot_db_manager.connect(bot_id)
+            
+            bot_db = bot_db_manager.get(bot_id)
+            if bot_db:
+                async with bot_db.get_connection() as db:
+                    await db.execute("DELETE FROM winners")
+                    await db.execute("DELETE FROM promo_codes")
+                    await db.execute("DELETE FROM receipts")
+                    await db.execute("DELETE FROM campaigns")
+                    await db.execute("DELETE FROM messages")
+                    await db.execute("DELETE FROM settings")
+                    await db.execute("DELETE FROM manual_tickets")
+                    await db.execute("DELETE FROM users")
+                
+                # Disconnect bot database connection
+                await bot_db_manager.disconnect(bot_id)
+        except Exception as e:
+            logger.error(f"Error cleaning up bot {bot_id} database: {e}")
+            # Continue with deletion even if cleanup fails
         
         # Delete from panel registry
-        await delete_bot_registry(bot_id)
+        try:
+            await delete_bot_registry(bot_id)
+        except Exception as e:
+            logger.error(f"Error deleting bot {bot_id} from registry: {e}")
+            return RedirectResponse(
+                url=f"/bots/{bot_id}/edit?msg=Ошибка+удаления:+{str(e)[:50]}",
+                status_code=status.HTTP_303_SEE_OTHER
+            )
         
         if request.session.get("active_bot_id") == bot_id:
             request.session.pop("active_bot_id", None)

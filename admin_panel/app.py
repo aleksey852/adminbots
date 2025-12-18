@@ -295,7 +295,7 @@ async def api_daily_stats(request: Request, days: int = 14, user: Dict = Depends
 
 # === Bot switch endpoint (needs to be at root level) ===
 
-@app.post("/bot/switch/{bot_id}")
+@app.post("/bot/switch/{bot_id}", dependencies=[Depends(auth.verify_csrf_token)])
 async def switch_bot(request: Request, bot_id: int, user: Dict = Depends(auth.get_current_user)):
     bot = await get_bot_by_id(bot_id)
     if bot:

@@ -24,36 +24,46 @@ async def close_rate_limiter():
         _redis = None
 
 
-async def check_rate_limit(user_id: int) -> Tuple[bool, str]:
+async def check_rate_limit(user_id: int, bot_id: int = None) -> Tuple[bool, str]:
     """Check if user can upload more receipts"""
     if not _redis:
         return True, ""
     
     try:
+        from utils.config_manager import config_manager
+        
+        # Get limits from config manager or defaults
+        hourly_limit = int(config_manager.get_setting("RECEIPTS_RATE_LIMIT", config.RECEIPTS_RATE_LIMIT, bot_id=bot_id))
+        daily_limit = int(config_manager.get_setting("RECEIPTS_DAILY_LIMIT", config.RECEIPTS_DAILY_LIMIT, bot_id=bot_id))
+        
         now = datetime.now()
-        hour_key = f"receipts:h:{user_id}:{now.strftime('%Y%m%d%H')}"
-        day_key = f"receipts:d:{user_id}:{now.strftime('%Y%m%d')}"
+        # Key should include bot_id so limits are per-bot? Or per-user global?
+        # Usually rate limits are per-bot for multi-tenant.
+        suffix = f":{bot_id}" if bot_id else ""
+        hour_key = f"receipts:h:{user_id}{suffix}:{now.strftime('%Y%m%d%H')}"
+        day_key = f"receipts:d:{user_id}{suffix}:{now.strftime('%Y%m%d')}"
         
         hour_count = int(await _redis.get(hour_key) or 0)
         day_count = int(await _redis.get(day_key) or 0)
         
-        if hour_count >= config.RECEIPTS_RATE_LIMIT:
-            return False, f"Лимит: {config.RECEIPTS_RATE_LIMIT} чеков/час. Подождите немного."
-        if day_count >= config.RECEIPTS_DAILY_LIMIT:
-            return False, f"Лимит: {config.RECEIPTS_DAILY_LIMIT} чеков/день. Возвращайтесь завтра!"
+        if hour_count >= hourly_limit:
+            return False, f"Лимит: {hourly_limit} чеков/час. Подождите немного."
+        if day_count >= daily_limit:
+            return False, f"Лимит: {daily_limit} чеков/день. Возвращайтесь завтра!"
         return True, ""
     except Exception as e:
         logger.error(f"Rate limit error: {e}")
         return True, ""
 
 
-async def increment_rate_limit(user_id: int):
+async def increment_rate_limit(user_id: int, bot_id: int = None):
     if not _redis:
         return
     try:
         now = datetime.now()
-        hour_key = f"receipts:h:{user_id}:{now.strftime('%Y%m%d%H')}"
-        day_key = f"receipts:d:{user_id}:{now.strftime('%Y%m%d')}"
+        suffix = f":{bot_id}" if bot_id else ""
+        hour_key = f"receipts:h:{user_id}{suffix}:{now.strftime('%Y%m%d%H')}"
+        day_key = f"receipts:d:{user_id}{suffix}:{now.strftime('%Y%m%d')}"
         
         # Lua script to increment and set expire only if key is new
         script = """

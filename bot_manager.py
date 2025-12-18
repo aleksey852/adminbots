@@ -80,29 +80,47 @@ class BotManager:
 
     async def stop_bot(self, bot_id: int):
         """Stop a bot and close its database connection"""
-        if bot_id in self.bots:
-            bot = self.bots[bot_id]
+        if bot_id not in self.bots:
+            return
+        
+        bot = self.bots[bot_id]
+        
+        try:
+            # Try to remove from mapping using get_me
             try:
-                # Remove from mapping
                 me = await bot.get_me()
                 if me.id in self.bot_mapping:
                     del self.bot_mapping[me.id]
-                
+            except Exception as e:
+                logger.warning(f"Could not get bot info for {bot_id}: {e}")
+                # Try to find mapping by iterating
+                for tg_id, db_id in list(self.bot_mapping.items()):
+                    if db_id == bot_id:
+                        del self.bot_mapping[tg_id]
+                        break
+            
+            # Close bot session
+            try:
                 await bot.session.close()
                 logger.info(f"Stopped bot {bot_id}")
             except Exception as e:
-                logger.error(f"Error closing bot {bot_id}: {e}")
-            
+                logger.error(f"Error closing bot session {bot_id}: {e}")
+        finally:
+            # Always clean up - even if errors occurred above
             # Close database connection
-            db = bot_db_manager.get(bot_id)
-            if db:
-                await db.close()
+            try:
+                db = bot_db_manager.get(bot_id)
+                if db:
+                    await db.close()
+            except Exception as e:
+                logger.error(f"Error closing database for bot {bot_id}: {e}")
             
             # Clean up all attributes
             self.bots.pop(bot_id, None)
             self.bot_tokens.pop(bot_id, None)
             self.bot_types.pop(bot_id, None)
             self.bot_db_urls.pop(bot_id, None)
+
 
     def get_bots(self) -> List[Bot]:
         return list(self.bots.values())

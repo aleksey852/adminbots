@@ -16,6 +16,7 @@ from .keyboards import (
     get_main_keyboard, get_cancel_keyboard, get_receipts_pagination_keyboard,
     get_faq_keyboard, get_faq_back_keyboard, get_support_keyboard
 )
+from utils.subscription import check_subscription, get_subscription_keyboard
 import config
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,38 @@ class CoreModule(BotModule):
     default_enabled = True
     
     RECEIPTS_PER_PAGE = 10
+    
+    default_messages = {
+        "cancel_msg": "Выберите действие 👇\nВаших билетов: {count}",
+        "welcome_back": "С возвращением, {name}! 👋\n\nВаших билетов: {count}{days_text}\n\nВыберите действие 👇",
+        "welcome_new": "🎉 Добро пожаловать в {promo_name}!\n\nПризы: {prizes}\n\nДля участия введите ваше имя:",
+        "not_registered": "Сначала /start",
+        "status": "📊 {name}\n\nБилетов: {tickets}\nДо конца: {days} дн.",
+        "no_receipts_promo": "📋 У вас пока нет активаций",
+        "no_receipts_receipt": "📋 У вас пока нет чеков",
+        "receipts_list_promo": "📋 Ваши активации ({total})\n",
+        "receipts_list_receipt": "📋 Ваши чеки ({total})\n",
+        "faq_title": "❓ Частые вопросы\n\nВыберите тему:",
+        "support_msg": "🆘 Нужна помощь?\n\nНапишите нам!",
+        "profile_promo": "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Активаций: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}",
+        "profile_receipt": "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков загружено: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}",
+        "help_promo": "🤖 Что умеет бот:\n\n🔑 Ввести промокод — отправьте код сообщением\n👤 Мой профиль — ваша статистика\n📋 Мои активации — история промокодов\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel",
+        "help_receipt": "🤖 Что умеет бот:\n\n🧾 Загрузить чек — отправьте QR-код\n👤 Мой профиль — ваша статистика\n📋 Мои чеки — история загрузок\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel",
+        
+        # FAQ Defaults
+        "faq_how_promo": "🎯 Как участвовать?\n\n1. Получите промокод\n2. Отправьте промокод сообщением в этот бот\n3. Получите билеты и ждите розыгрыша!",
+        "faq_how_receipt": "🎯 Как участвовать?\n\n1. Купите чипсы +VIBE\n2. Сохраните чек\n3. Сфотографируйте QR-код\n4. Отправьте фото в бот",
+        "faq_limit_promo": "🔢 Сколько промокодов можно активировать?\n\nОграничений нет!",
+        "faq_limit_receipt": "🧾 Сколько чеков можно загрузить?\n\nОграничений нет!",
+        "faq_win": "🏆 Как узнать о выигрыше?\n\nМы пришлём сообщение в этот бот!",
+        "faq_reject_promo": "❌ Почему промокод не принят?\n\n• Код введён с ошибкой\n• Код уже использован",
+        "faq_reject_receipt": "❌ Почему чек не принят?\n\n• QR-код нечёткий\n• Нет акционных товаров",
+        "faq_dates": "📅 Сроки акции\n\nНачало: {start}\nОкончание: {end}",
+        "faq_prizes": "🎁 Призы\n\n{prizes}",
+        "sub_check_success": "✅ Подписка подтверждена!",
+        "sub_check_fail": "❌ Вы ещё не подписаны на канал!",
+        "sub_warning": "⚠️ Для участия в акции необходимо подписаться на наш канал!",
+    }
     
     def _setup_handlers(self):
         """Setup core handlers"""
@@ -46,13 +79,14 @@ class CoreModule(BotModule):
             
             cancel_msg = config_manager.get_message(
                 'cancel_msg',
-                "Выберите действие 👇\nВаших билетов: {count}",
+                self.default_messages['cancel_msg'],
                 bot_id=bot_id
             ).format(count=count)
             
+            bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
             await message.answer(
                 cancel_msg,
-                reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_manager.bot_types.get(bot_id, 'receipt'))
+                reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_type)
             )
 
         @self.router.message(F.text == "🏠 В меню")
@@ -66,32 +100,14 @@ class CoreModule(BotModule):
                 return
             
             # Check subscription
-            subscription_required = config_manager.get_setting('SUBSCRIPTION_REQUIRED', 'false', bot_id=bot_id)
-            if subscription_required.lower() == 'true':
-                channel_id = config_manager.get_setting('SUBSCRIPTION_CHANNEL_ID', '', bot_id=bot_id)
-                channel_url = config_manager.get_setting('SUBSCRIPTION_CHANNEL_URL', '', bot_id=bot_id)
-                
-                if channel_id:
-                    try:
-                        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-                        bot = message.bot
-                        member = await bot.get_chat_member(chat_id=int(channel_id), user_id=message.from_user.id)
-                        
-                        if member.status not in ['member', 'administrator', 'creator']:
-                            buttons = []
-                            if channel_url:
-                                buttons.append([InlineKeyboardButton(text="📢 Подписаться", url=channel_url)])
-                            buttons.append([InlineKeyboardButton(text="✅ Я подписался", callback_data="check_subscription")])
-                            
-                            await message.answer(
-                                "⚠️ Для участия в акции необходимо подписаться на наш канал!",
-                                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
-                            )
-                            return
-                    except Exception as e:
-                        logger.warning(f"Subscription check failed: {e}")
+            is_sub, _, channel_url = await check_subscription(message.from_user.id, message.bot, bot_id)
+            if not is_sub:
+                msg = config_manager.get_message('sub_warning', self.default_messages['sub_warning'], bot_id=bot_id)
+                await message.answer(msg, reply_markup=get_subscription_keyboard(channel_url))
+                return
             
             user = await get_user_with_stats(message.from_user.id)
+            bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
             
             if user:
                 if message.from_user.username != user.get('username'):
@@ -103,21 +119,20 @@ class CoreModule(BotModule):
                 
                 welcome_msg = config_manager.get_message(
                     'welcome_back',
-                    "С возвращением, {name}! 👋\n\nВаших билетов: {count}{days_text}\n\nВыберите действие 👇",
+                    self.default_messages['welcome_back'],
                     bot_id=bot_id
                 ).format(name=user['full_name'], count=tickets_count, days_text=days_text)
                 
-                await message.answer(welcome_msg, reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_manager.bot_types.get(bot_id, 'receipt')))
+                await message.answer(welcome_msg, reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_type))
             else:
                 # Delegate to registration if not registered
-                # We need to import registration state here or use a generic one
                 from utils.states import Registration
                 promo_name = config_manager.get_setting('PROMO_NAME', config.PROMO_NAME, bot_id=bot_id)
                 prizes = config_manager.get_setting('PROMO_PRIZES', config.PROMO_PRIZES, bot_id=bot_id)
                 
                 welcome_new_msg = config_manager.get_message(
                     'welcome_new',
-                    "🎉 Добро пожаловать в {promo_name}!\n\nПризы: {prizes}\n\nДля участия введите ваше имя:",
+                    self.default_messages['welcome_new'],
                     bot_id=bot_id
                 ).format(promo_name=promo_name, prizes=prizes)
                 
@@ -126,24 +141,52 @@ class CoreModule(BotModule):
 
         @self.router.callback_query(F.data == "check_subscription")
         async def check_subscription_callback(callback: CallbackQuery, state: FSMContext, bot_id: int = None):
-            if not bot_id: return
-            channel_id = config_manager.get_setting('SUBSCRIPTION_CHANNEL_ID', '', bot_id=bot_id)
-            if channel_id:
+            if not bot_id:
+                await callback.answer("Ошибка инициализации", show_alert=True)
+                return
+                
+            is_sub, _, _ = await check_subscription(callback.from_user.id, callback.bot, bot_id)
+            
+            if is_sub:
+                msg = config_manager.get_message('sub_check_success', self.default_messages['sub_check_success'], bot_id=bot_id)
+                await callback.answer(msg)
                 try:
-                    member = await callback.bot.get_chat_member(chat_id=int(channel_id), user_id=callback.from_user.id)
-                    if member.status in ['member', 'administrator', 'creator']:
-                        await callback.answer("✅ Подписка подтверждена!")
-                        await callback.message.delete()
-                        await command_start(callback.message, state, bot_id)
-                        return
-                    else:
-                        await callback.answer("❌ Вы ещё не подписаны на канал!", show_alert=True)
-                        return
-                except Exception as e:
-                    await callback.answer(f"Ошибка: {str(e)[:50]}", show_alert=True)
-                    return
-            await callback.message.delete()
-            await command_start(callback.message, state, bot_id)
+                    await callback.message.delete()
+                except Exception:
+                    pass
+                    
+                # Continue login flow
+                user = await get_user_with_stats(callback.from_user.id)
+                bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
+                
+                if user:
+                    tickets_count = user.get('total_tickets', user['valid_receipts'])
+                    welcome_msg = config_manager.get_message(
+                        'welcome_back',
+                        self.default_messages['welcome_back'],
+                        bot_id=bot_id
+                    ).format(name=user['full_name'], count=tickets_count, days_text="")
+                    
+                    await callback.message.answer(
+                        welcome_msg,
+                        reply_markup=get_main_keyboard(config.is_admin(callback.from_user.id), bot_type)
+                    )
+                else:
+                    from utils.states import Registration
+                    promo_name = config_manager.get_setting('PROMO_NAME', config.PROMO_NAME, bot_id=bot_id)
+                    prizes = config_manager.get_setting('PROMO_PRIZES', config.PROMO_PRIZES, bot_id=bot_id)
+                    
+                    welcome_new_msg = config_manager.get_message(
+                        'welcome_new',
+                        self.default_messages['welcome_new'],
+                        bot_id=bot_id
+                    ).format(promo_name=promo_name, prizes=prizes)
+                    
+                    await callback.message.answer(welcome_new_msg, reply_markup=get_cancel_keyboard())
+                    await state.set_state(Registration.name)
+            else:
+                fail_msg = config_manager.get_message('sub_check_fail', self.default_messages['sub_check_fail'], bot_id=bot_id)
+                await callback.answer(fail_msg, show_alert=True)
 
         @self.router.message(F.text == "👤 Мой профиль")
         async def show_profile(message: Message, bot_id: int = None):
@@ -157,21 +200,20 @@ class CoreModule(BotModule):
                 await update_username(message.from_user.id, message.from_user.username or "")
             
             wins = await get_user_wins(user['id'])
-            wins_text = f"\n\n🏆 Выигрыши: {len(wins)}" if wins else ""
+            wins_text = f"\\n\\n🏆 Выигрыши: {len(wins)}" if wins else ""
             for w in wins[:3]:
-                wins_text += f"\n• {w['prize_name']}"
+                wins_text += f"\\n• {w['prize_name']}"
             
             days = config.days_until_end()
-            days_text = f"\n\nДо конца акции: {days} дн." if days > 0 else ""
+            days_text = f"\\n\\nДо конца акции: {days} дн." if days > 0 else ""
             tickets_count = user.get('total_tickets', user['valid_receipts'])
             bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
 
-            default_profile = (
-                "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Активаций: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}"
-                if bot_type == 'promo'
-                else "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков загружено: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}"
-            )
-            profile_msg = config_manager.get_message('profile', default_profile, bot_id=bot_id).format(
+            # Use type-specific profile message key
+            profile_key = f'profile_{bot_type}'
+            default_profile = self.default_messages.get(profile_key, self.default_messages['profile_receipt'])
+            
+            profile_msg = config_manager.get_message(profile_key, default_profile, bot_id=bot_id).format(
                 name=user['full_name'], phone=user['phone'], total=user['valid_receipts'],
                 tickets=tickets_count, wins_text=wins_text, days_text=days_text,
             )
@@ -180,12 +222,10 @@ class CoreModule(BotModule):
         @self.router.message(Command("help"))
         async def command_help(message: Message, bot_id: int = None):
             bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
-            default_help = (
-                "🤖 Что умеет бот:\n\n🔑 Ввести промокод — отправьте код сообщением\n👤 Мой профиль — ваша статистика\n📋 Мои активации — история промокодов\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel"
-                if bot_type == 'promo'
-                else "🤖 Что умеет бот:\n\n🧾 Загрузить чек — отправьте QR-код\n👤 Мой профиль — ваша статистика\n📋 Мои чеки — история загрузок\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь с нами\n\nКоманды: /start /help /status /cancel"
-            )
-            help_msg = config_manager.get_message('help', default_help, bot_id=bot_id)
+            help_key = f'help_{bot_type}'
+            default_help = self.default_messages.get(help_key, self.default_messages['help_receipt'])
+            
+            help_msg = config_manager.get_message(help_key, default_help, bot_id=bot_id)
             await message.answer(help_msg, reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_type))
 
         @self.router.message(Command("status"))
@@ -194,11 +234,11 @@ class CoreModule(BotModule):
             if not bot_id: return
             user = await get_user_with_stats(message.from_user.id)
             if not user:
-                await message.answer(config_manager.get_message('not_registered', "Сначала /start", bot_id=bot_id))
+                await message.answer(config_manager.get_message('not_registered', self.default_messages['not_registered'], bot_id=bot_id))
                 return
             tickets_count = user.get('total_tickets', user['valid_receipts'])
             status_msg = config_manager.get_message(
-                'status', "📊 {name}\n\nБилетов: {tickets}\nДо конца: {days} дн.", bot_id=bot_id
+                'status', self.default_messages['status'], bot_id=bot_id
             ).format(name=user['full_name'], tickets=tickets_count, days=config.days_until_end())
             await message.answer(status_msg)
 
@@ -209,9 +249,10 @@ class CoreModule(BotModule):
             bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
             user = await get_user_with_stats(message.from_user.id)
             if not user or user['total_receipts'] == 0:
+                key = f'no_receipts_{bot_type}'
                 msg = config_manager.get_message(
-                    'no_receipts', 
-                    "📋 У вас пока нет активаций" if bot_type == 'promo' else "📋 У вас пока нет чеков",
+                    key, 
+                    self.default_messages.get(key, self.default_messages['no_receipts_receipt']),
                     bot_id=bot_id
                 )
                 await message.answer(msg)
@@ -240,7 +281,7 @@ class CoreModule(BotModule):
 
         @self.router.message(F.text == "ℹ️ FAQ")
         async def show_faq(message: Message, bot_id: int = None):
-            faq_title = config_manager.get_message('faq_title', "❓ Частые вопросы\n\nВыберите тему:", bot_id=bot_id)
+            faq_title = config_manager.get_message('faq_title', self.default_messages['faq_title'], bot_id=bot_id)
             await message.answer(faq_title, reply_markup=get_faq_keyboard(bot_manager.bot_types.get(bot_id, 'receipt')))
 
         @self.router.callback_query(F.data.startswith("faq_"))
@@ -250,35 +291,22 @@ class CoreModule(BotModule):
             action = callback.data
             
             if action == "faq_back":
-                faq_title = config_manager.get_message('faq_title', "❓ Частые вопросы\n\nВыберите тему:", bot_id=bot_id)
+                faq_title = config_manager.get_message('faq_title', self.default_messages['faq_title'], bot_id=bot_id)
                 await callback.message.edit_text(faq_title, reply_markup=get_faq_keyboard(bot_type))
                 await callback.answer()
                 return
 
-            # Simplified mapping for FAQ responses
-            faq_map = {
-                "faq_how": {
-                    "promo": "🎯 Как участвовать?\n\n1. Получите промокод\n2. Отправьте промокод сообщением в этот бот\n3. Получите билеты и ждите розыгрыша!",
-                    "receipt": "🎯 Как участвовать?\n\n1. Купите чипсы +VIBE\n2. Сохраните чек\n3. Сфотографируйте QR-код\n4. Отправьте фото в бот"
-                },
-                "faq_limit": {
-                    "promo": "🔢 Сколько промокодов можно активировать?\n\nОграничений нет!",
-                    "receipt": "🧾 Сколько чеков можно загрузить?\n\nОграничений нет!"
-                },
-                "faq_win": "🏆 Как узнать о выигрыше?\n\nМы пришлём сообщение в этот бот!",
-                "faq_reject": {
-                    "promo": "❌ Почему промокод не принят?\n\n• Код введён с ошибкой\n• Код уже использован",
-                    "receipt": "❌ Почему чек не принят?\n\n• QR-код нечёткий\n• Нет акционных товаров"
-                },
-                "faq_dates": "📅 Сроки акции\n\nНачало: {start}\nОкончание: {end}",
-                "faq_prizes": "🎁 Призы\n\n{prizes}"
-            }
+            # FAQ keys mapping to default message keys
+            # faq_how -> faq_how_promo or faq_how_receipt
+            msg_key = action
+            if action in ['faq_how', 'faq_limit', 'faq_reject']:
+                msg_key = f"{action}_{bot_type}"
+            elif action in ['faq_win', 'faq_dates', 'faq_prizes']:
+                msg_key = action
             
-            content = faq_map.get(action, "Информация скоро появится")
-            if isinstance(content, dict):
-                content = content.get(bot_type, content.get("receipt"))
+            default_text = self.default_messages.get(msg_key, "Информация скоро появится")
             
-            text = config_manager.get_message(action, content, bot_id=bot_id).format(
+            text = config_manager.get_message(msg_key, default_text, bot_id=bot_id).format(
                 start=config.PROMO_START_DATE, end=config.PROMO_END_DATE, prizes=config.PROMO_PRIZES
             )
             await callback.message.edit_text(text, reply_markup=get_faq_back_keyboard())
@@ -286,13 +314,16 @@ class CoreModule(BotModule):
 
         @self.router.message(F.text == "🆘 Поддержка")
         async def show_support(message: Message, bot_id: int = None):
-            text = config_manager.get_message('support_msg', "🆘 Нужна помощь?\n\nНапишите нам!", bot_id=bot_id)
+            text = config_manager.get_message('support_msg', self.default_messages['support_msg'], bot_id=bot_id)
             await message.answer(text, reply_markup=get_support_keyboard())
 
     def _format_receipts(self, receipts: list, page: int, total: int, bot_id: int = None) -> str:
         bot_type = bot_manager.bot_types.get(bot_id, 'receipt') if bot_id else 'receipt'
-        default_header = "📋 Ваши активации ({total})\n" if bot_type == 'promo' else "📋 Ваши чеки ({total})\n"
-        header = config_manager.get_message('receipts_list', default_header, bot_id=bot_id).format(total=total)
+        
+        list_key = f'receipts_list_{bot_type}'
+        default_header = self.default_messages.get(list_key, self.default_messages['receipts_list_receipt'])
+        
+        header = config_manager.get_message(list_key, default_header, bot_id=bot_id).format(total=total)
         lines = [header]
         for r in receipts:
             status = "✅" if r['status'] == 'valid' else "❌"
@@ -300,8 +331,8 @@ class CoreModule(BotModule):
             sum_text = f" • {r['total_sum'] // 100}₽" if r.get('total_sum') else ""
             tickets = r.get('tickets', 1)
             tickets_text = f" • 🎫{tickets}" if tickets > 1 else ""
-            product = f"\n   └ {r['product_name'][:30]}" if r.get('product_name') else ""
-            lines.append(f"\n{status} {date}{sum_text}{tickets_text}{product}")
+            product = f"\\n   └ {r['product_name'][:30]}" if r.get('product_name') else ""
+            lines.append(f"\\n{status} {date}{sum_text}{tickets_text}{product}")
         return "".join(lines)
 
 # Module instance

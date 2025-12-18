@@ -30,12 +30,15 @@ class RegistrationModule(BotModule):
         "reg_cancel": "Хорошо! Возвращайтесь 👋",
         "reg_name_error": "Введите имя (2-100 символов)",
         "reg_phone_prompt": "Отлично, {name}! 👋\n\nОтправьте номер телефона:",
-        "reg_phone_error": "❌ Неверный формат. Введите как +79991234567",
+        "reg_phone_error": "❌ Неверный формат. Введите в международном формате, например +79991234567",
         "reg_phone_request": "Отправьте номер телефона",
-        "reg_success": "✅ Регистрация завершена!\n\n1. Купите акционные товары\n2. Сфотографируйте QR-код\n3. Загрузите сюда\n\nАкция: {start} — {end}\n\n👇 Загрузите первый чек",
+        "reg_success": "✅ Регистрация завершена!",
+        "reg_success_promo": "✅ Регистрация завершена!\n\nОтправьте промокод сообщением в этот чат.\n\nАкция: {start} — {end}\n\n👇 Введите промокод",
     }
     
-    PHONE_PATTERN = re.compile(r'^\+?[0-9]{10,15}$')
+    # E.164-ish validator
+    # Allows + (optional) followed by 10-15 digits
+    PHONE_PATTERN = re.compile(r'^\+?[1-9]\d{9,14}$')
     
     def _setup_handlers(self):
         """Setup registration handlers"""
@@ -78,13 +81,44 @@ class RegistrationModule(BotModule):
             phone = None
             if message.contact:
                 phone = message.contact.phone_number
+                # Contact might come without +, but usually it's clean
+                if not phone.startswith('+'):
+                     phone = '+' + phone
             elif message.text:
-                clean = re.sub(r'\D', '', message.text)
-                if not self.PHONE_PATTERN.match(clean) and not self.PHONE_PATTERN.match(message.text.strip()):
+                # 1. Strip whitespace
+                text = message.text.strip()
+                
+                # 2. Check basic validity (digits, maybe +, spaces, parens, dashes)
+                # Remove common separators
+                clean = re.sub(r'[\s\-\(\)]', '', text)
+                
+                # 3. Handle Russian 8 suffix logic (8999... -> 7999...)
+                # If starts with 8 and is 11 digits, replace 8 with 7
+                if len(clean) == 11 and clean.startswith('8'):
+                     clean = '7' + clean[1:]
+                
+                # 4. Final Validation: must be digits only now.
+                # Must be 10-15 digits. Even 10 is risky without country code, but some users might try.
+                # Let's enforce international format -> we expect roughly 11+ digits usually.
+                # If user entered 9991234567 (10 digits), we assume +7 for RU context if needed?
+                # No, that's dangerous. Let's stick to 11-15 digits for safety or strict specific codes.
+                # But for general bot, let's accept 10-15 and if it doesn't have country code, prepend +? 
+                
+                # If clean starts with +, remove it for digit count check
+                if clean.startswith('+'):
+                    clean = clean[1:]
+                
+                if not clean.isdigit():
                     msg = config_manager.get_message('reg_phone_error', self.default_messages['reg_phone_error'], bot_id=bot_id)
                     await message.answer(msg)
                     return
-                phone = message.text.strip()
+                
+                if len(clean) < 10 or len(clean) > 15:
+                    msg = config_manager.get_message('reg_phone_error', self.default_messages['reg_phone_error'], bot_id=bot_id)
+                    await message.answer(msg)
+                    return
+
+                phone = '+' + clean
             else:
                 msg = config_manager.get_message('reg_phone_request', self.default_messages['reg_phone_request'], bot_id=bot_id)
                 await message.answer(msg)
@@ -101,15 +135,17 @@ class RegistrationModule(BotModule):
             await state.clear()
             
             bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
-            default_success = (
-                "✅ Регистрация завершена!\n\nОтправьте промокод сообщением в этот чат.\n\nАкция: {start} — {end}\n\n👇 Введите промокод"
-                if bot_type == 'promo'
-                else self.default_messages['reg_success']
-            )
+            
+            if bot_type == 'promo':
+                msg_key = 'reg_success_promo'
+                default_msg = self.default_messages['reg_success_promo']
+            else:
+                msg_key = 'reg_success'
+                default_msg = self.default_messages['reg_success']
             
             success_msg = config_manager.get_message(
-                'reg_success',
-                default_success,
+                msg_key,
+                default_msg,
                 bot_id=bot_id
             ).format(start=config.PROMO_START_DATE, end=config.PROMO_END_DATE)
             
