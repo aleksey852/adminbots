@@ -638,8 +638,8 @@ async def add_manual_tickets(user_id: int, tickets: int, reason: str = None, cre
     db = get_current_bot_db()
     async with db.get_connection() as conn:
         return await conn.fetchval("""
-            INSERT INTO manual_tickets (bot_id, user_id, tickets, reason, created_by)
-            VALUES ((SELECT bot_id FROM users WHERE id = $1), $1, $2, $3, $4)
+            INSERT INTO manual_tickets (user_id, tickets, reason, created_by)
+            VALUES ($1, $2, $3, $4)
             RETURNING id
         """, user_id, tickets, reason, created_by)
 

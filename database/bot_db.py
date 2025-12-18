@@ -176,6 +176,18 @@ class BotDatabase:
                 );
             """)
             
+            # Manual Tickets (for manual ticket assignment and final raffle)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS manual_tickets (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    tickets INTEGER NOT NULL DEFAULT 1,
+                    reason TEXT,
+                    created_by TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
+            
             # NOTIFY trigger for campaigns
             await db.execute("""
                 CREATE OR REPLACE FUNCTION notify_new_campaign() 
@@ -213,6 +225,7 @@ class BotDatabase:
                 "CREATE INDEX IF NOT EXISTS idx_campaigns_pending ON campaigns(is_completed, scheduled_for)",
                 "CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code)",
                 "CREATE INDEX IF NOT EXISTS idx_promo_codes_status ON promo_codes(status)",
+                "CREATE INDEX IF NOT EXISTS idx_manual_tickets_user ON manual_tickets(user_id)",
             ]
             for idx in indexes:
                 try:
@@ -263,6 +276,14 @@ class BotDatabaseManager:
         """Connect to all registered bot databases"""
         for bot_id in self._databases:
             await self.connect(bot_id)
+    
+    async def disconnect(self, bot_id: int):
+        """Disconnect a specific bot's database"""
+        db = self._databases.get(bot_id)
+        if db:
+            await db.close()
+            del self._databases[bot_id]
+            logger.info(f"Bot {bot_id}: Database disconnected")
     
     async def close_all(self):
         """Close all database connections"""

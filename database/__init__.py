@@ -14,7 +14,10 @@ from database.methods import (
     get_bot_enabled_modules, update_bot_modules, archive_bot,
     # Health
     check_db_health,
-    # Panel users
+)
+
+# Panel users (from panel_db)
+from database.panel_db import (
     get_panel_user, get_panel_user_by_id, update_panel_user_login,
     get_all_panel_users, create_panel_user, update_panel_user, delete_panel_user,
 )
