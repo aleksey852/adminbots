@@ -23,11 +23,13 @@ async def pg_listener(
 ):
     """Listen for notifications from PostgreSQL (uses panel DB)"""
     try:
+        logger.info(f"🔊 Starting PG Listener. PollingManager: {'Active' if polling_manager else 'None'}")
         async with get_panel_connection() as db:
             conn = db.conn
             
             # Define callback
             def notify_handler(conn, pid, channel, payload):
+                # logger.debug(f"Received notification: {channel} -> {payload}")
                 notification_queue.put_nowait((channel, payload))
             
             await conn.add_listener("new_bot", notify_handler)
@@ -78,31 +80,33 @@ async def pg_listener(
                                             new_bot = bot_manager.bots.get(bot_id)
                                             if new_bot:
                                                 await polling_manager.start_polling_for_bot(bot_id, new_bot)
+                                                logger.info(f"✅ Bot {bot_id} restarted successfully")
+                                            else:
+                                                logger.error(f"❌ Failed to restart bot {bot_id}: Bot instance not created")
                                             
-                                            logger.info(f"✅ Bot {bot_id} restarted successfully")
                                         else:
-                                            logger.error(f"Failed to restart bot {bot_id}: Not found in registry")
+                                            logger.error(f"❌ Failed to restart bot {bot_id}: Not found in registry")
                                             
-                                        # Clear middleware cache if available in this process (Main process needs to clear its own cache too)
+                                        # Clear middleware cache
                                         from utils.bot_middleware import clear_modules_cache
                                         clear_modules_cache(bot_id)
                                         
                                     except ValueError:
                                         logger.error(f"Invalid payload for restart_bot: {payload}")
                                     except Exception as e:
-                                        logger.error(f"Restart bot failed: {e}")
+                                        logger.error(f"Restart bot failed: {e}", exc_info=True)
                                 else:
                                     logger.warning("⚠️ PollingManager not initialized, cannot restart")
 
                         except Exception as e:
-                            logger.error(f"Error processing notification {channel}: {e}")
+                            logger.error(f"Error processing notification {channel}: {e}", exc_info=True)
                         finally:
                             notification_queue.task_done()
                             
                 except asyncio.TimeoutError:
                     continue
     except Exception as e:
-        logger.critical(f"PG Listener failed: {e}")
+        logger.critical(f"PG Listener failed: {e}", exc_info=True)
 
 
 async def process_campaign(campaign: dict, shutdown_event: asyncio.Event):

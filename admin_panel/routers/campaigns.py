@@ -81,8 +81,11 @@ def setup_routes(
             async with aiofiles.open(path, 'wb') as f:
                 while chunk := await photo.read(1024*1024): await f.write(chunk)
             content.update({"photo_path": str(path), "caption": text})
-        elif text: content["text"] = text.strip()
-        else: raise HTTPException(400, "Message required")
+        elif text and text.strip(): 
+            content["text"] = text.strip()
+        else: 
+            # If no photo and no text (or empty text)
+            raise HTTPException(400, "Message (text or photo) required")
         
         cid = await add_campaign("broadcast", content, config.parse_scheduled_time(scheduled_for) if scheduled_for else None)
         return RedirectResponse(f"/broadcast?created={cid}", 303)
@@ -200,7 +203,8 @@ def setup_routes(
     @router.post("/raffle/create", dependencies=[Depends(verify_csrf_token)])
     async def create_raffle(
         request: Request, 
-        prize_names: list[str] = Form(None), winner_counts: list[int] = Form(None), # Lists
+        prize_names: list[str] = Form(None), winner_counts: list[int] = Form(None), 
+        prize_msgs: list[str] = Form(None), # Added prize_msgs
         # Fallback for single values if form old cached
         prize_name: str = Form(None), winner_count: int = Form(None),
         win_text: str = Form(None), win_photo: UploadFile = File(None),
@@ -214,9 +218,13 @@ def setup_routes(
         prizes = []
         if prize_names and winner_counts:
             # New format
-            for name, count in zip(prize_names, winner_counts):
+            for i, (name, count) in enumerate(zip(prize_names, winner_counts)):
                 if name.strip() and count > 0:
-                    prizes.append({"name": name.strip(), "count": count})
+                    prize_data = {"name": name.strip(), "count": count}
+                    # Attach specific message if available
+                    if prize_msgs and i < len(prize_msgs) and prize_msgs[i].strip():
+                         prize_data["msg"] = prize_msgs[i].strip()
+                    prizes.append(prize_data)
         elif prize_name and winner_count:
             # Legacy format
             prizes.append({"name": prize_name.strip(), "count": winner_count})
@@ -225,10 +233,6 @@ def setup_routes(
              raise HTTPException(400, "At least one prize required")
 
         async def save_media(file, prefix, text):
-            # Construct default message based on prizes if text is empty?
-            # For now, keep generic default or use text.
-            # If multiple prizes, generic text "You won: {prize}" is generated at runtime if placeholder used?
-            # Or we just use a generic message.
             if not (file and file.filename): return {"text": text}
             path = UPLOADS_DIR / f"{prefix}_{uuid.uuid4().hex[:8]}{Path(file.filename).suffix}"
             async with aiofiles.open(path, 'wb') as f:

@@ -33,14 +33,20 @@
                     <div class="mb-3">
                         <label class="form-label">Призы</label>
                         <div id="prizesContainer">
-                            <div class="input-group mb-2 prize-row">
-                                <span class="input-group-text">1.</span>
-                                <input type="text" class="form-control" name="prize_names" placeholder="Название приза"
-                                    required>
-                                <input type="number" class="form-control" name="winner_counts" placeholder="Кол-во"
-                                    value="1" min="1" style="max_width: 100px;" required>
-                                <button type="button" class="btn btn-outline-danger remove-prize" disabled><i
-                                        class="bi bi-trash"></i></button>
+                            <div class="card mb-2 prize-row border-light bg-light">
+                                <div class="card-body p-2">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="badge bg-secondary me-2 index-badge">1</span>
+                                        <input type="text" class="form-control me-2" name="prize_names"
+                                            placeholder="Название приза" required>
+                                        <input type="number" class="form-control me-2" name="winner_counts"
+                                            placeholder="Кол-во" value="1" min="1" style="max-width: 100px;" required>
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-prize"
+                                            disabled><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <input type="text" class="form-control form-control-sm" name="prize_msgs"
+                                        placeholder="Индивидуальный текст победителю (опционально)">
+                                </div>
                             </div>
                         </div>
                         <button type="button" class="btn btn-outline-primary btn-sm" onclick="addPrizeRow()">
@@ -53,12 +59,17 @@
                             const container = document.getElementById('prizesContainer');
                             const count = container.children.length + 1;
                             const div = document.createElement('div');
-                            div.className = 'input-group mb-2 prize-row';
+                            div.className = 'card mb-2 prize-row border-light bg-light';
                             div.innerHTML = `
-                                <span class="input-group-text">${count}.</span>
-                                <input type="text" class="form-control" name="prize_names" placeholder="Название приза" required>
-                                <input type="number" class="form-control" name="winner_counts" placeholder="Кол-во" value="1" min="1" style="max_width: 100px;" required>
-                                <button type="button" class="btn btn-outline-danger remove-prize" onclick="removePrizeRow(this)"><i class="bi bi-trash"></i></button>
+                                <div class="card-body p-2">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="badge bg-secondary me-2 index-badge">${count}</span>
+                                        <input type="text" class="form-control me-2" name="prize_names" placeholder="Название приза" required>
+                                        <input type="number" class="form-control me-2" name="winner_counts" placeholder="Кол-во" value="1" min="1" style="max_width: 100px;" required>
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-prize" onclick="removePrizeRow(this)"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <input type="text" class="form-control form-control-sm" name="prize_msgs" placeholder="Индивидуальный текст победителю (опционально)">
+                                </div>
                             `;
                             container.appendChild(div);
                             updatePrizeNumbers();
@@ -72,7 +83,7 @@
                         function updatePrizeNumbers() {
                             const rows = document.querySelectorAll('.prize-row');
                             rows.forEach((row, index) => {
-                                row.querySelector('.input-group-text').innerText = (index + 1) + '.';
+                                row.querySelector('.index-badge').innerText = (index + 1);
                                 const btn = row.querySelector('.remove-prize');
                                 if (index === 0) {
                                     btn.disabled = true;

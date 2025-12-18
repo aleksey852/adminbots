@@ -95,12 +95,30 @@ async def execute_raffle(
             sent_win += 1
             continue
             
-        msg = win_msg_template.copy() if win_msg_template else {}
-        if "text" not in msg:
-            msg["text"] = f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"
-        else:
-            # Optional: simple template replacement if user wants generic text
-            msg["text"] = msg["text"].replace("{prize}", w.get('prize_name', ''))
+        msg = None
+        # 1. Try to find prize-specific message
+        if prizes:
+             for p in prizes:
+                 if p['name'] == w.get('prize_name') and p.get('msg'):
+                     msg = {"text": p['msg']}
+                     # If global template has photo, maybe we should reuse it? 
+                     # For now, prize specific text overrides everything, but let's assume photo from global if available?
+                     # The user request was "text", so let's keep it simple. 
+                     # If they want photo per prize, that's a bigger change.
+                     # Let's check win_msg_template for photo/photo_path and add it if msg is text-only
+                     if win_msg_template:
+                        if "photo" in win_msg_template: msg["photo"] = win_msg_template["photo"]
+                        if "photo_path" in win_msg_template: msg["photo_path"] = win_msg_template["photo_path"]
+                     break
+        
+        # 2. Fallback to global template
+        if not msg:
+            msg = win_msg_template.copy() if win_msg_template else {}
+            if "text" not in msg:
+                msg["text"] = f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"
+            else:
+                # Optional: simple template replacement if user wants generic text
+                msg["text"] = msg["text"].replace("{prize}", w.get('prize_name', ''))
         
         if await send_message_with_retry(
             bot,
