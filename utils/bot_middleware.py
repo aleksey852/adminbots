@@ -117,42 +117,5 @@ class BotMiddleware(BaseMiddleware):
                 _current_bot_db.reset(context_token)
 
 
-# Handler-to-module mapping
-# Maps handler patterns/names to module names for filtering
-HANDLER_MODULE_MAP = {
-    # Registration module handlers
-    "process_name": "registration",
-    "process_phone": "registration",
-    
-    # User profile module handlers
-    "show_profile": "user_profile",
-    "command_status": "user_profile",
-    "show_receipts": "user_profile",
-    "receipts_pagination": "user_profile",
-    
-    # Receipts module handlers  
-    "process_receipt": "receipts",
-    "confirm_receipt": "receipts",
-    
-    # Promo module handlers
-    "process_promo_code": "promo",
-    
-    # FAQ module handlers
-    "show_faq": "faq",
-    "faq_how": "faq",
-    "faq_limit": "faq",
-    "faq_win": "faq",
-    "faq_reject": "faq",
-    "faq_dates": "faq",
-    "faq_prizes": "faq",
-    "faq_back": "faq",
-    
-    # Support module handlers
-    "show_support": "support",
-    
-    # Admin module handlers
-    "admin_handler": "admin",
-    "broadcast_start": "admin",
-    "raffle_start": "admin",
-}
+# Handler-to-module mapping logic moved to dynamic discovery in module_loader
 

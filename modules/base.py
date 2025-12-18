@@ -53,6 +53,19 @@ class BotModule(ABC):
         """Get the aiogram Router for this module."""
         return self.router
 
+    def get_handlers(self) -> List[str]:
+        """Get names of all handlers registered in this module's router."""
+        handlers = []
+        for observer in self.router.observers.values():
+            for handler in observer.handlers:
+                # Try to get handler name from callback
+                callback = handler.callback
+                if hasattr(callback, '__name__'):
+                    handlers.append(callback.__name__)
+                elif hasattr(callback, 'func') and hasattr(callback.func, '__name__'):
+                    handlers.append(callback.func.__name__)
+        return handlers
+
 
 class ModuleLoader:
     """
@@ -77,6 +90,13 @@ class ModuleLoader:
     def get_all_modules(self) -> List[BotModule]:
         """Get all registered modules."""
         return list(self.modules.values())
+    
+    def get_module_by_handler(self, handler_name: str) -> Optional[BotModule]:
+        """Find which module contains a handler with the given name."""
+        for module in self.modules.values():
+            if handler_name in module.get_handlers():
+                return module
+        return None
     
     async def load_enabled_modules(self, bot_id: int):
         """Load enabled modules for a specific bot from database.
