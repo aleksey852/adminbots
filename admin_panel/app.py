@@ -197,6 +197,7 @@ def get_template_context(request: Request, **kwargs) -> Dict:
         "current_user": user,
         "is_superadmin": user.get('role') == 'superadmin' if user else False,
         "has_module": has_module,
+        "now": datetime.now,
     }
     context.update(kwargs)
     return context
