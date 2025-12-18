@@ -97,22 +97,22 @@ async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
                 except Exception as e:
                     logger.error(f"Failed to notify admin {admin_id}: {e}")
 
-    except Exception as e:
-        logger.error(f"Import failed: {e}")
-        await update_job(job_id, status='failed', details={"error": str(e)})
-        
-        # Notify failure
-        bot_instance = bot_manager.bots.get(bot_id)
-        if bot_instance:
-            error_msg = f"❌ <b>Ошибка импорта</b>\n\n{str(e)}"
-            for admin_id in config.ADMIN_IDS:
-                try:
-                    await bot_instance.send_message(admin_id, error_msg, parse_mode="HTML")
-                except:
-                    pass
-    finally:
-        # Cleanup
-        try:
-            os.remove(file_path)
         except Exception as e:
-            logger.error(f"Failed to delete temp file: {e}")
+            logger.error(f"Import failed: {e}")
+            await update_job(job_id, status='failed', details={"error": str(e)})
+            
+            # Notify failure
+            bot_instance = bot_manager.bots.get(bot_id)
+            if bot_instance:
+                error_msg = f"❌ <b>Ошибка импорта</b>\n\n{str(e)}"
+                for admin_id in config.ADMIN_IDS:
+                    try:
+                        await bot_instance.send_message(admin_id, error_msg, parse_mode="HTML")
+                    except:
+                        pass
+        finally:
+            # Cleanup
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                logger.error(f"Failed to delete temp file: {e}")
