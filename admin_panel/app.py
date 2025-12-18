@@ -172,6 +172,16 @@ def get_template_context(request: Request, **kwargs) -> Dict:
     if isinstance(user, str):
         user = {'username': user, 'role': 'admin'}
     
+    def has_module(module_name: str) -> bool:
+        """Check if bot has module enabled"""
+        if not request.state.bot:
+            return False
+        modules = request.state.bot.get('enabled_modules')
+        if modules is None:
+            # Default modules if None (legacy/default behavior)
+            return True
+        return module_name in modules
+
     context = {
         "request": request,
         "csrf_token": auth.get_csrf_token(request),
@@ -179,6 +189,7 @@ def get_template_context(request: Request, **kwargs) -> Dict:
         "bots": getattr(request.state, 'bots', []),
         "current_user": user,
         "is_superadmin": user.get('role') == 'superadmin' if user else False,
+        "has_module": has_module,
     }
     context.update(kwargs)
     return context

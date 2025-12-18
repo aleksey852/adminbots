@@ -10,7 +10,8 @@
     <div class="card-body">
         <form method="get" action="/users" class="row g-3">
             <div class="col-md-9">
-                <input type="text" name="q" class="form-control" placeholder="Поиск по имени, username, телефону или ID..." value="{{ search_query }}">
+                <input type="text" name="q" class="form-control"
+                    placeholder="Поиск по имени, username, телефону или ID..." value="{{ search_query }}">
             </div>
             <div class="col-md-3">
                 <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Найти</button>
@@ -35,7 +36,9 @@
                         <th>Имя</th>
                         <th>Username</th>
                         <th>Телефон</th>
-                        <th>Чеков</th>
+                        {% if has_module('receipts') or has_module('promo') %}
+                        <th>{% if bot.type == 'promo' %}Активаций{% else %}Чеков{% endif %}</th>
+                        {% endif %}
                         <th>Статус</th>
                         <th>Дата регистрации</th>
                         <th></th>
@@ -49,7 +52,9 @@
                         <td>{{ u.full_name or '-' }}</td>
                         <td>{% if u.username %}@{{ u.username }}{% else %}-{% endif %}</td>
                         <td>{{ u.phone or '-' }}</td>
+                        {% if has_module('receipts') or has_module('promo') %}
                         <td><span class="badge bg-success">{{ u.receipt_count if u.receipt_count else 0 }}</span></td>
+                        {% endif %}
                         <td>
                             {% if u.is_blocked %}
                             <span class="badge bg-danger">Заблокирован</span>
@@ -59,12 +64,13 @@
                         </td>
                         <td>{{ u.registered_at.strftime('%d.%m.%Y %H:%M') if u.registered_at else '-' }}</td>
                         <td>
-                            <a href="/users/{{ u.id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+                            <a href="/users/{{ u.id }}" class="btn btn-sm btn-outline-primary"><i
+                                    class="bi bi-eye"></i></a>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">
+                        <td colspan="10" class="text-center text-muted py-4">
                             {% if search_query %}
                             Пользователи не найдены
                             {% else %}
@@ -85,12 +91,12 @@
         {% if page > 1 %}
         <li class="page-item"><a class="page-link" href="?page={{ page - 1 }}">← Назад</a></li>
         {% endif %}
-        
+
         <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
-        
-        {% if page < total_pages %}
-        <li class="page-item"><a class="page-link" href="?page={{ page + 1 }}">Вперёд →</a></li>
-        {% endif %}
+
+        {% if page < total_pages %} <li class="page-item"><a class="page-link" href="?page={{ page + 1 }}">Вперёд →</a>
+            </li>
+            {% endif %}
     </ul>
 </nav>
 {% endif %}

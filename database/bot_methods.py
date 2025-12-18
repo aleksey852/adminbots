@@ -111,7 +111,8 @@ async def get_users_paginated(page: int = 1, per_page: int = 50) -> List[Dict]:
     async with db.get_connection() as conn:
         return await conn.fetch("""
             SELECT u.*, 
-                   COALESCE(SUM(r.tickets), 0) as total_tickets
+                   COALESCE(SUM(r.tickets), 0) as total_tickets,
+                   COUNT(r.id) as receipt_count
             FROM users u
             LEFT JOIN receipts r ON r.user_id = u.id AND r.status = 'valid'
             GROUP BY u.id
