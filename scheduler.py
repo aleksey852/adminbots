@@ -3,6 +3,7 @@ Scheduler Module - PostgreSQL Listener and Campaign Processing
 """
 import asyncio
 import logging
+import json
 
 from aiogram import Bot
 
@@ -145,7 +146,14 @@ async def process_campaign(campaign: dict, shutdown_event: asyncio.Event):
     """Process a single campaign (with per-bot database context)"""
     cid = campaign['id']
     ctype = campaign['type']
-    content = campaign['content'] if isinstance(campaign['content'], dict) else {}
+    content = campaign['content']
+    if isinstance(content, str):
+        try:
+            content = json.loads(content)
+        except Exception:
+            content = {}
+    elif not isinstance(content, dict):
+         content = {}
     
     # Campaigns now stored per-bot, bot_id passed via _bot_id from scheduler
     bot_id = campaign.get('_bot_id') or campaign.get('bot_id')
