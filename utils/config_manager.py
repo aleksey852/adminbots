@@ -3,99 +3,95 @@ Config Manager - Dynamic settings from database
 Allows changing promo texts, keywords, messages without restart
 """
 import logging
-from typing import Dict, Any, Optional
-from pathlib import Path
-from database import get_connection
+from typing import Dict, Any, Optional, List
+from database import bot_methods
 import config
 
 logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
-    _settings: Dict[int, Dict[str, str]] = {} # bot_id -> {key: value}
-    _messages: Dict[int, Dict[str, str]] = {} # bot_id -> {key: text}
+    _settings: Dict[int, Dict[str, str]] = {}  # bot_id -> {key: value}
+    _messages: Dict[int, Dict[str, str]] = {}  # bot_id -> {key: text}
     _initialized = False
 
     async def load(self):
-        """Load all settings and messages from DB"""
-        try:
-            async with get_connection() as db:
-                # Load settings
-                rows = await db.fetch("SELECT bot_id, key, value FROM settings")
-                new_settings = {}
-                for row in rows:
-                    bot_id = row['bot_id']
-                    if bot_id not in new_settings:
-                        new_settings[bot_id] = {}
-                    new_settings[bot_id][row['key']] = row['value']
-                self._settings = new_settings
-                
-                # Load messages
-                rows = await db.fetch("SELECT bot_id, key, text FROM messages")
-                new_messages = {}
-                for row in rows:
-                    bot_id = row['bot_id']
-                    if bot_id not in new_messages:
-                        new_messages[bot_id] = {}
-                    new_messages[bot_id][row['key']] = row['text']
-                self._messages = new_messages
-                
-            self._initialized = True
-            logger.info("Loaded settings and messages")
-        except Exception as e:
-            logger.error(f"Failed to load settings: {e}")
+        """Load settings - now a no-op since we fetch from context per-request"""
+        self._initialized = True
+        logger.info("ConfigManager initialized")
 
     def get_setting(self, key: str, default: Any = None, bot_id: int = None) -> Any:
-        """Get setting value"""
-        if not self._initialized: return default
+        """Get setting value from cache"""
+        if not self._initialized:
+            return default
         if bot_id and bot_id in self._settings:
             return self._settings[bot_id].get(key, default)
-        # Fallback to any bot or defaults? 
-        # Ideally we should require bot_id. If None, return default.
         return default
 
     def get_message(self, key: str, default: str = "", bot_id: int = None) -> str:
-        """Get message text"""
-        if not self._initialized: return default
+        """Get message text from cache"""
+        if not self._initialized:
+            return default
         if bot_id and bot_id in self._messages:
             return self._messages[bot_id].get(key, default)
         return default
 
     async def set_setting(self, key: str, value: str, bot_id: int):
-        """Update setting in DB and cache"""
-        async with get_connection() as db:
-            await db.execute("""
-                INSERT INTO settings (bot_id, key, value, updated_at)
-                VALUES ($1, $2, $3, NOW())
-                ON CONFLICT (bot_id, key) DO UPDATE SET value = $3, updated_at = NOW()
-            """, bot_id, key, str(value))
+        """Update setting in DB and cache (uses current bot context)"""
+        db = bot_methods.get_current_bot_db()
+        async with db.get_connection() as conn:
+            await conn.execute("""
+                INSERT INTO settings (key, value, updated_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
+            """, key, str(value))
         
         if bot_id not in self._settings:
             self._settings[bot_id] = {}
         self._settings[bot_id][key] = str(value)
 
     async def set_message(self, key: str, text: str, bot_id: int):
-        """Update message in DB and cache"""
-        async with get_connection() as db:
-            await db.execute("""
-                INSERT INTO messages (bot_id, key, text, updated_at)
-                VALUES ($1, $2, $3, NOW())
-                ON CONFLICT (bot_id, key) DO UPDATE SET text = $3, updated_at = NOW()
-            """, bot_id, key, text)
+        """Update message in DB and cache (uses current bot context)"""
+        db = bot_methods.get_current_bot_db()
+        async with db.get_connection() as conn:
+            await conn.execute("""
+                INSERT INTO messages (key, text, updated_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (key) DO UPDATE SET text = $2, updated_at = NOW()
+            """, key, text)
         
         if bot_id not in self._messages:
             self._messages[bot_id] = {}
         self._messages[bot_id][key] = text
 
-    async def get_all_settings(self, bot_id: int):
-        """Get all settings for admin panel"""
-        async with get_connection() as db:
-            return await db.fetch("SELECT * FROM settings WHERE bot_id = $1 ORDER BY key", bot_id)
+    async def get_all_settings(self, bot_id: int) -> List[Dict]:
+        """Get all settings for admin panel (uses current bot context)"""
+        db = bot_methods.get_current_bot_db()
+        async with db.get_connection() as conn:
+            return await conn.fetch("SELECT * FROM settings ORDER BY key")
 
-    async def get_all_messages(self, bot_id: int):
-        """Get all messages for admin panel"""
-        async with get_connection() as db:
-            return await db.fetch("SELECT * FROM messages WHERE bot_id = $1 ORDER BY key", bot_id)
+    async def get_all_messages(self, bot_id: int) -> List[Dict]:
+        """Get all messages for admin panel (uses current bot context)"""
+        db = bot_methods.get_current_bot_db()
+        async with db.get_connection() as conn:
+            return await conn.fetch("SELECT * FROM messages ORDER BY key")
+
+    async def load_for_bot(self, bot_id: int):
+        """Load settings and messages for a specific bot into cache"""
+        try:
+            db = bot_methods.get_current_bot_db()
+            async with db.get_connection() as conn:
+                # Load settings
+                rows = await conn.fetch("SELECT key, value FROM settings")
+                self._settings[bot_id] = {row['key']: row['value'] for row in rows}
+                
+                # Load messages
+                rows = await conn.fetch("SELECT key, text FROM messages")
+                self._messages[bot_id] = {row['key']: row['text'] for row in rows}
+            
+            logger.debug(f"Loaded {len(self._settings.get(bot_id, {}))} settings for bot {bot_id}")
+        except Exception as e:
+            logger.error(f"Failed to load settings for bot {bot_id}: {e}")
 
 
 config_manager = ConfigManager()
