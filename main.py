@@ -87,6 +87,8 @@ async def on_startup():
     # Initialize Polling Manager
     global polling_manager
     polling_manager = PollingManager(dp)
+    # Attach to bot_manager so routers can access it
+    bot_manager.polling_manager = polling_manager
     
     logger.info("Bot started")
 
