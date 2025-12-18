@@ -61,11 +61,24 @@ def setup_routes(
     @router.get("/backups", response_class=HTMLResponse)
     async def backups_list(request: Request, user: Dict = Depends(require_superadmin)):
         dir = get_backup_dir()
-        backups = [
-            {"filename": f.name, "size_mb": round(f.stat().st_size/1024/1024, 2), "created": datetime.fromtimestamp(f.stat().st_mtime)}
-            for f in sorted(dir.glob("backup_*.sql.gz"), reverse=True)
-        ] if dir.exists() else []
-        return templates.TemplateResponse("backups/list.html", get_template_context(request, user=user, title="Бэкапы", backups=backups, disk_free_mb=round(shutil.disk_usage(dir).free/1024/1024, 2)))
+        backups = []
+        total_size_mb = 0.0
+        if dir.exists():
+            for f in sorted(dir.glob("backup_*.sql.gz"), reverse=True):
+                size_mb = round(f.stat().st_size / 1024 / 1024, 2)
+                backups.append({
+                    "filename": f.name, 
+                    "size_mb": size_mb, 
+                    "created": datetime.fromtimestamp(f.stat().st_mtime),
+                    "path": str(f)
+                })
+                total_size_mb += size_mb
+        return templates.TemplateResponse("backups/list.html", get_template_context(
+            request, user=user, title="Бэкапы", 
+            backups=backups, 
+            total_size_mb=round(total_size_mb, 2),
+            disk_free_mb=round(shutil.disk_usage(dir).free / 1024 / 1024, 2)
+        ))
 
     @router.post("/backups/create", dependencies=[Depends(verify_csrf_token)])
     async def create_backup_handler(request: Request):
