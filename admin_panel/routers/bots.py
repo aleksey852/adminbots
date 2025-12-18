@@ -56,10 +56,12 @@ def setup_routes(
     @router.post("/create", dependencies=[Depends(verify_csrf_token)])
     async def create_bot(
         request: Request, token: str = Form(...), name: str = Form(...),
-        type: str = Form(...), admin_ids: str = Form(""), user: Dict = Depends(require_superadmin)
+        type: str = Form(...), admin_ids: str = Form(""),
+        monthly_raffle: str = Form(None), require_subscription: str = Form(None),
+        user: Dict = Depends(require_superadmin)
     ):
         import re
-        from database.panel_db import get_bot_by_token, register_bot, create_bot_database, get_panel_connection
+        from database.panel_db import get_bot_by_token, register_bot, create_bot_database, get_panel_connection, set_module_settings
         
         modules = (await request.form()).getlist('modules')
         if 'registration' not in modules: modules.append('registration')
@@ -77,6 +79,12 @@ def setup_routes(
             bid = await register_bot(token=token, name=name, bot_type=type, database_url=db_url, admin_ids=p_ids)
             bot_db_manager.register(bid, db_url)
             await bot_db_manager.connect(bid)
+            
+            # Save bot options as module settings
+            if monthly_raffle == 'true':
+                await set_module_settings(bid, 'admin', {'monthly_raffle': True})
+            if require_subscription == 'true':
+                await set_module_settings(bid, 'subscription', {'required': True})
             
             async with get_panel_connection() as db: await db.execute("NOTIFY new_bot")
             request.session["active_bot_id"] = bid
@@ -115,8 +123,6 @@ def setup_routes(
             stats = await get_stats()
             
             # Prepare module data with settings
-            from modules.workflow import workflow_manager
-            
             for mod in sorted_modules:
                 settings = []
                 if hasattr(mod, 'settings_schema'):
@@ -128,16 +134,12 @@ def setup_routes(
                             **schema
                         })
                 
-                # Get workflow steps
-                steps = workflow_manager.get_steps_by_module(mod.name)
-                
                 modules_data.append({
                     'name': mod.name,
                     'description': mod.description,
                     'enabled': mod.name in enabled_modules,
                     'is_required': mod.name in ('core', 'registration'),
-                    'settings': settings,
-                    'workflow_steps': steps
+                    'settings': settings
                 })
 
         return templates.TemplateResponse("bots/edit.html", get_template_context(
@@ -216,5 +218,173 @@ def setup_routes(
         except Exception as e:
             logger.error(f"Failed to send restart signal: {e}")
             return RedirectResponse(f"/bots/{bot_id}/edit?error=Signal+failed", 303)
+
+    @router.get("/{bot_id}/export/full")
+    async def export_bot_full(request: Request, bot_id: int, user: Dict = Depends(require_superadmin)):
+        """Export full bot archive as ZIP"""
+        import io
+        import zipfile
+        from fastapi.responses import StreamingResponse
+        from database.panel_db import get_all_module_settings
+        from database.bot_db import bot_db_manager
+        from database.bot_methods import bot_db_context
+        from utils.config_manager import config_manager
+        
+        bot = await get_bot_by_id(bot_id)
+        if not bot:
+            raise HTTPException(404, "Bot not found")
+        
+        # Ensure DB connected
+        if not bot_db_manager.get(bot_id):
+            bot_db_manager.register(bot_id, bot['database_url'])
+            await bot_db_manager.connect(bot_id)
+        
+        # Create manifest
+        manifest = {
+            "name": bot['name'],
+            "type": bot['type'],
+            "version": "1.0.0",
+            "exported_at": datetime.now().isoformat(),
+            "enabled_modules": list(bot.get('enabled_modules') or []),
+            "admin_ids": list(bot.get('admin_ids') or [])
+        }
+        
+        # Get module settings
+        module_settings = await get_all_module_settings(bot_id)
+        
+        # Get texts/config
+        if not config_manager._initialized:
+            await config_manager.load()
+        texts = config_manager.get_bot_config(bot_id)
+        
+        config_data = {
+            "module_settings": module_settings,
+            "texts": texts
+        }
+        
+        # Get database data
+        data = {"users": [], "receipts": [], "codes": [], "winners": []}
+        
+        async with bot_db_context(bot_id):
+            db = bot_db_manager.get(bot_id)
+            async with db.get_connection() as conn:
+                # Users
+                rows = await conn.fetch("SELECT * FROM users LIMIT 50000")
+                for r in rows:
+                    user_data = dict(r)
+                    for k, v in user_data.items():
+                        if isinstance(v, (datetime, date)):
+                            user_data[k] = v.isoformat()
+                    data["users"].append(user_data)
+                
+                # Receipts
+                rows = await conn.fetch("SELECT * FROM receipts LIMIT 50000")
+                for r in rows:
+                    receipt = dict(r)
+                    for k, v in receipt.items():
+                        if isinstance(v, (datetime, date)):
+                            receipt[k] = v.isoformat()
+                    data["receipts"].append(receipt)
+                
+                # Promo codes
+                rows = await conn.fetch("SELECT * FROM promo_codes LIMIT 50000")
+                for r in rows:
+                    code = dict(r)
+                    for k, v in code.items():
+                        if isinstance(v, (datetime, date)):
+                            code[k] = v.isoformat()
+                    data["codes"].append(code)
+                
+                # Winners
+                rows = await conn.fetch("SELECT * FROM winners LIMIT 50000")
+                for r in rows:
+                    winner = dict(r)
+                    for k, v in winner.items():
+                        if isinstance(v, (datetime, date)):
+                            winner[k] = v.isoformat()
+                    data["winners"].append(winner)
+        
+        # Create ZIP in memory
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+            zf.writestr("config.json", json.dumps(config_data, ensure_ascii=False, indent=2))
+            zf.writestr("data.json", json.dumps(data, ensure_ascii=False, indent=2))
+        
+        buffer.seek(0)
+        filename = f"bot_export_{bot['name'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.zip"
+        
+        return StreamingResponse(
+            buffer,
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    @router.get("/import", response_class=HTMLResponse)
+    async def import_bot_page(request: Request, user: Dict = Depends(require_superadmin)):
+        return templates.TemplateResponse("bots/import.html", get_template_context(request, user=user, title="\u0418\u043c\u043f\u043e\u0440\u0442 \u0431\u043e\u0442\u0430"))
+
+    @router.post("/import", dependencies=[Depends(verify_csrf_token)])
+    async def import_bot(request: Request, user: Dict = Depends(require_superadmin)):
+        """Import bot from ZIP archive"""
+        import io
+        import zipfile
+        from database.panel_db import register_bot, create_bot_database, set_module_settings, get_panel_connection
+        
+        form = await request.form()
+        file = form.get("archive")
+        token = form.get("token", "")
+        
+        if not file or not token:
+            return templates.TemplateResponse("bots/import.html", get_template_context(
+                request, user=user, title="\u0418\u043c\u043f\u043e\u0440\u0442 \u0431\u043e\u0442\u0430", error="\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f \u0430\u0440\u0445\u0438\u0432 \u0438 \u0442\u043e\u043a\u0435\u043d"
+            ))
+        
+        try:
+            content = await file.read()
+            zf = zipfile.ZipFile(io.BytesIO(content))
+            
+            manifest = json.loads(zf.read("manifest.json").decode('utf-8'))
+            config_data = json.loads(zf.read("config.json").decode('utf-8'))
+            data = json.loads(zf.read("data.json").decode('utf-8'))
+            
+            # Check token not exists
+            if await get_bot_by_token(token):
+                return templates.TemplateResponse("bots/import.html", get_template_context(
+                    request, user=user, title="\u0418\u043c\u043f\u043e\u0440\u0442 \u0431\u043e\u0442\u0430", error="\u0411\u043e\u0442 \u0441 \u0442\u0430\u043a\u0438\u043c \u0442\u043e\u043a\u0435\u043d\u043e\u043c \u0443\u0436\u0435 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u0435\u0442"
+                ))
+            
+            import re
+            name = manifest.get("name", "Imported Bot")
+            bot_type = manifest.get("type", "receipt")
+            admin_ids = manifest.get("admin_ids", [])
+            
+            db_url = await create_bot_database(
+                f"bot_{re.sub(r'[^a-z0-9_]', '', name.lower())[:20]}_{uuid.uuid4().hex[:6]}",
+                config.DATABASE_URL
+            )
+            
+            bid = await register_bot(token=token, name=name, bot_type=bot_type, database_url=db_url, admin_ids=admin_ids)
+            bot_db_manager.register(bid, db_url)
+            await bot_db_manager.connect(bid)
+            
+            # Restore module settings
+            for mod_name, settings in config_data.get("module_settings", {}).items():
+                await set_module_settings(bid, mod_name, settings)
+            
+            # TODO: Restore texts and data (users, receipts, codes) if needed
+            # This is a basic implementation - full data restore is complex
+            
+            async with get_panel_connection() as db:
+                await db.execute("NOTIFY new_bot")
+            
+            request.session["active_bot_id"] = bid
+            return RedirectResponse(f"/bots/{bid}/edit?msg=Bot+imported", 303)
+            
+        except Exception as e:
+            logger.error(f"Import failed: {e}")
+            return templates.TemplateResponse("bots/import.html", get_template_context(
+                request, user=user, title="\u0418\u043c\u043f\u043e\u0440\u0442 \u0431\u043e\u0442\u0430", error=str(e)
+            ))
 
     return router

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="d-flex align-items-center mb-4">
+                <a href="/" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i> Назад</a>
+                <h1 class="page-title mb-0">📦 Импорт бота</h1>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger mb-4">
+                        <i class="bi bi-exclamation-circle me-2"></i> {{ error }}
+                    </div>
+                    {% endif %}
+
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Как работает импорт:</strong><br>
+                        Загрузите ZIP-архив, экспортированный из другого бота. Потребуется указать новый токен из
+                        @BotFather.
+                    </div>
+
+                    <form method="POST" action="/bots/import" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-4">
+                            <label for="token" class="form-label">Новый Bot Token (из @BotFather)</label>
+                            <input type="text" class="form-control font-monospace" id="token" name="token" required
+                                placeholder="123456789:ABCdefGHIjklMNOpqrs...">
+                            <div class="form-text">Токен для нового бота, куда будут импортированы данные</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="archive" class="form-label">ZIP-архив с данными бота</label>
+                            <input type="file" class="form-control" id="archive" name="archive" accept=".zip" required>
+                            <div class="form-text">Архив должен содержать manifest.json, config.json и data.json</div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-upload me-2"></i> Импортировать бота
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header"><i class="bi bi-file-earmark-zip me-1"></i> Структура архива</div>
+                <div class="card-body">
+                    <pre class="mb-0 small"><code>bot_export_*.zip/
+├── manifest.json   # Метаданные: имя, тип, модули
+├── config.json     # Настройки модулей и тексты
+└── data.json       # Пользователи, чеки, коды, победители</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

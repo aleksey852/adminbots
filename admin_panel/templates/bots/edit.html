@@ -106,9 +106,6 @@
                         <a href="/texts" class="btn btn-sm btn-light text-primary border">
                             <i class="bi bi-chat-text me-1"></i> Тексты
                         </a>
-                        <a href="/bots/{{ edit_bot.id }}/modules" class="btn btn-sm btn-light text-primary border">
-                            <i class="bi bi-diagram-3 me-1"></i> Сценарии (Pipelines)
-                        </a>
                     </div>
                 </div>
                 <div class="card-body">
@@ -138,13 +135,6 @@
                                                     style="font-size: 0.65em;">Обязательный</span>
                                                 {% elif module.enabled %}
                                                 <span class="badge bg-success" style="font-size: 0.65em;">Активен</span>
-                                                {% endif %}
-
-                                                {% if module.workflow_steps %}
-                                                <span class="badge bg-info text-dark" style="font-size: 0.65em;"
-                                                    title="Adds steps: {{ module.workflow_steps|join(', ') }}">
-                                                    +{{ module.workflow_steps|length }} Steps
-                                                </span>
                                                 {% endif %}
                                             </div>
                                             <div class="small text-truncate"
@@ -234,12 +224,17 @@
                                 <div class="danger-action-title">
                                     <i class="bi bi-box-arrow-down text-primary"></i> Экспорт данных
                                 </div>
-                                <p class="danger-action-desc">Скачать полный дамп базы данных бота в формате JSON для
-                                    резервного
-                                    копирования.</p>
-                                <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-sm btn-outline-primary w-100">
-                                    Скачать JSON
-                                </a>
+                                <p class="danger-action-desc">Скачать полный архив бота (настройки + данные) в формате
+                                    ZIP.</p>
+                                <div class="d-flex gap-2">
+                                    <a href="/bots/{{ edit_bot.id }}/export/full"
+                                        class="btn btn-sm btn-primary flex-grow-1">
+                                        <i class="bi bi-file-zip me-1"></i> ZIP Архив
+                                    </a>
+                                    <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-sm btn-outline-secondary">
+                                        JSON
+                                    </a>
+                                </div>
                             </div>
                         </div>
                         <!-- Migrate -->
