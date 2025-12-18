@@ -103,16 +103,27 @@ def setup_routes(
 
     @router.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
     async def upload_codes(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"📥 upload_codes called, file={file.filename}, size={file.size if hasattr(file, 'size') else 'unknown'}")
+        
         from admin_panel.utils.importer import process_promo_import
         from database import create_job, bot_db_context
-        if not (bot := request.state.bot) or bot.get("type") != "promo": return JSONResponse({"error": "Wrong bot"}, 400)
+        if not (bot := request.state.bot) or bot.get("type") != "promo": 
+            logger.error("Wrong bot type for promo upload")
+            return JSONResponse({"error": "Wrong bot"}, 400)
         
         path = UPLOADS_DIR / f"imp_{bot['id']}_{int(time.time())}_{uuid.uuid4().hex[:6]}.txt"
+        logger.info(f"📝 Saving to {path}")
         async with aiofiles.open(path, 'wb') as f:
             while chunk := await file.read(1024*1024): await f.write(chunk)
         
+        file_size = path.stat().st_size / 1024 / 1024
+        logger.info(f"✅ File saved: {file_size:.2f} MB")
+        
         async with bot_db_context(bot['id']):
-            jid = await create_job('import_promo', {"file": path.name, "size_mb": round(path.stat().st_size/1024/1024, 2)})
+            jid = await create_job('import_promo', {"file": path.name, "size_mb": round(file_size, 2)})
+        logger.info(f"🚀 Job created: {jid}, starting background task")
         background_tasks.add_task(process_promo_import, str(path), bot['id'], jid)
         return JSONResponse({"status": "queued", "job_id": jid})
 
