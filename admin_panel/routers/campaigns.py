@@ -207,7 +207,7 @@ def setup_routes(
         prize_msgs: list[str] = Form(None),
         # Fallback for old forms
         prize_name: str = Form(None), winner_count: int = Form(None),
-        win_text: str = Form(None), win_photo: UploadFile = File(None),
+        # Removed win_text/win_photo
         lose_text: str = Form(None), lose_photo: UploadFile = File(None),
         scheduled_for: str = Form(None), is_final: bool = Form(False),
         user: str = Depends(get_current_user)
@@ -260,7 +260,7 @@ def setup_routes(
             "prize": prizes[0]["name"], # Backward compat
             "count": prizes[0]["count"], # Backward compat
             "is_final": is_final,
-            "win_msg": await save_media(win_photo, "win", win_text),
+            # Removed win_msg global fallback
             "lose_msg": await save_media(lose_photo, "lose", lose_text)
         }
         

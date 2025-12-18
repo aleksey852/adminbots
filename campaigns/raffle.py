@@ -81,9 +81,6 @@ async def execute_raffle(
         existing_winners = await bot_methods.get_campaign_winners(campaign_id)
 
     # 2. Notify Winners (only those not yet notified)
-    win_msg_template = content.get("win_msg", {})
-    if not isinstance(win_msg_template, dict):
-        win_msg_template = {"text": win_msg_template}
     
     sent_win = 0
     for w in existing_winners:
@@ -96,34 +93,27 @@ async def execute_raffle(
             continue
             
         msg = None
-        # 1. Try to find prize-specific message
+        # 1. Get prize-specific message
         if prizes:
              for p in prizes:
                  if p['name'] == w.get('prize_name'):
-                     # Determine effective text/caption
-                     raw_text = p.get('msg') or win_msg_template.get('text') or win_msg_template.get('caption')
+                     # Effective text (fallback to hardcoded default)
+                     raw_text = p.get('msg') 
                      if not raw_text:
                          raw_text = f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"
                      
-                     final_text = raw_text.replace("{prize}", w.get('prize_name', ''))
-                     
-                     # Determine effective photo
-                     final_path = p.get('photo_path') or win_msg_template.get('photo_path')
+                     # Effective photo
+                     final_path = p.get('photo_path')
                      
                      if final_path:
-                         msg = {"photo_path": final_path, "caption": final_text}
+                         msg = {"photo_path": final_path, "caption": raw_text}
                      else:
-                         msg = {"text": final_text}
+                         msg = {"text": raw_text}
                      break
         
-        # 2. Fallback to global template
+        # 2. Fallback (should not be reached if prize found, but for safety)
         if not msg:
-            msg = win_msg_template.copy() if win_msg_template else {}
-            if "text" not in msg:
-                msg["text"] = f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"
-            else:
-                # Optional: simple template replacement if user wants generic text
-                msg["text"] = msg["text"].replace("{prize}", w.get('prize_name', ''))
+             msg = {"text": f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"}
         
         if await send_message_with_retry(
             bot,
