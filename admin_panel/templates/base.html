@@ -846,6 +846,19 @@
                 </ul>
             </div>
             {% endif %}
+
+            <!-- Sidebar Active Jobs Tracking -->
+            <div id="globalActiveJobs" class="mt-4 px-3 d-none">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <small class="text-uppercase fw-bold"
+                        style="font-size: 0.65rem; color: #64748b; letter-spacing: 0.05em;">Активные задачи</small>
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"
+                        style="width: 0.7rem; height: 0.7rem; border-width: 0.15em;"></div>
+                </div>
+                <div id="sidebarJobsList" class="d-flex flex-column gap-2 mb-3">
+                    <!-- Jobs will be injected here via JS -->
+                </div>
+            </div>
         </div>
 
         <div class="sidebar-footer">
@@ -893,6 +906,85 @@
                 document.querySelector('.sidebar').classList.remove('open');
                 document.querySelector('.sidebar-overlay').classList.remove('open');
             }
+        });
+
+        // Global Jobs Tracking Implementation
+        let globalJobsInterval = null;
+        function updateGlobalJobs() {
+            // Only poll if we have a bot selected
+            {% if bot %}
+            fetch('/api/jobs/active')
+                .then(r => r.json())
+                .then(jobs => {
+                    const container = document.getElementById('globalActiveJobs');
+                    const list = document.getElementById('sidebarJobsList');
+                    if (!container || !list) return;
+
+                    if (jobs.length === 0) {
+                        container.classList.add('d-none');
+                        return;
+                    }
+
+                    container.classList.remove('d-none');
+                    list.innerHTML = jobs.map(job => {
+                        const typeLabel = job.type === 'import_promo' ? 'Импорт' : (job.type === 'broadcast' ? 'Рассылка' : job.type);
+                        return `
+                            <div class="job-item p-2 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
+                                <div class="d-flex justify-content-between mb-1" style="font-size: 0.7rem;">
+                                    <span class="text-white opacity-75 text-truncate" style="max-width: 100px;">${typeLabel}</span>
+                                    <span class="text-primary fw-bold">${job.progress}%</span>
+                                </div>
+                                <div class="progress" style="height: 3px; background: rgba(255,255,255,0.1);">
+                                    <div class="progress-bar bg-primary" style="width: ${job.progress}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    // Update Dashboard if present
+                    const dashContainer = document.getElementById('activeJobsDashboard');
+                    const dashList = document.getElementById('dashboardJobsList');
+                    const dashCount = document.getElementById('activeJobsCount');
+
+                    if (dashContainer && dashList) {
+                        dashContainer.classList.remove('d-none');
+                        dashCount.innerText = jobs.length;
+                        dashList.innerHTML = jobs.map(job => {
+                            const details = job.details || {};
+                            const typeLabel = job.type === 'import_promo' ? 'Импорт кодов' : (job.type === 'broadcast' ? 'Рассылка' : job.type);
+                            let detStr = '';
+                            if (details.processed !== undefined) {
+                                detStr = `<div class="mt-2 small text-muted">${parseInt(details.processed).toLocaleString()} / ${parseInt(details.total_lines || 0).toLocaleString()}</div>`;
+                            }
+
+                            return `
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="p-3 border rounded shadow-sm bg-white">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="fw-bold text-primary">${typeLabel}</span>
+                                            <span class="badge bg-light text-dark border">${job.status}</span>
+                                        </div>
+                                        <div class="progress mb-2" style="height: 10px; border-radius: 5px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: ${job.progress}%">${job.progress}%</div>
+                                        </div>
+                                        ${detStr}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                })
+                .catch(e => {
+                    console.error("Global jobs error:", e);
+                    // Silently fail, panel might be sleeping or unauthorized
+                });
+            {% endif %}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateGlobalJobs();
+            // Poll every 3 seconds for efficiency
+            globalJobsInterval = setInterval(updateGlobalJobs, 3000);
         });
     </script>
     {% block extra_js %}{% endblock %}

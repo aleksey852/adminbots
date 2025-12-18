@@ -103,9 +103,9 @@ def setup_routes(
 
     @router.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
     async def upload_codes(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-        import logging
+        import logging, shutil, asyncio
         logger = logging.getLogger(__name__)
-        logger.info(f"📥 upload_codes called, file={file.filename}, size={file.size if hasattr(file, 'size') else 'unknown'}")
+        logger.info(f"📥 upload_codes: starting, file={file.filename}")
         
         from admin_panel.utils.importer import process_promo_import
         from database import create_job, bot_db_context
@@ -114,18 +114,28 @@ def setup_routes(
             return JSONResponse({"error": "Wrong bot"}, 400)
         
         path = UPLOADS_DIR / f"imp_{bot['id']}_{int(time.time())}_{uuid.uuid4().hex[:6]}.txt"
-        logger.info(f"📝 Saving to {path}")
-        async with aiofiles.open(path, 'wb') as f:
-            while chunk := await file.read(1024*1024): await f.write(chunk)
         
-        file_size = path.stat().st_size / 1024 / 1024
-        logger.info(f"✅ File saved: {file_size:.2f} MB")
+        # Optimize file saving: use a thread pool for heavy I/O
+        def save_file():
+            with path.open('wb') as f:
+                shutil.copyfileobj(file.file, f)
         
-        async with bot_db_context(bot['id']):
-            jid = await create_job('import_promo', {"file": path.name, "size_mb": round(file_size, 2)})
-        logger.info(f"🚀 Job created: {jid}, starting background task")
-        background_tasks.add_task(process_promo_import, str(path), bot['id'], jid)
-        return JSONResponse({"status": "queued", "job_id": jid})
+        try:
+            logger.info(f"📝 Saving to {path}")
+            await asyncio.to_thread(save_file)
+            
+            file_size = path.stat().st_size / 1024 / 1024
+            logger.info(f"✅ File saved: {file_size:.2f} MB")
+            
+            async with bot_db_context(bot['id']):
+                jid = await create_job('import_promo', {"file": path.name, "size_mb": round(file_size, 2)})
+            
+            logger.info(f"🚀 Job created: {jid}, starting background task")
+            background_tasks.add_task(process_promo_import, str(path), bot['id'], jid)
+            return JSONResponse({"status": "queued", "job_id": jid, "message": "Файл успешно принят, начинается обработка"})
+        except Exception as e:
+            logger.exception(f"❌ Upload error: {e}")
+            return JSONResponse({"error": f"Ошибка сохранения: {str(e)}"}, 500)
 
     @router.post("/codes/generate", dependencies=[Depends(verify_csrf_token)])
     async def generate_codes(request: Request, quantity: int = Form(...), tickets: int = Form(1)):

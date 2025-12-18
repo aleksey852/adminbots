@@ -360,50 +360,28 @@
 
         let responded = false;
 
-        xhr.upload.addEventListener('progress', function (e) {
-            if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
-                progressBar.style.width = percent + '%';
-                progressBar.innerText = percent + '%';
-
-                if (percent === 100) {
-                    statusText.innerText = "Загрузка завершена. Сохранение файла на сервер...";
-                    progressBar.classList.add('progress-bar-striped', 'progress-bar-animated'); // Ensure animation
-                    // Fallback: если сервер долго сохраняет, перезагрузим страницу через 10 сек.
-                    setTimeout(() => {
-                        if (!responded) {
-                            resultAlert.className = 'alert alert-info mt-3';
-                            resultAlert.innerText = "Файл загружен. Сервер долго отвечает — проверьте блок 'Активные задачи' или обновите страницу.";
-                            resultAlert.classList.remove('d-none');
-                            btn.disabled = false;
-                            closeBtn.disabled = false;
-                        }
-                    }, 10000);
-                } else {
-                    statusText.innerText = `Загружено ${(e.loaded / 1024 / 1024).toFixed(2)} MB из ${(e.total / 1024 / 1024).toFixed(2)} MB`;
-                }
-            }
-        });
-
         xhr.addEventListener('load', function () {
             responded = true;
             console.log("Upload finished. Status:", xhr.status);
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
                     const response = JSON.parse(xhr.responseText);
-                    resultAlert.className = 'alert alert-success mt-3';
-                    resultAlert.innerText = response.message || "Успешно!";
-                    resultAlert.classList.remove('d-none');
 
                     if (response.job_id) {
+                        resultAlert.className = 'alert alert-success mt-3';
+                        resultAlert.innerText = response.message || "Файл принят, начинаем импорт...";
+                        resultAlert.classList.remove('d-none');
                         trackJob(response.job_id);
                     } else {
+                        resultAlert.className = 'alert alert-success mt-3';
+                        resultAlert.innerText = "Успешно!";
+                        resultAlert.classList.remove('d-none');
                         closeBtn.disabled = false;
                     }
                 } catch (e) {
                     console.error("JSON Parse Error:", e);
                     resultAlert.className = 'alert alert-warning mt-3';
-                    resultAlert.innerText = "Ответ сервера не JSON. Возможно, сессия истекла — обновите страницу и попробуйте ещё раз.";
+                    resultAlert.innerText = "Ответ сервера не JSON. Проверьте блок 'Активные задачи'.";
                     resultAlert.classList.remove('d-none');
                     btn.disabled = false;
                     closeBtn.disabled = false;
@@ -412,13 +390,12 @@
                 resultAlert.className = 'alert alert-danger mt-3';
 
                 if (xhr.status === 413) {
-                    resultAlert.innerText = "Ошибка: Файл слишком большой (413). Увеличьте лимит загрузки на сервере (Nginx).";
+                    resultAlert.innerText = "Ошибка: Файл слишком большой (413).";
                 } else {
                     try {
                         const response = JSON.parse(xhr.responseText);
-                        resultAlert.innerText = "Ошибка: " + (response.message || response.detail || xhr.statusText);
+                        resultAlert.innerText = "Ошибка: " + (response.error || response.message || response.detail || xhr.statusText);
                     } catch (e) {
-                        console.error("Error response is not JSON:", xhr.responseText);
                         resultAlert.innerText = "Ошибка загрузки (" + xhr.status + "): " + xhr.statusText;
                     }
                 }
@@ -426,6 +403,50 @@
                 resultAlert.classList.remove('d-none');
                 btn.disabled = false;
                 closeBtn.disabled = false;
+            }
+        });
+
+        xhr.upload.addEventListener('progress', function (e) {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percent + '%';
+                progressBar.innerText = percent + '%';
+
+                if (percent === 100) {
+                    statusText.innerText = "Загрузка завершена. Сохранение и создание задачи...";
+                    progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+
+                    // Fallback: if server takes too long to save, check active jobs
+                    setTimeout(() => {
+                        if (!responded) {
+                            statusText.innerText = "Сервер долго отвечает, ищем задачу в списке активных...";
+                            // Try to find the job manually
+                            fetch('/api/jobs/active')
+                                .then(r => r.json())
+                                .then(jobs => {
+                                    // Look for most recent promo import job
+                                    const job = jobs.find(j => j.type === 'import_promo');
+                                    if (job && !responded) {
+                                        responded = true;
+                                        trackJob(job.id);
+                                    }
+                                }).catch(e => console.error("Poll error:", e));
+                        }
+                    }, 10000);
+
+                    // Final fallback
+                    setTimeout(() => {
+                        if (!responded) {
+                            resultAlert.className = 'alert alert-info mt-3';
+                            resultAlert.innerText = "Сервер всё ещё занят. Закройте это окно и следите за блоком 'Активные задачи'.";
+                            resultAlert.classList.remove('d-none');
+                            btn.disabled = false;
+                            closeBtn.disabled = false;
+                        }
+                    }, 30000);
+                } else {
+                    statusText.innerText = `Загружено ${(e.loaded / 1024 / 1024).toFixed(2)} MB из ${(e.total / 1024 / 1024).toFixed(2)} MB`;
+                }
             }
         });
 
