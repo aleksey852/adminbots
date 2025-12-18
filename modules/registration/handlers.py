@@ -48,8 +48,8 @@ class RegistrationModule(BotModule):
         from modules.workflow import workflow_manager
         
         # Register steps
-        workflow_manager.register_step("registration", "name", 10, Registration.name)
-        workflow_manager.register_step("registration", "phone", 20, Registration.phone)
+        workflow_manager.register_step("registration", "name", 10, Registration.name, module_name="registration")
+        workflow_manager.register_step("registration", "phone", 20, Registration.phone, module_name="registration")
         
         @self.router.message(Registration.name)
         async def process_name(message: Message, state: FSMContext, bot_id: int = None):
@@ -78,7 +78,15 @@ class RegistrationModule(BotModule):
             ).format(name=message.text)
             
             await message.answer(prompt, reply_markup=get_contact_keyboard())
-            await state.set_state(Registration.phone)
+            
+            # Use workflow to find next state (usually phone, but could be injected)
+            from modules.workflow import workflow_manager
+            next_step = workflow_manager.get_next_step("registration", "name", bot_id)
+            if next_step and next_step.get("state"):
+                 await state.set_state(next_step["state"])
+            else:
+                 # Fallback if phone is somehow disabled (?) - though it is core here
+                 await state.set_state(Registration.phone)
         
         @self.router.message(Registration.phone)
         async def process_phone(message: Message, state: FSMContext, bot_id: int = None):
@@ -133,7 +141,7 @@ class RegistrationModule(BotModule):
             
             # --- WORKFLOW CHECK ---
             from modules.workflow import workflow_manager
-            next_step = workflow_manager.get_next_step("registration", "phone")
+            next_step = workflow_manager.get_next_step("registration", "phone", bot_id)
             
             if next_step and next_step.get("state"):
                 # Transition to next step in workflow

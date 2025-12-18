@@ -22,6 +22,7 @@ class WorkflowManager:
                       step_name: str, 
                       order: int = 100, 
                       state_name: str = None,
+                      module_name: str = None,
                       meta: Dict = None):
         """
         Register a step in a workflow chain.
@@ -29,6 +30,7 @@ class WorkflowManager:
         :param step_name: Unique name of the step (e.g., 'phone')
         :param order: Sort order (lower = earlier)
         :param state_name: FSM state associated with this step (optional)
+        :param module_name: Name of the module owning this step (for enable/disable checks)
         :param meta: Any extra metadata
         """
         if chain_name not in self.chains:
@@ -38,6 +40,7 @@ class WorkflowManager:
             "name": step_name,
             "order": order,
             "state": state_name,
+            "module_name": module_name,
             "meta": meta or {}
         }
         
@@ -48,15 +51,18 @@ class WorkflowManager:
         # Sort by order
         self.chains[chain_name].sort(key=lambda x: x["order"])
         
-        logger.info(f"Registered step '{step_name}' in chain '{chain_name}' at order {order}")
+        logger.info(f"Registered step '{step_name}' in chain '{chain_name}' at order {order} (Module: {module_name})")
 
     def get_steps(self, chain_name: str) -> List[Dict]:
         return self.chains.get(chain_name, [])
 
-    def get_next_step(self, chain_name: str, current_step_name: str) -> Optional[Dict]:
+    def get_next_step(self, chain_name: str, current_step_name: str, bot_id: int = None) -> Optional[Dict]:
         """
-        Get the next step after the current one.
+        Get the next ENABLED step after the current one.
+        If bot_id is provided, checks if the module owning the step is enabled.
         """
+        from modules.base import module_loader
+        
         steps = self.chains.get(chain_name, [])
         if not steps:
             return None
@@ -68,8 +74,17 @@ class WorkflowManager:
                 idx = i
                 break
         
-        if idx != -1 and idx + 1 < len(steps):
-            return steps[idx + 1]
+        # Search for the next VALID step starting from idx + 1
+        for i in range(idx + 1, len(steps)):
+            step = steps[i]
+            # Check if module is enabled
+            mod_name = step.get("module_name")
+            if bot_id is not None and mod_name:
+                if not module_loader.is_enabled(bot_id, mod_name):
+                    # Module disabled, skip this step
+                    continue
+            
+            return step
         
         return None
 
