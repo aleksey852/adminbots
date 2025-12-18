@@ -29,7 +29,15 @@ mkdir -p "$BACKUP_DIR"
 # 1. System packages
 log "Installing system packages..."
 apt-get update
-apt-get install -y python3 python3-pip python3-venv postgresql postgresql-contrib redis-server nginx certbot python3-certbot-nginx logrotate cron
+apt-get install -y python3 python3-pip python3-venv postgresql postgresql-contrib redis-server nginx certbot python3-certbot-nginx logrotate cron ufw
+
+# 1.1 Firewall Setup
+log "Configuring Firewall..."
+ufw allow 22/tcp  # SSH
+ufw allow 80/tcp  # HTTP
+ufw allow 443/tcp # HTTPS
+ufw --force enable
+
 
 # 2. Server Optimization
 log "Optimizing server..."

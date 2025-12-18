@@ -1,10 +1,13 @@
 """
 Bot Middleware - Injects bot_id, enabled modules and admin status into handlers
+Sets database context for bot_methods
 """
 from typing import Callable, Dict, Any, Awaitable, Set
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Message, CallbackQuery
 from bot_manager import bot_manager
+from database.bot_db import bot_db_manager
+from database import bot_methods
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,8 +21,14 @@ async def get_enabled_modules(bot_id: int) -> Set[str]:
     if bot_id in _enabled_modules_cache:
         return _enabled_modules_cache[bot_id]
     
-    from database import get_bot_enabled_modules
-    modules = await get_bot_enabled_modules(bot_id)
+    # Get from panel registry
+    from database.panel_db import get_bot_by_id
+    bot_info = await get_bot_by_id(bot_id)
+    if bot_info and bot_info.get('enabled_modules'):
+        modules = bot_info['enabled_modules']
+    else:
+        modules = ['registration', 'user_profile', 'faq', 'support']
+    
     _enabled_modules_cache[bot_id] = set(modules)
     return _enabled_modules_cache[bot_id]
 
@@ -46,6 +55,7 @@ class BotMiddleware(BaseMiddleware):
     - bot_id: database bot ID
     - enabled_modules: set of enabled module names
     - is_admin: whether user is admin for this bot
+    Also sets bot_methods database context for handler DB operations.
     """
     
     async def __call__(
@@ -64,6 +74,11 @@ class BotMiddleware(BaseMiddleware):
         
         data["bot_id"] = bot_id
         
+        # Set database context for bot_methods
+        bot_db = bot_db_manager.get(bot_id)
+        if bot_db:
+            bot_methods.set_current_bot_db(bot_db)
+        
         # Load enabled modules for this bot
         enabled_modules = await get_enabled_modules(bot_id)
         data["enabled_modules"] = enabled_modules
@@ -76,8 +91,11 @@ class BotMiddleware(BaseMiddleware):
             user_id = event.from_user.id
         
         if user_id:
-            from database import is_bot_admin
-            data["is_bot_admin"] = await is_bot_admin(user_id, bot_id)
+            # Get bot admins from panel registry
+            from database.panel_db import get_bot_by_id
+            bot_info = await get_bot_by_id(bot_id)
+            bot_admins = bot_info.get('admin_ids', []) if bot_info else []
+            data["is_bot_admin"] = user_id in (bot_admins or [])
         else:
             data["is_bot_admin"] = False
             

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Проверка подписки на канал</h1>
+</div>
+
+{% if updated %}
+<div class="alert alert-success-custom mb-4">
+    <i class="bi bi-check-circle"></i> Настройки сохранены!
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-broadcast"></i> Настройки подписки</div>
+            <div class="card-body">
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle"></i>
+                    Если включено, пользователь должен подписаться на канал перед использованием бота.
+                </div>
+
+                {% for key, label, value in subscription_fields %}
+                <form method="post" action="/settings/subscription/update" class="mb-3">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="key" value="{{ key }}">
+                    <label class="form-label">{{ label }}</label>
+                    {% if key == 'SUBSCRIPTION_REQUIRED' %}
+                    <select name="value" class="form-select" onchange="this.form.submit()">
+                        <option value="false" {% if value !='true' %}selected{% endif %}>Отключено</option>
+                        <option value="true" {% if value=='true' %}selected{% endif %}>Включено</option>
+                    </select>
+                    {% else %}
+                    <div class="input-group">
+                        <input type="text" name="value" class="form-control" value="{{ value }}"
+                            placeholder="{% if key == 'SUBSCRIPTION_CHANNEL_ID' %}-1001234567890{% else %}https://t.me/channel{% endif %}">
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                    {% endif %}
+                </form>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-question-circle"></i> Как получить ID канала</div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li>Добавьте бота в администраторы канала</li>
+                    <li>Отправьте любое сообщение в канал</li>
+                    <li>Откройте <code>https://api.telegram.org/bot{TOKEN}/getUpdates</code></li>
+                    <li>Найдите <code>"chat":{"id":-100...}</code></li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

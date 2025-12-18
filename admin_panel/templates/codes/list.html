@@ -3,9 +3,14 @@
 {% block content %}
 <div class="page-header">
     <h1 class="page-title">Промокоды</h1>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
-        <i class="bi bi-upload"></i> Загрузить коды
-    </button>
+    <div class="btn-group">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateModal">
+            <i class="bi bi-plus-circle"></i> Сгенерировать
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-upload"></i> Загрузить файл
+        </button>
+    </div>
 </div>
 
 <div class="row g-4 mb-4">
@@ -133,7 +138,110 @@
     </div>
 </div>
 
+<!-- Generate Modal -->
+<div class="modal fade" id="generateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Генерация промокодов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Количество кодов</label>
+                    <input type="number" class="form-control" id="generateQuantity" value="1000" min="1" max="100000"
+                        required>
+                    <div class="form-text">От 1 до 100 000 кодов за раз</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Билетов за код</label>
+                    <input type="number" class="form-control" id="generateTickets" value="1" min="1" max="100">
+                </div>
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    Коды будут 12-символьные, формат: <code>ACDEFGHJKLMNPRSTUVWXYZ2345679</code>
+                </div>
+                <div id="generateResult" class="alert d-none mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-success" id="btnGenerate" onclick="generateCodes()">
+                    <i class="bi bi-plus-circle"></i> Сгенерировать
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    // === Generate Codes ===
+    function generateCodes() {
+        const quantity = document.getElementById('generateQuantity').value;
+        const tickets = document.getElementById('generateTickets').value;
+        const btn = document.getElementById('btnGenerate');
+        const resultAlert = document.getElementById('generateResult');
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Генерация...';
+        resultAlert.classList.add('d-none');
+
+        const formData = new FormData();
+        formData.append('quantity', quantity);
+        formData.append('tickets', tickets);
+        formData.append('csrf_token', csrfToken);
+
+        fetch('/codes/generate', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRF-Token': csrfToken }
+        })
+            .then(async resp => {
+                if (!resp.ok) {
+                    // Try to parse error as JSON
+                    const err = await resp.json().catch(() => ({ message: 'Ошибка сервера' }));
+                    throw new Error(err.message || 'Ошибка генерации');
+                }
+
+                // Get headers with counts
+                const added = resp.headers.get('X-Codes-Added') || '?';
+                const generated = resp.headers.get('X-Codes-Generated') || quantity;
+
+                // Get filename from Content-Disposition
+                const disposition = resp.headers.get('Content-Disposition');
+                let filename = `promo_codes_${quantity}.txt`;
+                if (disposition && disposition.includes('filename=')) {
+                    const match = disposition.match(/filename="?([^";\n]+)"?/);
+                    if (match) filename = match[1];
+                }
+
+                // Download file
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+
+                // Show success
+                resultAlert.className = 'alert alert-success mt-3';
+                resultAlert.innerText = `✅ Сгенерировано ${generated} кодов, добавлено в БД: ${added}. Файл скачан!`;
+                resultAlert.classList.remove('d-none');
+
+                setTimeout(() => location.reload(), 2000);
+            })
+            .catch(err => {
+                resultAlert.className = 'alert alert-danger mt-3';
+                resultAlert.innerText = 'Ошибка: ' + err.message;
+                resultAlert.classList.remove('d-none');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-plus-circle"></i> Сгенерировать';
+            });
+    }
+
     let jobPollTimer = null;
 
     function stopJobPolling() {

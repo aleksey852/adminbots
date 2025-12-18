@@ -1,23 +1,15 @@
-"""Admin Panel - FastAPI app with full management capabilities"""
-from fastapi import FastAPI, Request, Depends, HTTPException, status, Form, UploadFile, File, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+"""Admin Panel - FastAPI app with modular routers"""
+from fastapi import FastAPI, Request, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from jose import jwt, JWTError
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict
 import sys
-import os
-import json
-import uuid
 import time
-import secrets
-import aiofiles
-import asyncio
 import logging
-import subprocess
 
 # Ensure project root is in path
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,13 +17,18 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 import config
-from database import (
-    get_stats, get_participants_count, get_stats_by_days, get_recent_campaigns,
-    get_active_bots, get_bot, get_users_paginated, get_total_users_count, search_users,
-    get_user_detail, get_user_receipts_detailed, add_campaign, add_receipt, block_user,
-    get_all_receipts_paginated, get_total_receipts_count, get_recent_raffles_with_winners,
-    get_total_tickets_count, get_all_bots, update_bot_admins_array, update_bot_modules
+
+# Panel DB for registry operations
+from database.panel_db import (
+    init_panel_db, close_panel_db,
+    get_all_bots, get_bot_by_id, get_active_bots
 )
+
+# Bot DB for bot-specific operations
+from database.bot_db import bot_db_manager
+
+# Routers
+from admin_panel.routers import auth, bots, users, campaigns, settings, system
 
 # Setup logging
 logging.basicConfig(
@@ -40,7 +37,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Paths relative to this file
+# Paths
 ADMIN_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = ADMIN_DIR / "templates"
 STATIC_DIR = ADMIN_DIR / "static"
@@ -48,23 +45,41 @@ STATIC_DIR.mkdir(exist_ok=True)
 UPLOADS_DIR = ADMIN_DIR / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 
-# Lifespan for DB initialization
+# Timing constants
+SLOW_REQUEST_THRESHOLD = 3.0
+
+
+# === Lifespan ===
+
 from contextlib import asynccontextmanager
-from database import init_db, close_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     try:
-        await init_db()
-        logger.info("Database pool initialized in Admin Panel")
+        await init_panel_db(config.PANEL_DATABASE_URL)
+        
+        if config.ADMIN_PANEL_USER and config.ADMIN_PANEL_PASSWORD:
+            import bcrypt
+            from database.panel_db import ensure_initial_superadmin
+            password_hash = bcrypt.hashpw(
+                config.ADMIN_PANEL_PASSWORD.encode('utf-8'),
+                bcrypt.gensalt()
+            ).decode('utf-8')
+            await ensure_initial_superadmin(config.ADMIN_PANEL_USER, password_hash)
+        
+        logger.info("Panel database initialized")
     except Exception as e:
-        logger.critical(f"Failed to initialize database: {e}")
+        logger.critical(f"Failed to initialize panel database: {e}")
     
     yield
     
     # Shutdown
-    await close_db()
+    await close_panel_db()
+    await bot_db_manager.close_all()
+
+
+# === App Setup ===
 
 app = FastAPI(title="Admin Bots Panel", lifespan=lifespan)
 
@@ -73,33 +88,32 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-ALGORITHM = "HS256"
-TOKEN_EXPIRE_HOURS = 24
-DB_OPERATION_TIMEOUT = 10.0
-SLOW_REQUEST_THRESHOLD = 3.0
+app.add_middleware(SessionMiddleware, secret_key=config.ADMIN_SECRET_KEY)
 
+
+# === Middleware ===
 
 @app.middleware("http")
 async def context_middleware(request: Request, call_next):
-    """Middleware to set active bot context"""
+    """Set active bot context and connect to its database"""
     start_time = time.time()
     
-    # 1. Load active bots
+    # Load active bots
     try:
-        bots = await get_active_bots()
-        request.state.bots = bots
+        bots_list = await get_active_bots()
+        request.state.bots = bots_list
     except Exception as e:
-        logger.error(f"Failed to load bots: {e}")
+        logger.error(f"Failed to load bots from registry: {e}")
         request.state.bots = []
     
-    # 2. Determine active bot
+    # Determine active bot
     active_bot_id = request.session.get("active_bot_id")
     active_bot = None
     
     if active_bot_id:
-        active_bot = await get_bot(active_bot_id)
+        active_bot = await get_bot_by_id(active_bot_id)
         if not active_bot:
-            active_bot_id = None # Invalid or deleted
+            active_bot_id = None
             
     if not active_bot and request.state.bots:
         active_bot = request.state.bots[0]
@@ -107,8 +121,31 @@ async def context_middleware(request: Request, call_next):
     
     request.state.bot = active_bot
     
+    # Connect to bot's database
+    if active_bot and active_bot.get('database_url'):
+        bot_id = active_bot['id']
+        db_url = active_bot['database_url']
+        
+        if not bot_db_manager.get(bot_id):
+            bot_db_manager.register(bot_id, db_url)
+            try:
+                await bot_db_manager.connect(bot_id)
+            except Exception as e:
+                logger.error(f"Failed to connect to bot {bot_id} database: {e}")
+        
+        bot_db = bot_db_manager.get(bot_id)
+        request.state.bot_db = bot_db
+        
+        # Set context for bot_methods
+        if bot_db:
+            from database import bot_methods
+            bot_methods.set_current_bot_db(bot_db)
+    else:
+        request.state.bot_db = None
+    
     # Log request
-    logger.info(f"➡️  {request.method} {request.url.path} (Bot: {active_bot['name'] if active_bot else 'None'})")
+    bot_name = active_bot['name'] if active_bot else 'None'
+    logger.info(f"➡️  {request.method} {request.url.path} (Bot: {bot_name})")
     
     try:
         response = await call_next(request)
@@ -123,91 +160,18 @@ async def context_middleware(request: Request, call_next):
     
     return response
 
-app.add_middleware(SessionMiddleware, secret_key=config.ADMIN_SECRET_KEY)
 
+# === Template Context Helper ===
 
-# Editable promo settings
-PROMO_FIELDS = [
-    ("PROMO_NAME", "Название акции"),
-    ("PROMO_START_DATE", "Дата начала (YYYY-MM-DD)"),
-    ("PROMO_END_DATE", "Дата окончания (YYYY-MM-DD)"),
-    ("PROMO_PRIZES", "Призы (через запятую)"),
-    ("TARGET_KEYWORDS", "Ключевые слова товаров (через запятую)"),
-    ("EXCLUDED_KEYWORDS", "Слова-исключения товаров (через запятую)"),
-]
-
-SUPPORT_FIELDS = [
-    ("SUPPORT_EMAIL", "Email поддержки"),
-    ("SUPPORT_TELEGRAM", "Telegram поддержки (@username)"),
-]
-
-
-def create_token(username: str, role: str = 'admin') -> str:
-    expire = datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
-    return jwt.encode({"sub": username, "role": role, "exp": expire}, config.ADMIN_SECRET_KEY, algorithm=ALGORITHM)
-
-
-def verify_token(token: str) -> Optional[Dict]:
-    try:
-        payload = jwt.decode(token, config.ADMIN_SECRET_KEY, algorithms=[ALGORITHM])
-        return {"username": payload.get("sub"), "role": payload.get("role", "admin")}
-    except JWTError:
-        return None
-
-
-async def get_current_user(request: Request) -> Dict:
-    """Returns dict with 'username' and 'role' keys"""
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
-    user_data = verify_token(token)
-    if not user_data:
-        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
-    return user_data
-
-
-async def require_superadmin(request: Request) -> Dict:
-    """Dependency that requires superadmin role"""
-    user = await get_current_user(request)
-    if user.get("role") != "superadmin":
-        raise HTTPException(status_code=403, detail="Доступ только для SuperAdmin")
-    return user
-
-
-def get_csrf_token(request: Request):
-    token = request.session.get("csrf_token")
-    if not token:
-        token = secrets.token_hex(32)
-        request.session["csrf_token"] = token
-    return token
-
-
-async def verify_csrf_token(request: Request):
-    token = request.session.get("csrf_token")
-    if not token:
-        raise HTTPException(status_code=403, detail="CSRF token missing in session")
-    
-    # Fast path: header token to avoid parsing huge multipart bodies (e.g., promo code uploads)
-    header_token = request.headers.get("X-CSRF-Token")
-    if header_token and header_token == token:
-        return
-
-    form = await request.form()
-    submitted_token = form.get("csrf_token") or header_token
-    if not submitted_token or submitted_token != token:
-        raise HTTPException(status_code=403, detail="CSRF token invalid")
-
-
-def get_template_context(request: Request, **kwargs):
+def get_template_context(request: Request, **kwargs) -> Dict:
     """Helper to add common context variables"""
-    # Get user from kwargs if passed
     user = kwargs.get('user', {})
     if isinstance(user, str):
         user = {'username': user, 'role': 'admin'}
     
     context = {
         "request": request,
-        "csrf_token": get_csrf_token(request),
+        "csrf_token": auth.get_csrf_token(request),
         "bot": request.state.bot,
         "bots": getattr(request.state, 'bots', []),
         "current_user": user,
@@ -217,379 +181,71 @@ def get_template_context(request: Request, **kwargs):
     return context
 
 
-def get_backup_dir() -> Path:
-    """Get writable backup directory, prioritizing /var/backups"""
-    # Try system backup dir first
-    var_dir = Path("/var/backups/admin-bots-platform")
-    try:
-        if not var_dir.exists():
-            var_dir.mkdir(parents=True, exist_ok=True)
-        # Check if writable
-        test_file = var_dir / ".write_test"
-        test_file.touch()
-        test_file.unlink()
-        return var_dir
-    except (PermissionError, Exception):
-        # Fallback to local backups dir
-        local_dir = BASE_DIR / "backups"
-        local_dir.mkdir(exist_ok=True)
-        return local_dir
+# === Setup Routers ===
+
+# Auth router (has special setup for templates)
+auth.setup_routes(templates)
+app.include_router(auth.router)
+
+# Bots router
+bots.setup_routes(
+    templates,
+    auth.get_current_user,
+    auth.require_superadmin,
+    auth.verify_csrf_token,
+    get_template_context
+)
+app.include_router(bots.router)
+
+# Users router
+users.setup_routes(
+    templates,
+    auth.get_current_user,
+    auth.verify_csrf_token,
+    get_template_context,
+    UPLOADS_DIR
+)
+app.include_router(users.router)
+
+# Campaigns router
+campaigns.setup_routes(
+    templates,
+    auth.get_current_user,
+    auth.verify_csrf_token,
+    get_template_context,
+    UPLOADS_DIR
+)
+app.include_router(campaigns.router)
+
+# Settings router
+settings.setup_routes(
+    templates,
+    auth.get_current_user,
+    auth.verify_csrf_token,
+    get_template_context
+)
+app.include_router(settings.router)
+
+# System router
+system.setup_routes(
+    templates,
+    auth.get_current_user,
+    auth.require_superadmin,
+    auth.verify_csrf_token,
+    get_template_context,
+    BASE_DIR
+)
+app.include_router(system.router)
 
 
+# === Dashboard (main page) ===
 
-# === Bot Switching ===
-
-@app.post("/bot/switch/{bot_id}")
-async def switch_bot(request: Request, bot_id: int, user: str = Depends(get_current_user)):
-    bot = await get_bot(bot_id)
-    if bot:
-        request.session["active_bot_id"] = bot_id
-    referer = request.headers.get("referer", "/")
-    return RedirectResponse(url=referer, status_code=status.HTTP_303_SEE_OTHER)
-
-
-
-# === Bot Management ===
-
-@app.get("/bots/new", response_class=HTMLResponse)
-async def new_bot_page(request: Request, user: Dict = Depends(require_superadmin)):
-    return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Добавить бота"))
-
-@app.post("/bots/create", dependencies=[Depends(verify_csrf_token)])
-async def create_bot(
-    request: Request,
-    token: str = Form(...),
-    name: str = Form(...),
-    type: str = Form(...),
-    admin_ids: str = Form(""),
-    user: Dict = Depends(require_superadmin)
-):
-    from database import get_connection
-    
-    # Get modules from form (checkboxes return list)
-    form = await request.form()
-    modules = form.getlist('modules')
-    
-    # Always include registration as required
-    if 'registration' not in modules:
-        modules.append('registration')
-    
-    # 1. Validate token (basic check)
-    if not token or ":" not in token:
-        return templates.TemplateResponse("bots/new.html", get_template_context(
-            request, user=user, title="Добавить бота", error="Неверный формат токена", 
-            form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
-        ))
-    
-    # 2. Parse admin IDs
-    parsed_admin_ids = []
-    if admin_ids.strip():
-        for aid in admin_ids.replace(' ', '').split(','):
-            try:
-                if aid.strip():
-                    parsed_admin_ids.append(int(aid.strip()))
-            except ValueError:
-                return templates.TemplateResponse("bots/new.html", get_template_context(
-                    request, user=user, title="Добавить бота", 
-                    error=f"Неверный формат Admin ID: {aid}",
-                    form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
-                ))
-    
-    # 3. Insert into DB
-    try:
-        async with get_connection() as db:
-            # Check unique token
-            exists = await db.fetchval("SELECT 1 FROM bots WHERE token = $1", token)
-            if exists:
-                return templates.TemplateResponse("bots/new.html", get_template_context(
-                    request, user=user, title="Добавить бота", error="Бот с таким токеном уже существует",
-                    form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
-                ))
-            
-            bot_id = await db.fetchval("""
-                INSERT INTO bots (token, name, type, is_active, admin_ids, enabled_modules)
-                VALUES ($1, $2, $3, TRUE, $4, $5)
-                RETURNING id
-            """, token, name, type, parsed_admin_ids, modules)
-            
-            # Also add admin entries to bot_admins table for easier management
-            for aid in parsed_admin_ids:
-                await db.execute("""
-                    INSERT INTO bot_admins (bot_id, telegram_id, role)
-                    VALUES ($1, $2, 'admin')
-                    ON CONFLICT DO NOTHING
-                """, bot_id, aid)
-            
-            # Send notification to main process to reload bots
-            await db.execute("NOTIFY new_bot")
-            
-        # Switch to new bot
-        request.session["active_bot_id"] = bot_id
-        
-        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-        
-    except Exception as e:
-        logger.error(f"Failed to create bot: {e}")
-        return templates.TemplateResponse("bots/new.html", get_template_context(
-            request, user=user, title="Добавить бота", error=f"Ошибка: {e}",
-            form__token=token, form__name=name, form__type=type, form__admin_ids=admin_ids
-        ))
-
-
-@app.get("/bots/{bot_id}/edit", response_class=HTMLResponse)
-async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
-    """Bot edit page"""
-    from database import get_stats
-    
-    edit_bot = await get_bot(bot_id)
-    if not edit_bot:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    
-    stats = await get_stats(bot_id)
-    
-    return templates.TemplateResponse("bots/edit.html", get_template_context(
-        request, user=user, title=f"Редактирование: {edit_bot['name']}",
-        edit_bot=edit_bot, stats=stats, message=msg
-    ))
-
-
-@app.post("/bots/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
-async def update_bot(
-    request: Request, 
-    bot_id: int, 
-    name: str = Form(...), 
-    type: str = Form(...),
-    user: str = Depends(get_current_user)
-):
-    """Update bot basic info"""
-    from database import get_connection
-    
-    async with get_connection() as db:
-        await db.execute(
-            "UPDATE bots SET name = $2, type = $3 WHERE id = $1",
-            bot_id, name, type
-        )
-    
-    return RedirectResponse(
-        url=f"/bots/{bot_id}/edit?msg=Изменения+сохранены", 
-        status_code=status.HTTP_303_SEE_OTHER
-    )
-
-
-@app.post("/bots/{bot_id}/admins", dependencies=[Depends(verify_csrf_token)])
-async def update_bot_admins(
-    request: Request, 
-    bot_id: int, 
-    admin_ids: str = Form(""),
-    user: str = Depends(get_current_user)
-):
-    """Update bot admin IDs"""
-    from database import update_bot_admins_array, get_connection
-    
-    # Parse admin IDs
-    parsed_ids = []
-    if admin_ids.strip():
-        for aid in admin_ids.replace(' ', '').split(','):
-            try:
-                if aid.strip():
-                    parsed_ids.append(int(aid.strip()))
-            except ValueError:
-                pass
-    
-    await update_bot_admins_array(bot_id, parsed_ids)
-    
-    # Sync with bot_admins table
-    async with get_connection() as db:
-        await db.execute("DELETE FROM bot_admins WHERE bot_id = $1", bot_id)
-        for aid in parsed_ids:
-            await db.execute("""
-                INSERT INTO bot_admins (bot_id, telegram_id, role)
-                VALUES ($1, $2, 'admin')
-                ON CONFLICT DO NOTHING
-            """, bot_id, aid)
-    
-    return RedirectResponse(
-        url=f"/bots/{bot_id}/edit?msg=Админы+обновлены",
-        status_code=status.HTTP_303_SEE_OTHER
-    )
-
-
-@app.post("/bots/{bot_id}/modules", dependencies=[Depends(verify_csrf_token)])
-async def update_bot_modules_route(
-    request: Request,
-    bot_id: int,
-    user: str = Depends(get_current_user)
-):
-    """Update bot enabled modules"""
-    from database import update_bot_modules
-    
-    form = await request.form()
-    modules = list(form.getlist('modules'))
-    
-    # Always include registration
-    if 'registration' not in modules:
-        modules.append('registration')
-    
-    await update_bot_modules(bot_id, modules)
-    
-    return RedirectResponse(
-        url=f"/bots/{bot_id}/edit?msg=Модули+обновлены",
-        status_code=status.HTTP_303_SEE_OTHER
-    )
-
-
-# Bot archival functionality removed during cleanup
-
-
-@app.get("/bots/{bot_id}/export")
-async def export_bot(request: Request, bot_id: int, user: Dict = Depends(require_superadmin)):
-    """Export bot data as JSON for migration to another server"""
-    from database import get_connection
-    
-    bot = await get_bot(bot_id)
-    if not bot:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    
-    async with get_connection() as db:
-        # Export all related data
-        users = await db.fetch("SELECT * FROM users WHERE bot_id = $1", bot_id)
-        receipts = await db.fetch("SELECT * FROM receipts WHERE bot_id = $1", bot_id)
-        promo_codes = await db.fetch("SELECT * FROM promo_codes WHERE bot_id = $1", bot_id)
-        settings = await db.fetch("SELECT * FROM settings WHERE bot_id = $1", bot_id)
-        messages = await db.fetch("SELECT * FROM messages WHERE bot_id = $1", bot_id)
-        winners = await db.fetch("SELECT * FROM winners WHERE bot_id = $1", bot_id)
-    
-    # Convert to serializable format
-    def record_to_dict(record):
-        d = dict(record)
-        for k, v in d.items():
-            if isinstance(v, datetime):
-                d[k] = v.isoformat()
-            elif isinstance(v, date):
-                d[k] = v.isoformat()
-        return d
-    
-    export_data = {
-        "exported_at": datetime.now().isoformat(),
-        "bot": record_to_dict(bot),
-        "users": [record_to_dict(r) for r in users],
-        "receipts": [record_to_dict(r) for r in receipts],
-        "promo_codes": [record_to_dict(r) for r in promo_codes],
-        "settings": [record_to_dict(r) for r in settings],
-        "messages": [record_to_dict(r) for r in messages],
-        "winners": [record_to_dict(r) for r in winners],
-        "stats": {
-            "users_count": len(users),
-            "receipts_count": len(receipts),
-            "promo_codes_count": len(promo_codes),
-            "winners_count": len(winners)
-        }
-    }
-    
-    # Return as downloadable JSON
-    content = json.dumps(export_data, ensure_ascii=False, indent=2)
-    filename = f"bot_{bot_id}_{bot['name']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    
-    return JSONResponse(
-        content=export_data,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
-    )
-
-
-@app.post("/bots/{bot_id}/delete", dependencies=[Depends(verify_csrf_token)])
-async def delete_bot_permanently(
-    request: Request,
-    bot_id: int,
-    confirm: str = Form(...),
-    user: Dict = Depends(require_superadmin)
-):
-    """Permanently delete bot and all its data (hard delete)"""
-    from database import get_connection
-    
-    bot = await get_bot(bot_id)
-    if not bot:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    
-    # Require confirmation with bot name
-    if confirm != bot['name']:
-        return RedirectResponse(
-            url=f"/bots/{bot_id}/edit?msg=Неверное+подтверждение",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-    
-    async with get_connection() as db:
-        # Delete in correct order (foreign keys)
-        await db.execute("DELETE FROM winners WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM promo_codes WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM receipts WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM campaigns WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM messages WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM settings WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM bot_admins WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM module_settings WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM users WHERE bot_id = $1", bot_id)
-        await db.execute("DELETE FROM bots WHERE id = $1", bot_id)
-    
-    # Clear active bot if it was deleted
-    if request.session.get("active_bot_id") == bot_id:
-        request.session.pop("active_bot_id", None)
-    
-    logger.info(f"Bot {bot_id} ({bot['name']}) permanently deleted by {user['username']}")
-    
-    return RedirectResponse(url="/?msg=Бот+удалён", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# Bot migration functionality removed during cleanup
-
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "csrf_token": get_csrf_token(request)})
-
-
-@app.post("/login")
-async def login(request: Request):
-    import bcrypt
-    from database import get_panel_user, update_panel_user_login
-    
-    form = await request.form()
-    username = form.get("username")
-    password = form.get("password")
-    
-    # Get user from database
-    panel_user = await get_panel_user(username)
-    
-    if panel_user:
-        # Verify password with bcrypt
-        if bcrypt.checkpw(password.encode('utf-8'), panel_user['password_hash'].encode('utf-8')):
-            await update_panel_user_login(panel_user['id'])
-            token = create_token(username, panel_user['role'])
-            response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-            response.set_cookie("access_token", token, httponly=True, max_age=TOKEN_EXPIRE_HOURS * 3600)
-            return response
-    
-    # Fallback to .env for backward compatibility (will be deprecated)
-    if username == config.ADMIN_PANEL_USER and password == config.ADMIN_PANEL_PASSWORD:
-        token = create_token(username, 'superadmin')
-        response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-        response.set_cookie("access_token", token, httponly=True, max_age=TOKEN_EXPIRE_HOURS * 3600)
-        return response
-    
-    return templates.TemplateResponse("login.html", {"request": request, "error": "Неверные данные", "csrf_token": get_csrf_token(request)})
-
-
-@app.get("/logout")
-async def logout():
-    response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    response.delete_cookie("access_token")
-    return response
-
-
-# === Dashboard ===
+from database import (
+    get_stats, get_participants_count, get_stats_by_days, get_recent_campaigns
+)
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, user: str = Depends(get_current_user)):
+async def dashboard(request: Request, user: Dict = Depends(auth.get_current_user)):
     bot = request.state.bot
     if not bot:
         return templates.TemplateResponse("dashboard.html", get_template_context(
@@ -598,31 +254,35 @@ async def dashboard(request: Request, user: str = Depends(get_current_user)):
         ))
 
     bot_id = bot['id']
-    stats = await get_stats(bot_id)
-    participants = await get_participants_count(bot_id)
-    daily_stats = await get_stats_by_days(bot_id, 14)
+    stats = await get_stats()
+    participants = await get_participants_count()
+    daily_stats = await get_stats_by_days(days=14)
+    
     # Convert dates
     for stat in daily_stats:
         if 'day' in stat and isinstance(stat['day'], (datetime, date)):
             stat['day'] = stat['day'].isoformat()
             
-    recent_campaigns = await get_recent_campaigns(bot_id, 5)
+    recent = await get_recent_campaigns(limit=5)
     
     return templates.TemplateResponse("dashboard.html", get_template_context(
         request, user=user, stats=stats, participants=participants,
-        daily_stats=daily_stats, recent_campaigns=recent_campaigns,
+        daily_stats=daily_stats, recent_campaigns=recent,
         title="Dashboard"
     ))
 
 
 # === Statistics API ===
 
+from fastapi.responses import JSONResponse
+
 @app.get("/api/stats/daily")
-async def api_daily_stats(request: Request, days: int = 14, user: str = Depends(get_current_user)):
+async def api_daily_stats(request: Request, days: int = 14, user: Dict = Depends(auth.get_current_user)):
     bot = request.state.bot
-    if not bot: return JSONResponse({})
+    if not bot:
+        return JSONResponse({})
     
-    data = await get_stats_by_days(bot['id'], days)
+    data = await get_stats_by_days(days=days)
     return JSONResponse({
         "labels": [str(d['day']) for d in data],
         "users": [d['users'] for d in data],
@@ -630,921 +290,12 @@ async def api_daily_stats(request: Request, days: int = 14, user: str = Depends(
     })
 
 
-# === Settings ===
-
-@app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, user: str = Depends(get_current_user), updated: str = None):
-    from utils.config_manager import config_manager
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    if not config_manager._initialized:
-        await config_manager.load()
-    
-    bot_id = bot['id']
-    
-    # We no longer read .env for dynamic settings, purely from DB per bot
-    # But for backward compatibility or defaults, we can check config.py
-    
-    promo_fields = []
-    for key, label in PROMO_FIELDS:
-        val = config_manager.get_setting(key, getattr(config, key, ""), bot_id)
-        promo_fields.append((key, label, val))
-    
-    db_settings = await config_manager.get_all_settings(bot_id)
-    
-    return templates.TemplateResponse("settings/index.html", get_template_context(
-        request, user=user, title="Настройки",
-        promo_fields=promo_fields, db_settings=db_settings,
-        updated=updated
-    ))
-
-
-@app.post("/settings/update", dependencies=[Depends(verify_csrf_token)])
-async def update_setting(request: Request, key: str = Form(...), value: str = Form(...), user: str = Depends(get_current_user)):
-    from utils.config_manager import config_manager
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    await config_manager.set_setting(key, value, bot['id'])
-    return RedirectResponse(url="/settings?updated=1", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# === Support Settings ===
-
-@app.get("/settings/support", response_class=HTMLResponse)
-async def support_settings_page(request: Request, user: str = Depends(get_current_user), updated: str = None):
-    from utils.config_manager import config_manager
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-    
-    if not config_manager._initialized:
-        await config_manager.load()
-
-    support_fields = []
-    for key, label in SUPPORT_FIELDS:
-        val = config_manager.get_setting(key, getattr(config, key, ""), bot['id'])
-        support_fields.append((key, label, val))
-    
-    return templates.TemplateResponse("settings/support.html", get_template_context(
-        request, user=user, title="Настройки поддержки",
-        support_fields=support_fields, updated=updated
-    ))
-
-
-@app.post("/settings/support/update", dependencies=[Depends(verify_csrf_token)])
-async def update_support_setting(request: Request, key: str = Form(...), value: str = Form(...), user: str = Depends(get_current_user)):
-    from utils.config_manager import config_manager
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    await config_manager.set_setting(key, value, bot['id'])
-    return RedirectResponse(url="/settings/support?updated=1", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# === Messages ===
-
-@app.get("/settings/messages", response_class=HTMLResponse)
-async def messages_page(request: Request, user: str = Depends(get_current_user), updated: str = None):
-    from utils.config_manager import config_manager
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    if not config_manager._initialized:
-        await config_manager.load()
-    
-    messages = await config_manager.get_all_messages(bot['id'])
-    
-    # Format: (key, description, default_text)
-    common_messages = [
-        # Registration
-        ("welcome_new", "Приветствие нового пользователя (при /start)", 
-         "🎉 Добро пожаловать в {promo_name}!\n\nПризы: {prizes}"),
-        ("welcome_back", "Приветствие при возврате (повторный /start)", 
-         "С возвращением, {name}! 👋\n\nВаших билетов: {count}"),
-        ("reg_phone_prompt", "Запрос телефона при регистрации",
-         "Отлично, {name}! 👋\n\nОтправьте номер телефона:"),
-        ("reg_success", "Успешная регистрация",
-         "✅ Регистрация завершена!"),
-        ("reg_cancel", "Отмена регистрации",
-         "Хорошо! Возвращайтесь 👋"),
-        
-        # Support
-        ("support_msg", "Сообщение при нажатии 🆘 Поддержка",
-         "🆘 Нужна помощь?\n\nНапишите нам!"),
-    ]
-
-    receipt_messages = [
-        # Receipts
-        ("upload_instruction", "Инструкция при загрузке чека",
-         "📸 Отправьте фото QR-кода с чека\n\nВаших билетов: {count}"),
-        ("receipt_valid", "Чек успешно принят",
-         "✅ Чек принят!\n\nВсего билетов: {count} 🎯"),
-        ("receipt_first", "Первый чек пользователя",
-         "🎉 Поздравляем с первым чеком!\n\nВы в розыгрыше! Загружайте ещё 🎯"),
-        ("receipt_duplicate", "Чек уже был загружен",
-         "ℹ️ Этот чек уже загружен"),
-        ("receipt_no_product", "Нет акционных товаров в чеке",
-         "😔 В чеке нет акционных товаров"),
-        ("scan_failed", "Не удалось распознать QR-код",
-         "🔍 Не удалось распознать чек\n\n• Сфотографируйте ближе\n• Улучшите освещение"),
-        
-        # Profile & history
-        ("profile", "Профиль пользователя (кнопка 👤)",
-         "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков: {total}\n🎫 Билетов: {tickets}"),
-        ("no_receipts", "У пользователя нет чеков",
-         "📋 У вас пока нет чеков\n\nНажмите «🧾 Загрузить чек»"),
-        
-        # FAQ
-        ("faq_how", "FAQ: Как участвовать",
-         "🎯 Как участвовать?\n\n1. Купите акционные товары\n2. Сфотографируйте QR-код\n3. Загрузите в бот"),
-        ("faq_win", "FAQ: Как узнать о выигрыше",
-         "🏆 Как узнать о выигрыше?\n\nМы пришлём сообщение в этот бот!"),
-    ]
-
-    promo_messages = [
-        # Promo codes
-        ("promo_prompt", "Приглашение ввести промокод",
-         "🔑 Введите промокод из 12 символов\n\n💡 Пример: ABCD12345678"),
-        ("promo_activated", "Промокод успешно активирован",
-         "✅ Промокод активирован!\n\n🎟 Получено билетов: {tickets}\n📊 Всего билетов: {total}"),
-        ("promo_not_found", "Промокод не найден",
-         "❌ Промокод не найден\n\nПроверьте правильность ввода"),
-        ("promo_already_used", "Промокод уже использован",
-         "⚠️ Этот промокод уже был использован"),
-        ("promo_wrong_format", "Неверный формат промокода",
-         "⚠️ Промокод должен содержать ровно 12 символов"),
-
-        # Profile (Promo version)
-        ("profile", "Профиль пользователя (кнопка 👤)",
-         "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n🎫 Билетов: {tickets}"),
-
-        # FAQ (Promo version)
-        ("faq_how", "FAQ: Как участвовать",
-         "🎯 Как участвовать?\n\n1. Получите промокод\n2. Введите его в боте"),
-        ("faq_win", "FAQ: Как узнать о выигрыше",
-         "🏆 Как узнать о выигрыше?\n\nМы пришлём сообщение в этот бот!"),
-    ]
-
-    default_messages = common_messages
-    if bot['type'] == 'receipt':
-        default_messages += receipt_messages
-    elif bot['type'] == 'promo':
-        default_messages += promo_messages
-
-    
-    return templates.TemplateResponse("settings/messages.html", get_template_context(
-        request, user=user, title="Тексты сообщений",
-        messages=messages, default_messages=default_messages,
-        updated=updated
-    ))
-
-
-@app.post("/settings/messages/update", dependencies=[Depends(verify_csrf_token)])
-async def update_message(request: Request, key: str = Form(...), text: str = Form(...), user: str = Depends(get_current_user)):
-    from utils.config_manager import config_manager
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    await config_manager.set_message(key, text, bot['id'])
-    return RedirectResponse(url="/settings/messages?updated=1", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# === Users list ===
-
-@app.get("/users", response_class=HTMLResponse)
-async def users_list(request: Request, user: str = Depends(get_current_user), page: int = 1, q: str = None):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-    
-    if q:
-        users = await search_users(q, bot['id'])
-        total = len(users)
-        total_pages = 1
-    else:
-        users = await get_users_paginated(bot['id'], page=page, per_page=50)
-        total = await get_total_users_count(bot['id'])
-        total_pages = (total + 49) // 50
-    
-    return templates.TemplateResponse("users/list.html", get_template_context(
-        request, user=user, users=users,
-        page=page, total_pages=total_pages, total=total,
-        search_query=q or "", title="Пользователи"
-    ))
-
-
-# === User Detail ===
-
-@app.get("/users/{user_id}", response_class=HTMLResponse)
-async def user_detail(request: Request, user_id: int, user: str = Depends(get_current_user), msg: str = None):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-    
-    # We should verify user belongs to bot, but get_user_detail fetches by ID.
-    # We can check bot_id in result.
-    user_data = await get_user_detail(user_id)
-    if not user_data or user_data['bot_id'] != bot['id']:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    receipts = await get_user_receipts_detailed(user_id, limit=50)
-    
-    return templates.TemplateResponse("users/detail.html", get_template_context(
-        request, user=user, user_data=user_data,
-        receipts=receipts, title=f"Пользователь #{user_id}",
-        message=msg
-    ))
-
-
-@app.post("/users/{user_id}/message", dependencies=[Depends(verify_csrf_token)])
-async def send_user_message(request: Request, user_id: int, text: str = Form(None), photo: UploadFile = File(None), user: str = Depends(get_current_user)):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-    
-    user_data = await get_user_detail(user_id)
-    if not user_data or user_data['bot_id'] != bot['id']:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    content = {}
-    if photo and photo.filename:
-        ext = Path(photo.filename).suffix or ".jpg"
-        filename = f"{uuid.uuid4()}{ext}"
-        filepath = UPLOADS_DIR / filename
-        async with aiofiles.open(filepath, 'wb') as f:
-            while chunk := await photo.read(1024 * 1024):
-                await f.write(chunk)
-        content["photo_path"] = str(filepath)
-        content["caption"] = text
-    elif text:
-        content["text"] = text
-    else:
-        return RedirectResponse(url=f"/users/{user_id}?msg=error_empty", status_code=status.HTTP_303_SEE_OTHER)
-    
-    content["target_user_id"] = user_data['telegram_id']
-    content["user_id"] = user_data['telegram_id'] # execute_single_message expects user_id
-    
-    await add_campaign("message", content, bot['id'])
-    
-    return RedirectResponse(url=f"/users/{user_id}?msg=sent", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@app.post("/users/{user_id}/add-receipt", dependencies=[Depends(verify_csrf_token)])
-async def add_user_receipt(request: Request, user_id: int, user: str = Depends(get_current_user)):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    user_data = await get_user_detail(user_id)
-    if not user_data or user_data['bot_id'] != bot['id']:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    ts = int(time.time())
-    uid = str(uuid.uuid4())[:8]
-    
-    await add_receipt(
-        user_id=user_id, status="valid",
-        data={"manual": True, "admin": user, "source": "web_panel"},
-        bot_id=bot['id'],
-        fiscal_drive_number="MANUAL",
-        fiscal_document_number=f"MANUAL_{ts}_{uid}",
-        fiscal_sign=f"MANUAL_{user_id}_{ts}",
-        total_sum=0, raw_qr="manual_web",
-        product_name="Ручное добавление (веб)"
-    )
-    
-    return RedirectResponse(url=f"/users/{user_id}?msg=receipt_added", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@app.post("/users/{user_id}/block", dependencies=[Depends(verify_csrf_token)])
-async def toggle_user_block(request: Request, user_id: int, user: str = Depends(get_current_user)):
-    user_data = await get_user_detail(user_id)
-    if not user_data:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    new_status = not user_data.get('is_blocked', False)
-    await block_user(user_id, new_status)
-    return RedirectResponse(url=f"/users/{user_id}?msg={'blocked' if new_status else 'unblocked'}", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@app.post("/users/{user_id}/update", dependencies=[Depends(verify_csrf_token)])
-async def update_user_profile(request: Request, user_id: int, full_name: str = Form(None), phone: str = Form(None), username: str = Form(None), user: str = Depends(get_current_user)):
-    from database import update_user_fields
-    bot = request.state.bot
-    if not bot:
-        return RedirectResponse("/")
-
-    user_data = await get_user_detail(user_id)
-    if not user_data or user_data['bot_id'] != bot['id']:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    full_name_clean = full_name.strip() if full_name else None
-    phone_clean = phone.strip() if phone else None
-    username_clean = username.strip().lstrip("@") if username else None
-
-    await update_user_fields(
-        user_id,
-        full_name=full_name_clean or user_data.get("full_name"),
-        phone=phone_clean or user_data.get("phone"),
-        username=username_clean if username is not None else user_data.get("username"),
-    )
-
-    return RedirectResponse(url=f"/users/{user_id}?msg=updated", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# === Receipts ===
-
-@app.get("/receipts", response_class=HTMLResponse)
-async def receipts_list(request: Request, user: str = Depends(get_current_user), page: int = 1):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-    if bot.get("type") != "receipt":
-        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
-
-    receipts = await get_all_receipts_paginated(bot['id'], page=page, per_page=50)
-    total = await get_total_receipts_count(bot['id'])
-    total_pages = (total + 49) // 50
-    return templates.TemplateResponse("receipts/list.html", get_template_context(
-        request, user=user, receipts=receipts,
-        page=page, total_pages=total_pages, total=total,
-        title="Чеки"
-    ))
-
-
-# === Winners ===
-
-@app.get("/winners", response_class=HTMLResponse)
-async def winners_list(request: Request, user: str = Depends(get_current_user)):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    raffles = await get_recent_raffles_with_winners(bot['id'], limit=10)
-    return templates.TemplateResponse("winners/list.html", get_template_context(
-        request, user=user, raffles=raffles, title="Победители"
-    ))
-
-
-# === Broadcast ===
-
-@app.get("/broadcast", response_class=HTMLResponse)
-async def broadcast_page(request: Request, user: str = Depends(get_current_user), created: str = None):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    total_users = await get_total_users_count(bot['id'])
-    recent = await get_recent_campaigns(bot['id'], 10)
-    broadcasts = [c for c in recent if c['type'] == 'broadcast']
-    
-    return templates.TemplateResponse("broadcast/index.html", get_template_context(
-        request, user=user, title="Рассылка",
-        total_users=total_users, broadcasts=broadcasts,
-        created=created
-    ))
-
-
-@app.post("/broadcast/create", dependencies=[Depends(verify_csrf_token)])
-async def create_broadcast(request: Request, text: str = Form(None), photo: UploadFile = File(None), scheduled_for: str = Form(None), user: str = Depends(get_current_user)):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    content = {}
-    if photo and photo.filename:
-        ext = Path(photo.filename).suffix or ".jpg"
-        filename = f"{uuid.uuid4()}{ext}"
-        filepath = UPLOADS_DIR / filename
-        async with aiofiles.open(filepath, 'wb') as f:
-            while chunk := await photo.read(1024 * 1024):
-                await f.write(chunk)
-        content["photo_path"] = str(filepath)
-        content["caption"] = text
-    elif text:
-        content["text"] = text
-    else:
-        raise HTTPException(status_code=400, detail="Message required")
-    
-    schedule_dt = None
-    if scheduled_for and scheduled_for.strip():
-        schedule_dt = config.parse_scheduled_time(scheduled_for)
-    
-    campaign_id = await add_campaign("broadcast", content, bot['id'], schedule_dt)
-    return RedirectResponse(url=f"/broadcast?created={campaign_id}", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# === All Campaigns ===
-
-@app.get("/campaigns", response_class=HTMLResponse)
-async def campaigns_list(request: Request, user: str = Depends(get_current_user), page: int = 1):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-    
-    # We reuse get_recent_campaigns but maybe we need pagination?
-    # For now let's just show top 50
-    campaigns = await get_recent_campaigns(bot['id'], limit=50)
-    
-    return templates.TemplateResponse("campaigns/list.html", get_template_context(
-        request, user=user, campaigns=campaigns,
-        title="Кампании"
-    ))
-
-
-# === Promo Codes ===
-
-@app.get("/codes", response_class=HTMLResponse)
-async def codes_list(request: Request, user: str = Depends(get_current_user), page: int = 1):
-    from database import get_promo_stats, get_promo_codes_paginated
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-    if bot.get("type") != "promo":
-        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
-    
-    stats = await get_promo_stats(bot['id'])
-    codes = await get_promo_codes_paginated(bot['id'], limit=50, offset=(page-1)*50)
-    
-    return templates.TemplateResponse("codes/list.html", get_template_context(
-        request, user=user, title="Промокоды",
-        stats=stats, codes=codes
-    ))
-
-@app.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
-async def upload_codes(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...), user: str = Depends(get_current_user)):
-    from admin_panel.utils.importer import process_promo_import
-    from database import create_job
-    bot = request.state.bot
-    if not bot or bot.get("type") != "promo":
-        return JSONResponse({"status": "error", "message": "Bot not found or unsupported"}, status_code=400)
-    
-    logger.info(f"[codes/upload] start bot={bot['id']} filename={file.filename} content_type={file.content_type}")
-    
-    # Save to temp file
-    try:
-        temp_dir = UPLOADS_DIR / "temp_imports"
-        temp_dir.mkdir(exist_ok=True)
-        temp_path = temp_dir / f"import_{bot['id']}_{int(time.time())}_{uuid.uuid4()}.txt"
-        
-        async with aiofiles.open(temp_path, 'wb') as out_file:
-            while content := await file.read(1024 * 1024):  # Read in chunks
-                await out_file.write(content)
-        
-        file_size_mb = round(temp_path.stat().st_size / 1024 / 1024, 2)
-        logger.info(f"[codes/upload] saved file {temp_path} size={file_size_mb}MB bot={bot['id']}")
-        
-        # Create job immediately to show in UI
-        job_id = await create_job(bot['id'], 'import_promo', {"file": temp_path.name, "size_mb": file_size_mb})
-        
-        # Schedule background task
-        background_tasks.add_task(process_promo_import, str(temp_path), bot['id'], job_id)
-        
-        return JSONResponse({
-            "status": "queued", 
-            "message": f"Файл загружен ({file_size_mb} MB). Импорт #{job_id} запущен в фоне.",
-            "job_id": job_id
-        })
-        
-    except Exception as e:
-        logger.error(f"[codes/upload] error: {e}", exc_info=True)
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
-
-
-
-@app.get("/api/jobs/active")
-async def get_active_jobs_api(request: Request, user: str = Depends(get_current_user)):
-    from database import get_active_jobs
-    bot = request.state.bot
-    if not bot: return JSONResponse([])
-    
-    jobs = await get_active_jobs(bot['id'])
-    # Convert records to dict and handle datetimes
-    return JSONResponse([
-        {
-            "id": j['id'],
-            "type": j['type'],
-            "status": j['status'],
-            "progress": j['progress'],
-            "details": json.loads(j['details']) if isinstance(j['details'], str) else j['details'],
-            "created_at": j['created_at'].isoformat() if j['created_at'] else None
-        } for j in jobs
-    ])
-
-@app.get("/api/jobs/{job_id}")
-async def get_job_api(job_id: int, request: Request, user: str = Depends(get_current_user)):
-    from database import get_job
-    bot = request.state.bot
-    if not bot:
-        return JSONResponse({"detail": "Bot not found"}, status_code=400)
-
-    job = await get_job(job_id, bot['id'])
-    if not job:
-        return JSONResponse({"detail": "Job not found"}, status_code=404)
-
-    details = json.loads(job['details']) if isinstance(job['details'], str) else job['details']
-    return JSONResponse({
-        "id": job['id'],
-        "type": job['type'],
-        "status": job['status'],
-        "progress": job['progress'],
-        "details": details,
-        "created_at": job['created_at'].isoformat() if job['created_at'] else None,
-        "updated_at": job['updated_at'].isoformat() if job['updated_at'] else None,
-    })
-
-# === Raffle ===
-
-@app.get("/raffle", response_class=HTMLResponse)
-async def raffle_page(request: Request, user: str = Depends(get_current_user), created: str = None):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    participants = await get_participants_count(bot['id'])
-    total_tickets = await get_total_tickets_count(bot['id'])
-    recent_raffles = await get_recent_raffles_with_winners(bot['id'], limit=5)
-    
-    return templates.TemplateResponse("raffle/index.html", get_template_context(
-        request, user=user, title="Розыгрыш",
-        participants=participants, total_tickets=total_tickets,
-        recent_raffles=recent_raffles, created=created
-    ))
-
-
-@app.post("/raffle/create", dependencies=[Depends(verify_csrf_token)])
-async def create_raffle(request: Request, prize_name: str = Form(...), winner_count: int = Form(...), win_text: str = Form(None), win_photo: UploadFile = File(None), lose_text: str = Form(None), lose_photo: UploadFile = File(None), scheduled_for: str = Form(None), user: str = Depends(get_current_user)):
-    bot = request.state.bot
-    if not bot: return RedirectResponse("/")
-
-    participants = await get_participants_count(bot['id'])
-    if winner_count < 1 or winner_count > participants:
-        # Avoid error if 0 participants, just warn?
-        # raise HTTPException(status_code=400, detail=f"Winner count must be 1-{participants}")
-        pass
-    
-    win_msg = {}
-    if win_photo and win_photo.filename:
-        ext = Path(win_photo.filename).suffix or ".jpg"
-        filename = f"win_{uuid.uuid4()}{ext}"
-        filepath = UPLOADS_DIR / filename
-        async with aiofiles.open(filepath, 'wb') as f:
-            while content := await win_photo.read(1024 * 1024):
-                await f.write(content)
-        win_msg["photo_path"] = str(filepath)
-        win_msg["caption"] = win_text
-    elif win_text:
-        win_msg["text"] = win_text
-    else:
-        win_msg["text"] = f"🎉 Поздравляем! Вы выиграли: {prize_name}!"
-    
-    lose_msg = {}
-    if lose_photo and lose_photo.filename:
-        ext = Path(lose_photo.filename).suffix or ".jpg"
-        filename = f"lose_{uuid.uuid4()}{ext}"
-        filepath = UPLOADS_DIR / filename
-        async with aiofiles.open(filepath, 'wb') as f:
-            while content := await lose_photo.read(1024 * 1024):
-                await f.write(content)
-        lose_msg["photo_path"] = str(filepath)
-        lose_msg["caption"] = lose_text
-    elif lose_text:
-        lose_msg["text"] = lose_text
-    
-    content = {
-        "prize": prize_name,
-        "prize_name": prize_name,
-        "count": winner_count,
-        "win_msg": win_msg,
-        "lose_msg": lose_msg
-    }
-    
-    schedule_dt = None
-    if scheduled_for and scheduled_for.strip():
-        schedule_dt = config.parse_scheduled_time(scheduled_for)
-    
-    campaign_id = await add_campaign("raffle", content, bot['id'], schedule_dt)
-    return RedirectResponse(url=f"/raffle?created={campaign_id}", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# === Backups ===
-@app.get("/backups", response_class=HTMLResponse)
-async def backups_list(request: Request, user: Dict = Depends(require_superadmin)):
-    import shutil
-    
-    backup_dir = get_backup_dir()
-    backups = []
-    
-    if backup_dir.exists():
-        for file in sorted(backup_dir.glob("backup_*.sql.gz"), reverse=True):
-            stat = file.stat()
-            backups.append({
-                "filename": file.name,
-                "size": stat.st_size,
-                "size_mb": round(stat.st_size / 1024 / 1024, 2),
-                "created": datetime.fromtimestamp(stat.st_mtime),
-                "path": str(file)
-            })
-    
-    total_size_mb = sum(b['size_mb'] for b in backups)
-    disk_free_mb = round(shutil.disk_usage(backup_dir).free / 1024 / 1024, 2)
-    
-    return templates.TemplateResponse("backups/list.html", get_template_context(
-        request, user=user, title="Резервные копии",
-        backups=backups, total_size_mb=total_size_mb, disk_free_mb=disk_free_mb,
-        backup_path=str(backup_dir)
-    ))
-
-
-@app.post("/backups/create", dependencies=[Depends(verify_csrf_token)])
-async def create_backup_handler(request: Request, user: str = Depends(get_current_user)):
-    """Trigger backup script"""
-    import subprocess
-    
-    backup_dir = get_backup_dir()
-    script_path = BASE_DIR / "scripts" / "backup.sh"
-    
-    try:
-        # Run script with backup_dir as argument
-        result = subprocess.run(
-            ["bash", str(script_path), str(backup_dir)],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        logger.info(f"Backup created: {result.stdout}")
-        return RedirectResponse(url="/backups?created=1", status_code=status.HTTP_303_SEE_OTHER)
-        
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Backup failed: {e.stderr}")
-        return RedirectResponse(url=f"/backups?error=1", status_code=status.HTTP_303_SEE_OTHER)
-    except Exception as e:
-        logger.critical(f"Backup execution error: {e}")
-        return RedirectResponse(url=f"/backups?error=1", status_code=status.HTTP_303_SEE_OTHER)
-
-
-
-# === Panel Users Management (SuperAdmin only) ===
-
-
-@app.get("/panel-users", response_class=HTMLResponse)
-async def panel_users_list(request: Request, user: Dict = Depends(require_superadmin), msg: str = None):
-    from database import get_all_panel_users
-    
-    users = await get_all_panel_users()
-    message = None
-    if msg == "created":
-        message = "Пользователь создан"
-    elif msg == "updated":
-        message = "Пользователь обновлён"
-    elif msg == "deleted":
-        message = "Пользователь удалён"
-    elif msg == "error_last_superadmin":
-        message = "Нельзя удалить последнего SuperAdmin"
-    elif msg == "error_exists":
-        message = "Пользователь с таким логином уже существует"
-    
-    return templates.TemplateResponse("panel_users/list.html", get_template_context(
-        request, user=user, title="Пользователи панели",
-        users=users, message=message
-    ))
-
-
-@app.post("/panel-users/create", dependencies=[Depends(verify_csrf_token)])
-async def panel_users_create(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    role: str = Form("admin"),
-    user: Dict = Depends(require_superadmin)
-):
-    import bcrypt
-    from database import get_panel_user, create_panel_user
-    
-    # Check if user exists
-    existing = await get_panel_user(username)
-    if existing:
-        return RedirectResponse(url="/panel-users?msg=error_exists", status_code=status.HTTP_303_SEE_OTHER)
-    
-    password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    await create_panel_user(username, password_hash, role)
-    
-    return RedirectResponse(url="/panel-users?msg=created", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@app.post("/panel-users/update", dependencies=[Depends(verify_csrf_token)])
-async def panel_users_update(
-    request: Request,
-    user_id: int = Form(...),
-    username: str = Form(...),
-    password: str = Form(""),
-    role: str = Form("admin"),
-    user: Dict = Depends(require_superadmin)
-):
-    import bcrypt
-    from database import update_panel_user
-    
-    password_hash = None
-    if password.strip():
-        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    
-    await update_panel_user(user_id, username=username, password_hash=password_hash, role=role)
-    
-    return RedirectResponse(url="/panel-users?msg=updated", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@app.post("/panel-users/{user_id}/delete", dependencies=[Depends(verify_csrf_token)])
-async def panel_users_delete(
-    request: Request,
-    user_id: int,
-    user: Dict = Depends(require_superadmin)
-):
-    from database import get_panel_user_by_id, delete_panel_user, count_superadmins
-    
-    target_user = await get_panel_user_by_id(user_id)
-    if not target_user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Prevent deleting last superadmin
-    if target_user['role'] == 'superadmin':
-        superadmin_count = await count_superadmins()
-        if superadmin_count <= 1:
-            return RedirectResponse(url="/panel-users?msg=error_last_superadmin", status_code=status.HTTP_303_SEE_OTHER)
-    
-    await delete_panel_user(user_id)
-    
-    return RedirectResponse(url="/panel-users?msg=deleted", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# === Domain & SSL Setup (SuperAdmin only) ===
-
-@app.get("/domain", response_class=HTMLResponse)
-async def domain_page(request: Request, user: Dict = Depends(require_superadmin), msg: str = None):
-    import socket
-    
-    # Get server IP
-    try:
-        server_ip = subprocess.run(
-            ["curl", "-s", "--max-time", "3", "ifconfig.me"],
-            capture_output=True, text=True
-        ).stdout.strip() or socket.gethostbyname(socket.gethostname())
-    except Exception:
-        server_ip = "Не определён"
-    
-    # Check current domain
-    domain_file = BASE_DIR / ".domain"
-    current_domain = None
-    if domain_file.exists():
-        current_domain = domain_file.read_text().strip()
-    
-    # Check SSL status
-    ssl_status = False
-    if current_domain:
-        cert_path = Path(f"/etc/letsencrypt/live/{current_domain}/fullchain.pem")
-        ssl_status = cert_path.exists()
-    
-    # Get logs
-    logs = None
-    logs_file = BASE_DIR / ".domain_logs"
-    if logs_file.exists():
-        logs = logs_file.read_text()
-    
-    message = None
-    if msg == "success":
-        message = "Домен настроен успешно!"
-    elif msg == "error":
-        message = "Ошибка при настройке домена. Проверьте логи."
-    elif msg == "dns_pending":
-        message = "Nginx настроен. Дождитесь обновления DNS для получения SSL."
-    
-    return templates.TemplateResponse("domain/index.html", get_template_context(
-        request, user=user, title="Настройка домена",
-        server_ip=server_ip, current_domain=current_domain, 
-        ssl_status=ssl_status, logs=logs, message=message
-    ))
-
-
-@app.post("/domain/setup", dependencies=[Depends(verify_csrf_token)])
-async def domain_setup(
-    request: Request,
-    domain: str = Form(...),
-    email: str = Form(""),
-    user: Dict = Depends(require_superadmin)
-):
-    import re
-    
-    # Validate domain
-    domain = domain.strip().lower()
-    if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$', domain):
-        return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
-    
-    # Build command
-    script_path = BASE_DIR / "scripts" / "setup_domain.sh"
-    
-    if not script_path.exists():
-        logger.error(f"Domain setup script not found: {script_path}")
-        return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
-    
-    # Run script and capture output
-    logs_file = BASE_DIR / ".domain_logs"
-    
-    try:
-        cmd = ["sudo", "bash", str(script_path), domain]
-        if email:
-            cmd.append(email)
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120
-        )
-        
-        # Save logs
-        logs = f"=== {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n"
-        logs += f"Command: {' '.join(cmd)}\n\n"
-        logs += result.stdout
-        if result.stderr:
-            logs += f"\nSTDERR:\n{result.stderr}"
-        logs_file.write_text(logs)
-        
-        # Check result
-        if result.returncode == 0:
-            # Save domain
-            domain_file = BASE_DIR / ".domain"
-            domain_file.write_text(domain)
-            return RedirectResponse(url="/domain?msg=success", status_code=status.HTTP_303_SEE_OTHER)
-        elif "DNS" in result.stdout or "does not resolve" in result.stdout:
-            return RedirectResponse(url="/domain?msg=dns_pending", status_code=status.HTTP_303_SEE_OTHER)
-        else:
-            return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
-            
-    except subprocess.TimeoutExpired:
-        logs_file.write_text("Timeout: Script took too long to execute")
-        return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
-    except Exception as e:
-        logger.error(f"Domain setup error: {e}")
-        logs_file.write_text(f"Error: {e}")
-        return RedirectResponse(url="/domain?msg=error", status_code=status.HTTP_303_SEE_OTHER)
-
-
-# === Logs Viewer ===
-
-@app.get("/settings/logs", response_class=HTMLResponse)
-async def logs_page(request: Request, service: str = "admin_bots", q: str = None, level: str = None, user: Dict = Depends(require_superadmin)):
-    """View systemd logs with filtering"""
-    import subprocess
-    
-    if service not in ["admin_bots", "admin_panel"]:
-        service = "admin_bots"
-        
-    cmd = ["journalctl", "-n", "200", "-u", service, "--no-pager"]
-    
-    if q:
-        cmd += ["-g", q]
-    
-    if level:
-        # Priority levels: 0: emerg, 1: alert, 2: crit, 3: err, 4: warning, 5: notice, 6: info, 7: debug
-        level_map = {"error": "3", "warning": "4", "info": "6"}
-        if level in level_map:
-            cmd += ["-p", level_map[level]]
-
-    try:
-        # Try without sudo first (requires user to be in systemd-journal group)
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        logs = result.stdout
-    except Exception as e:
-        logs = (
-            f"❌ Ошибка доступа к логам: {e}\n\n"
-            f"Для исправления выполните на сервере:\n"
-            f"sudo usermod -aG systemd-journal adminbots\n"
-            f"sudo systemctl restart admin_panel\n\n"
-            f"Затем обновите страницу."
-        )
-        
-    return templates.TemplateResponse("settings/logs.html", get_template_context(
-        request, user=user, title="Логи системы",
-        logs=logs, active_service=service, q=q, active_level=level
-    ))
-
-
-# === Server Migration Guide (SuperAdmin only) ===
-
-
-@app.get("/migration", response_class=HTMLResponse)
-async def migration_page(request: Request, user: Dict = Depends(require_superadmin)):
-    import socket
-    
-    # Get server IP
-    try:
-        server_ip = subprocess.run(
-            ["curl", "-s", "--max-time", "3", "ifconfig.me"],
-            capture_output=True, text=True
-        ).stdout.strip() or socket.gethostbyname(socket.gethostname())
-    except Exception:
-        server_ip = "Не определён"
-    
-    # Check current domain
-    domain_file = BASE_DIR / ".domain"
-    current_domain = domain_file.read_text().strip() if domain_file.exists() else None
-    
-    return templates.TemplateResponse("migration/index.html", get_template_context(
-        request, user=user, title="Миграция сервера",
-        server_ip=server_ip, current_domain=current_domain
-    ))
-
+# === Bot switch endpoint (needs to be at root level) ===
+
+@app.post("/bot/switch/{bot_id}")
+async def switch_bot(request: Request, bot_id: int, user: Dict = Depends(auth.get_current_user)):
+    bot = await get_bot_by_id(bot_id)
+    if bot:
+        request.session["active_bot_id"] = bot_id
+    referer = request.headers.get("referer", "/")
+    return RedirectResponse(url=referer, status_code=303)

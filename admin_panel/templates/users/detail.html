@@ -32,6 +32,14 @@
 <div class="alert alert-danger mb-4">
     <i class="bi bi-x-circle"></i> Введите текст или загрузите фото
 </div>
+{% elif message == 'tickets_added' %}
+<div class="alert alert-success-custom mb-4">
+    <i class="bi bi-ticket-perforated"></i> Билеты начислены!
+</div>
+{% elif message == 'tickets_error' %}
+<div class="alert alert-danger mb-4">
+    <i class="bi bi-x-circle"></i> Ошибка: количество билетов от 1 до 10000
+</div>
 {% endif %}
 
 <div class="row g-4">
@@ -85,11 +93,13 @@
                 <div class="row text-center">
                     <div class="col-6">
                         <div class="fs-3 fw-bold text-primary">{{ user_data.valid_receipts or 0 }}</div>
-                        <small class="text-muted">{% if bot.type == 'promo' %}Активированных кодов{% else %}Принятых чеков{% endif %}</small>
+                        <small class="text-muted">{% if bot.type == 'promo' %}Активированных кодов{% else %}Принятых
+                            чеков{% endif %}</small>
                     </div>
                     <div class="col-6">
                         <div class="fs-3 fw-bold text-secondary">{{ user_data.total_receipts or 0 }}</div>
-                        <small class="text-muted">{% if bot.type == 'promo' %}Всего активаций{% else %}Всего чеков{% endif %}</small>
+                        <small class="text-muted">{% if bot.type == 'promo' %}Всего активаций{% else %}Всего чеков{%
+                            endif %}</small>
                     </div>
                 </div>
                 {% if user_data.total_sum %}
@@ -107,15 +117,18 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="mb-3">
                         <label class="form-label">Имя</label>
-                        <input type="text" name="full_name" class="form-control" value="{{ user_data.full_name or '' }}" required>
+                        <input type="text" name="full_name" class="form-control" value="{{ user_data.full_name or '' }}"
+                            required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Телефон</label>
-                        <input type="text" name="phone" class="form-control" value="{{ user_data.phone or '' }}" required>
+                        <input type="text" name="phone" class="form-control" value="{{ user_data.phone or '' }}"
+                            required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Username</label>
-                        <input type="text" name="username" class="form-control" value="{{ user_data.username or '' }}" placeholder="username без @">
+                        <input type="text" name="username" class="form-control" value="{{ user_data.username or '' }}"
+                            placeholder="username без @">
                         <small class="text-muted">Без @. Можно оставить пустым.</small>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Сохранить</button>
@@ -173,9 +186,15 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit" class="btn btn-outline-success w-100"
                                 onclick="return confirm('{% if bot.type == 'promo' %}Начислить активацию/билеты этому пользователю?{% else %}Добавить чек этому пользователю?{% endif %}')">
-                                <i class="bi bi-plus-circle"></i> {% if bot.type == 'promo' %}Начислить{% else %}Выдать чек{% endif %}
+                                <i class="bi bi-plus-circle"></i> {% if bot.type == 'promo' %}Начислить{% else %}Выдать
+                                чек{% endif %}
                             </button>
                         </form>
+
+                        <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal"
+                            data-bs-target="#addTicketsModal">
+                            <i class="bi bi-ticket-perforated"></i> Добавить билеты
+                        </button>
 
                         <form method="post" action="/users/{{ user_data.id }}/block">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -204,7 +223,8 @@
         </div>
 
         <div class="card">
-            <div class="card-header"><i class="bi bi-receipt"></i> {% if bot.type == 'promo' %}Активации{% else %}Чеки пользователя{% endif %}</div>
+            <div class="card-header"><i class="bi bi-receipt"></i> {% if bot.type == 'promo' %}Активации{% else %}Чеки
+                пользователя{% endif %}</div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
@@ -237,13 +257,48 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">{% if bot.type == 'promo' %}Нет активаций{% else %}Нет чеков{% endif %}</td>
+                                <td colspan="5" class="text-center text-muted py-4">{% if bot.type == 'promo' %}Нет
+                                    активаций{% else %}Нет чеков{% endif %}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Tickets Modal -->
+<div class="modal fade" id="addTicketsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-ticket-perforated"></i> Добавить билеты</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="/users/{{ user_data.id }}/add-tickets">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Количество билетов *</label>
+                        <input type="number" name="tickets" class="form-control" value="1" min="1" max="10000" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Причина (опционально)</label>
+                        <input type="text" name="reason" class="form-control" placeholder="Бонус, компенсация и т.д.">
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> Эти билеты участвуют в финальном розыгрыше
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-plus-circle"></i> Начислить
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

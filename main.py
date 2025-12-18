@@ -2,7 +2,7 @@
 Admin Bots Platform - Main Entry Point
 Features: PostgreSQL, Redis FSM, Rate limiting, Broadcasts, Raffles
 + PostgreSQL NOTIFY/LISTEN for instant campaign execution
-+ Multi-Bot Support
++ Multi-Bot Support with per-bot databases
 """
 import asyncio
 import logging
@@ -21,10 +21,16 @@ from aiogram.client.bot import Bot
 from redis.asyncio import Redis
 
 import config
-from database.db import init_db, close_db, get_connection
-from database import methods
-from handlers import registration, user, receipts, admin, promo
-from bot_manager import bot_manager
+from database.panel_db import init_panel_db, close_panel_db, get_panel_connection, get_active_bots, get_bot_by_id
+from database.bot_db import bot_db_manager
+from database import bot_methods, methods
+from bot_manager import bot_manager, PollingManager
+from modules.base import module_loader
+from modules.core import core_module
+from modules.registration import registration_module
+from modules.receipts import receipts_module
+from modules.promo import promo_module
+from modules.admin import admin_module
 from utils.bot_middleware import BotMiddleware
 from utils.config_manager import config_manager
 from utils.rate_limiter import init_rate_limiter, close_rate_limiter
@@ -39,6 +45,7 @@ dp = Dispatcher(storage=storage)
 
 shutdown_event = asyncio.Event()
 notification_queue = asyncio.Queue()
+polling_manager = None  # Will be initialized in on_startup
 
 
 # === Helper Functions ===
@@ -88,9 +95,9 @@ async def send_message_with_retry(
 # === Campaign Processor ===
 
 async def pg_listener():
-    """Listen for campaign notifications from PostgreSQL"""
+    """Listen for campaign notifications from PostgreSQL (uses panel DB)"""
     try:
-        async with get_connection() as db:
+        async with get_panel_connection() as db:
             conn = db.conn
             # Define callback
             def notify_handler(conn, pid, channel, payload):
@@ -124,24 +131,13 @@ async def pg_listener():
                                     await process_campaign(campaign)
                             
                             elif channel == "new_bot":
-                                logger.info("🔔 Notification: New Bot added. reloading...")
-                                await bot_manager.load_bots()
-                                # Add new bots to existing polling loop?
-                                # aiogram 3 polling is usually blocking or uses start_polling.
-                                # If we are in start_polling, we can't easily add bots without restart or complex task management.
-                                # But we can try to just run tasks for new bots if not using dp.start_polling helper?
-                                # Actually dp.start_polling takes *bots. If we call it again? No.
-                                # If we want dynamic bots, we should run polling manually (Dispatcher.start_polling is a wrapper).
-                                # Given complexity, simplest is to just LOG "Please restart to apply".
-                                # OR: if we use a runner.
-                                # For now, load_bots() updates the manager state.
-                                # If we want to start polling for new bot, we need to add it to the polling loop.
-                                # This requires implementing a custom PollingManager or restarting the process.
-                                # Since I cannot easily restart process from here (unless I exit), I will just Log.
-                                logger.warning("🔄 New bot detected. Restarting for polling...")
-                                # Use sudo systemctl restart if running as service?
-                                # But for now, just restart the process.
-                                os.execv(sys.executable, [sys.executable] + sys.argv)
+                                logger.info("🔔 Notification: New Bot added. Reloading dynamically...")
+                                # Use PollingManager to add new bots without restart
+                                if polling_manager:
+                                    await polling_manager.reload_bots()
+                                    logger.info("✅ Bots reloaded dynamically")
+                                else:
+                                    logger.warning("⚠️ PollingManager not initialized, cannot reload")
                                 
                         except Exception as e:
                             logger.error(f"Error processing notification {channel}: {e}")
@@ -155,27 +151,32 @@ async def pg_listener():
 
 
 async def process_campaign(campaign: dict):
-    """Process a single campaign"""
+    """Process a single campaign (with per-bot database context)"""
     cid = campaign['id']
     ctype = campaign['type']
-    content = campaign['content']
-    bot_id = campaign.get('bot_id')
+    content = campaign['content'] if isinstance(campaign['content'], dict) else {}
+    
+    # Campaigns now stored per-bot, bot_id passed via _bot_id from scheduler
+    bot_id = campaign.get('_bot_id') or campaign.get('bot_id')
     
     # Get Bot instance
     bot = bot_manager.bots.get(bot_id)
     if not bot:
         logger.error(f"Bot {bot_id} not found for campaign #{cid}. Skipping.")
         return
-
+    
+    # Set the bot database context for this campaign
+    bot_methods.set_current_bot_db(bot_db_manager.get(bot_id))
+    
     logger.info(f"🚀 Starting campaign #{cid} ({ctype}) for Bot #{bot_id}")
     
     try:
         if ctype == "broadcast":
-            await execute_broadcast(bot, cid, content)
+            await execute_broadcast(bot, bot_id, cid, content)
         elif ctype == "message":
-            await execute_single_message(bot, cid, content)
+            await execute_single_message(bot, bot_id, cid, content)
         elif ctype == "raffle":
-            await execute_raffle(bot, cid, content)
+            await execute_raffle(bot, bot_id, cid, content)
         else:
             logger.error(f"Unknown campaign type: {ctype}")
     except Exception as e:
@@ -190,16 +191,33 @@ async def scheduler():
     logger.info("⏰ Scheduler started")
     while not shutdown_event.is_set():
         try:
-            # 1. Check pending campaigns (Fallback for missed notifications)
-            pending = await methods.get_pending_campaigns()
-            for campaign in pending:
-                await process_campaign(campaign)
+            # 1. Check pending campaigns for each bot
+            for bot_id, bot in bot_manager.bots.items():
+                try:
+                    bot_db = bot_db_manager.get(bot_id)
+                    if not bot_db:
+                        continue
+                    
+                    async with bot_db.get_connection() as conn:
+                        pending = await conn.fetch("""
+                            SELECT * FROM campaigns 
+                            WHERE is_completed = FALSE 
+                            AND (scheduled_for IS NULL OR scheduled_for <= NOW())
+                            ORDER BY id
+                        """)
+                    
+                    for campaign in pending:
+                        campaign_dict = dict(campaign)
+                        campaign_dict['_bot_id'] = bot_id  # Add bot_id for processing
+                        await process_campaign(campaign_dict)
+                except Exception as e:
+                    logger.error(f"Scheduler error for bot {bot_id}: {e}")
             
             # 2. Wait
             await asyncio.wait_for(shutdown_event.wait(), timeout=config.SCHEDULER_INTERVAL)
             
         except asyncio.TimeoutError:
-            pass # Continue loop
+            pass  # Continue loop
         except Exception as e:
             logger.error(f"Scheduler error: {e}")
             await asyncio.sleep(5)
@@ -211,10 +229,9 @@ async def scheduler():
         pass
 
 
-async def execute_broadcast(bot: Bot, campaign_id: int, content: dict):
+async def execute_broadcast(bot: Bot, bot_id: int, campaign_id: int, content: dict):
     """Execute broadcast with pagination and progress tracking"""
-    bot_id = bot_manager.get_db_id(bot.id)
-    progress = await methods.get_broadcast_progress(campaign_id)
+    progress = await bot_methods.get_broadcast_progress(campaign_id)
     last_id = progress['last_user_id'] if progress else 0
     sent = progress['sent_count'] if progress else 0
     failed = progress['failed_count'] if progress else 0
@@ -224,7 +241,7 @@ async def execute_broadcast(bot: Bot, campaign_id: int, content: dict):
     batch_size = config.BROADCAST_BATCH_SIZE
     
     while True:
-        users = await methods.get_user_ids_paginated(bot_id, last_id, batch_size)
+        users = await bot_methods.get_user_ids_paginated(last_id, batch_size)
         if not users:
             break
             
@@ -248,49 +265,58 @@ async def execute_broadcast(bot: Bot, campaign_id: int, content: dict):
             await asyncio.sleep(config.MESSAGE_DELAY_SECONDS)
         
         # Checkpoint
-        await methods.save_broadcast_progress(campaign_id, last_id, sent, failed)
+        await bot_methods.save_broadcast_progress(campaign_id, last_id, sent, failed)
         
-    await methods.mark_campaign_completed(campaign_id, sent, failed)
-    await methods.delete_broadcast_progress(campaign_id)
+    await bot_methods.mark_campaign_completed(campaign_id, sent, failed)
+    await bot_methods.delete_broadcast_progress(campaign_id)
     
     logger.info(f"✅ Broadcast #{campaign_id} finished. Sent: {sent}, Failed: {failed}")
     
-    # Notify admin
+    # Notify admins (bot-specific plus global)
     report = f"✅ Рассылка #{campaign_id} завершена\n\nОтправлено: {sent}\nОшибок: {failed}"
-    for admin_id in config.ADMIN_IDS:
+    bot_info = await get_bot_by_id(bot_id) if bot_id else None
+    bot_admins = bot_info.get('admin_ids', []) if bot_info else []
+    all_admins = set(config.ADMIN_IDS) | set(bot_admins or [])
+    for admin_id in all_admins:
         try:
             await bot.send_message(admin_id, report)
         except Exception:
             pass
 
 
-async def execute_single_message(bot: Bot, campaign_id: int, content: dict):
+async def execute_single_message(bot: Bot, bot_id: int, campaign_id: int, content: dict):
     """Send message to a single user"""
-    telegram_id = content.get("user_id")
+    telegram_id = content.get("user_id") or content.get("telegram_id")
     if telegram_id:
         success = await send_message_with_retry(
             bot,
             telegram_id,
             content,
-            bot_db_id=bot_manager.get_db_id(bot.id),
+            bot_db_id=bot_id,
         )
-        await methods.mark_campaign_completed(campaign_id, 1 if success else 0, 0 if success else 1)
+        await bot_methods.mark_campaign_completed(campaign_id, 1 if success else 0, 0 if success else 1)
 
 
-async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
+async def execute_raffle(bot: Bot, bot_id: int, campaign_id: int, content: dict):
     """Execute raffle with winner persistence"""
-    bot_id = bot_manager.get_db_id(bot.id)
     count = int(content.get("count", 1))
     prize = content.get("prize", "Приз")
+    is_final = content.get("is_final", False)
     
-    logger.info(f"🎁 Raffle #{campaign_id}: {count} winners for '{prize}'")
+    raffle_type = "FINAL" if is_final else "regular"
+    logger.info(f"🎁 Raffle #{campaign_id} ({raffle_type}): {count} winners for '{prize}'")
     
     # 1. Select winners (Weighted random by tickets)
-    participants = await methods.get_participants_with_tickets(bot_id)
+    # For final raffle: use ALL tickets ever assigned (receipts + manual + promo)
+    # For regular raffle: use only active tickets from receipts
+    if is_final:
+        participants = await bot_methods.get_all_tickets_for_final_raffle()
+    else:
+        participants = await bot_methods.get_participants_with_tickets()
     
     if not participants:
         logger.warning(f"Raffle #{campaign_id}: No participants")
-        await methods.mark_campaign_completed(campaign_id)
+        await bot_methods.mark_campaign_completed(campaign_id)
         return
 
     # Weighted selection
@@ -302,7 +328,7 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
     
     if not weighted_pool:
          logger.warning("No tickets found")
-         await methods.mark_campaign_completed(campaign_id)
+         await bot_methods.mark_campaign_completed(campaign_id)
          return
 
     winners_data = []
@@ -330,14 +356,14 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
         weighted_pool = [x for x in weighted_pool if x['user_id'] != winner['user_id']]
 
     # 2. Save winners atomically
-    saved_count = await methods.save_winners_atomic(campaign_id, winners_data, bot_id)
+    saved_count = await bot_methods.save_winners_atomic(campaign_id, winners_data)
     logger.info(f"Raffle #{campaign_id}: Saved {saved_count} winners")
     
     # 3. Notify Winners
     win_msg_template = content.get("win_msg", {})
     sent_win = 0
     for w in winners_data:
-        msg = win_msg_template.copy()
+        msg = win_msg_template.copy() if isinstance(win_msg_template, dict) else {}
         if not msg:
             msg = {"text": f"🎉 Поздравляем! Вы выиграли: {prize}!"}
         
@@ -350,17 +376,17 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
         ):
             sent_win += 1
     
-    db_winners = await methods.get_campaign_winners(campaign_id)
+    db_winners = await bot_methods.get_campaign_winners(campaign_id)
     for w in db_winners:
         if sent_win > 0:
-             await methods.mark_winner_notified(w['id'])
+             await bot_methods.mark_winner_notified(w['id'])
 
 
     # 4. Notify Losers
     lose_msg = content.get("lose_msg")
     sent_lose = 0
     if lose_msg:
-        losers = await methods.get_raffle_losers(campaign_id)
+        losers = await bot_methods.get_raffle_losers(campaign_id)
         for loser in losers:
              if shutdown_event.is_set(): break
              if await send_message_with_retry(
@@ -372,14 +398,17 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
                  sent_lose += 1
              await asyncio.sleep(config.MESSAGE_DELAY_SECONDS)
     
-    await methods.mark_campaign_completed(campaign_id, sent_win + sent_lose, 0)
+    await bot_methods.mark_campaign_completed(campaign_id, sent_win + sent_lose, 0)
     
-    # Admin Report
+    # Admin Report (bot-specific plus global admins)
     report = (f"🎁 Розыгрыш #{campaign_id} завершен\n"
               f"🏆 Победителей: {len(winners_data)}\n"
               f"📢 Уведомлено: {sent_win} (побед) + {sent_lose} (остальных)")
     
-    for admin_id in config.ADMIN_IDS:
+    bot_info = await get_bot_by_id(bot_id) if bot_id else None
+    bot_admins = bot_info.get('admin_ids', []) if bot_info else []
+    all_admins = set(config.ADMIN_IDS) | set(bot_admins or [])
+    for admin_id in all_admins:
         try:
             await bot.send_message(admin_id, report)
         except Exception:
@@ -389,15 +418,16 @@ async def execute_raffle(bot: Bot, campaign_id: int, content: dict):
 # === Startup/Shutdown ===
 
 async def on_startup():
-    await init_db()
+    # Initialize panel database
+    await init_panel_db(config.PANEL_DATABASE_URL)
+    
     try:
-        await config_manager.load()
         await init_rate_limiter()
     except Exception as e:
-        logger.warning(f"Config/ratelimiter init failed: {e}")
+        logger.warning(f"Rate limiter init failed: {e}")
     
-    # Load bots
-    await bot_manager.load_bots()
+    # Load bots from panel registry (this also connects to their individual DBs)
+    await bot_manager.load_bots_from_registry()
     bots = bot_manager.get_bots()
     
     if not bots:
@@ -408,12 +438,16 @@ async def on_startup():
     if errors:
         logger.error(f"Config Validation Error: {errors}")
     
-    # Setup Handlers
-    dp.include_router(registration.router)
-    dp.include_router(user.router)
-    dp.include_router(receipts.router)
-    dp.include_router(promo.router)
-    dp.include_router(admin.router)
+    # Setup Modules
+    module_loader.register(core_module)
+    module_loader.register(registration_module)
+    module_loader.register(receipts_module)
+    module_loader.register(promo_module)
+    module_loader.register(admin_module)
+    
+    # Include Routers from modules
+    for module in module_loader.get_all_modules():
+        dp.include_router(module.get_router())
     
     # Add Middleware
     dp.update.middleware(BotMiddleware())
@@ -424,18 +458,21 @@ async def on_startup():
         await get_enabled_modules(bot_id)
         logger.info(f"Preloaded modules for bot {bot_id}")
     
-    # Start Scheduler
-    asyncio.create_task(scheduler())
+    # Initialize Polling Manager
+    global polling_manager
+    polling_manager = PollingManager(dp)
     
     logger.info("Bot started")
 
 
 async def on_shutdown():
     shutdown_event.set()
-    for bot_id in list(bot_manager.bots.keys()):
-        await bot_manager.stop_bot(bot_id)
-
-    await close_db()
+    
+    # Close all bot connections
+    await bot_manager.close_all()
+    
+    # Close panel database
+    await close_panel_db()
     await redis.close()
     
     # Close API client
@@ -461,12 +498,18 @@ async def main():
     try:
         await on_startup()
         bots = bot_manager.get_bots()
+        
         if bots:
-            # Pass all bots to poller
-            await dp.start_polling(*bots)
+            # Start scheduler as background task
+            asyncio.create_task(scheduler())
+            
+            # Use PollingManager for dynamic bot management
+            await polling_manager.start_all()
+            await polling_manager.wait()
         else:
-            logger.error("No bots to poll. Waiting for signal...")
-            # If no bots, we should just wait for shutdown or new bots (reloading NYI efficiently here without restart)
+            logger.warning("No bots found. Starting scheduler and waiting for new bots...")
+            # Start scheduler to listen for new bots
+            asyncio.create_task(scheduler())
             await shutdown_event.wait()
             
     except Exception as e:

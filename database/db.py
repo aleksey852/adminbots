@@ -452,11 +452,24 @@ async def _create_schema():
                 """, config.ADMIN_PANEL_USER, password_hash)
                 logger.info(f"Created initial SuperAdmin user: {config.ADMIN_PANEL_USER}")
             
-            # Add new columns to bots table if they don't exist (migration)
+            # Migration for first SuperAdmin
             await add_column_safe("bots", "admin_ids", "BIGINT[] DEFAULT '{}'")
             await add_column_safe("bots", "enabled_modules", "TEXT[] DEFAULT '{\"registration\", \"user_profile\", \"faq\", \"support\"}'")
             await add_column_safe("bots", "archived_at", "TIMESTAMP")
             await add_column_safe("bots", "archived_by", "TEXT")
+            
+            # Manual Tickets table (for manual ticket assignment and final raffle)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS manual_tickets (
+                    id SERIAL PRIMARY KEY,
+                    bot_id INTEGER REFERENCES bots(id) ON DELETE CASCADE,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    tickets INTEGER NOT NULL DEFAULT 1,
+                    reason TEXT,
+                    created_by TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
             
             # Indexes
             indexes = [
@@ -469,6 +482,8 @@ async def _create_schema():
                 "CREATE INDEX IF NOT EXISTS idx_bot_admins_bot ON bot_admins(bot_id)",
                 "CREATE INDEX IF NOT EXISTS idx_bot_admins_telegram ON bot_admins(telegram_id)",
                 "CREATE INDEX IF NOT EXISTS idx_bots_active ON bots(is_active) WHERE archived_at IS NULL",
+                "CREATE INDEX IF NOT EXISTS idx_manual_tickets_user ON manual_tickets(user_id)",
+                "CREATE INDEX IF NOT EXISTS idx_manual_tickets_bot ON manual_tickets(bot_id)",
             ]
             for idx in indexes:
                 try:

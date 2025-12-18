@@ -26,7 +26,8 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="alert alert-info-custom mb-4">
                         <i class="bi bi-people"></i> Участников: <strong>{{ participants }}</strong>
-                        {% if total_tickets %}<br><i class="bi bi-ticket-perforated"></i> Всего билетов: <strong>{{ total_tickets }}</strong>{% endif %}
+                        {% if total_tickets %}<br><i class="bi bi-ticket-perforated"></i> Всего билетов: <strong>{{
+                            total_tickets }}</strong>{% endif %}
                     </div>
 
                     <div class="row">
@@ -74,6 +75,17 @@
                     </div>
 
                     <hr class="my-4">
+
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="is_final" id="isFinalRaffle"
+                                value="true">
+                            <label class="form-check-label" for="isFinalRaffle">
+                                <strong>🏆 Финальный розыгрыш</strong>
+                            </label>
+                        </div>
+                        <small class="text-muted">Среди ВСЕХ билетов (чеки + промокоды + ручные начисления)</small>
+                    </div>
 
                     <div class="mb-4">
                         <label class="form-label">Запланировать на (опционально)</label>

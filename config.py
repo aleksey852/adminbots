@@ -30,6 +30,7 @@ TIMEZONE = pytz.timezone(os.getenv("TIMEZONE", "Europe/Moscow"))
 
 # === Database & Redis ===
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://adminbots:password@localhost:5432/admin_bots")
+PANEL_DATABASE_URL = os.getenv("PANEL_DATABASE_URL", DATABASE_URL)  # Panel registry DB (can be same or separate)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 DB_POOL_MIN, DB_POOL_MAX = int(os.getenv("DB_POOL_MIN", "5")), int(os.getenv("DB_POOL_MAX", "20"))
 
