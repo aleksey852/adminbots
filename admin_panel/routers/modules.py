@@ -125,9 +125,17 @@ def setup_routes(
         else:
             final_steps = default_steps
             
+        # Sanitize steps for JSON response
+        sanitized_steps = []
+        for step in final_steps:
+            safe_step = step.copy()
+            if safe_step.get("state"):
+                safe_step["state"] = str(safe_step["state"])
+            sanitized_steps.append(safe_step)
+
         return {
             "chain": chain_name,
-            "steps": final_steps
+            "steps": sanitized_steps
         }
 
     @router.post("/pipelines/{chain_name}/order")
