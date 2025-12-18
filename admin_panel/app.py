@@ -59,6 +59,20 @@ async def lifespan(app: FastAPI):
     try:
         await init_panel_db(config.PANEL_DATABASE_URL)
         
+        # Register modules so they appear in settings
+        from modules.base import module_loader
+        from modules.core import core_module
+        from modules.registration import registration_module
+        from modules.receipts import receipts_module
+        from modules.promo import promo_module
+        from modules.admin import admin_module
+        
+        module_loader.register(core_module)
+        module_loader.register(registration_module)
+        module_loader.register(receipts_module)
+        module_loader.register(promo_module)
+        module_loader.register(admin_module)
+        
         if config.ADMIN_PANEL_USER and config.ADMIN_PANEL_PASSWORD:
             import bcrypt
             from database.panel_db import ensure_initial_superadmin
