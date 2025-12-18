@@ -295,6 +295,24 @@ async def get_user_total_tickets(uid: int):
     async with get_current_bot_db().get_connection() as conn:
         return await conn.fetchval("SELECT COALESCE((SELECT SUM(tickets) FROM receipts WHERE user_id=$1 AND status='valid'), 0) + COALESCE((SELECT SUM(tickets) FROM manual_tickets WHERE user_id=$1), 0) + COALESCE((SELECT SUM(tickets) FROM promo_codes WHERE user_id=$1 AND status='used'), 0)", uid)
 
+async def get_user_tickets_breakdown(uid: int) -> dict:
+    """Get detailed breakdown of user tickets by source"""
+    async with get_current_bot_db().get_connection() as conn:
+        row = await conn.fetchrow("""
+            SELECT 
+                COALESCE((SELECT SUM(tickets) FROM receipts WHERE user_id=$1 AND status='valid'), 0) as from_receipts,
+                COALESCE((SELECT SUM(tickets) FROM promo_codes WHERE user_id=$1 AND status='used'), 0) as from_promo,
+                COALESCE((SELECT SUM(tickets) FROM manual_tickets WHERE user_id=$1), 0) as from_manual
+        """, uid)
+        if row:
+            return {
+                'from_receipts': row['from_receipts'] or 0,
+                'from_promo': row['from_promo'] or 0,
+                'from_manual': row['from_manual'] or 0,
+                'total': (row['from_receipts'] or 0) + (row['from_promo'] or 0) + (row['from_manual'] or 0)
+            }
+        return {'from_receipts': 0, 'from_promo': 0, 'from_manual': 0, 'total': 0}
+
 async def get_all_tickets_for_final_raffle():
     async with get_current_bot_db().get_connection() as conn:
         return await conn.fetch("SELECT u.id as user_id, u.telegram_id, u.full_name, u.username, COALESCE(r.t, 0) + COALESCE(m.t, 0) + COALESCE(p.t, 0) as total_tickets FROM users u LEFT JOIN (SELECT user_id, SUM(tickets) as t FROM receipts WHERE status='valid' GROUP BY 1) r ON u.id = r.user_id LEFT JOIN (SELECT user_id, SUM(tickets) as t FROM manual_tickets GROUP BY 1) m ON u.id = m.user_id LEFT JOIN (SELECT user_id, SUM(tickets) as t FROM promo_codes WHERE status='used' GROUP BY 1) p ON u.id = p.user_id WHERE u.is_blocked = FALSE AND (r.t > 0 OR m.t > 0 OR p.t > 0)")

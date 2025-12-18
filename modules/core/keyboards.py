@@ -21,7 +21,7 @@ def get_main_keyboard(is_admin: bool = False, bot_type: str = 'receipt'):
         buttons.append("🔑 Ввести промокод")
 
     history_btn = "📋 Мои чеки" if bot_type == 'receipt' else "📋 Мои активации"
-    buttons.extend(["👤 Мой профиль", history_btn, "ℹ️ FAQ", "🆘 Поддержка"])
+    buttons.extend(["👤 Мой профиль", "🎫 Мои билеты", history_btn, "ℹ️ FAQ", "🆘 Поддержка"])
     
     if is_admin:
         buttons.extend([

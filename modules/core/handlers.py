@@ -199,25 +199,47 @@ class CoreModule(BotModule):
             if message.from_user.username != user.get('username'):
                 await update_username(message.from_user.id, message.from_user.username or "")
             
+            # Get detailed ticket breakdown
+            from database.bot_methods import get_user_tickets_breakdown
+            breakdown = await get_user_tickets_breakdown(user['id'])
+            
             wins = await get_user_wins(user['id'])
-            wins_text = f"\\n\\n🏆 Выигрыши: {len(wins)}" if wins else ""
-            for w in wins[:3]:
-                wins_text += f"\\n• {w['prize_name']}"
+            wins_text = ""
+            if wins:
+                wins_text = f"\n\n🏆 Выигрыши: {len(wins)}"
+                for w in wins[:3]:
+                    wins_text += f"\n• {w['prize_name']}"
             
             days = config.days_until_end()
-            days_text = f"\\n\\nДо конца акции: {days} дн." if days > 0 else ""
-            tickets_count = user.get('total_tickets', user['valid_receipts'])
+            days_text = f"\n\nДо конца акции: {days} дн." if days > 0 else ""
             bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
 
-            # Use type-specific profile message key
-            profile_key = f'profile_{bot_type}'
-            default_profile = self.default_messages.get(profile_key, self.default_messages['profile_receipt'])
+            # Build enhanced profile message
+            profile_text = f"👤 Ваш профиль\n\n"
+            profile_text += f"Имя: {user['full_name']}\n"
+            profile_text += f"Телефон: {user['phone']}\n\n"
             
-            profile_msg = config_manager.get_message(profile_key, default_profile, bot_id=bot_id).format(
-                name=user['full_name'], phone=user['phone'], total=user['valid_receipts'],
-                tickets=tickets_count, wins_text=wins_text, days_text=days_text,
-            )
-            await message.answer(profile_msg)
+            profile_text += f"═══════════════════\n"
+            profile_text += f"🎫 ВАШИ БИЛЕТЫ: {breakdown['total']}\n"
+            profile_text += f"═══════════════════\n"
+            
+            if bot_type == 'promo':
+                if breakdown['from_promo'] > 0:
+                    profile_text += f"  🔑 За промокоды: {breakdown['from_promo']}\n"
+            else:
+                if breakdown['from_receipts'] > 0:
+                    profile_text += f"  🧾 За чеки: {breakdown['from_receipts']}\n"
+            
+            if breakdown['from_manual'] > 0:
+                profile_text += f"  🎁 Бонусные: {breakdown['from_manual']}\n"
+            
+            if breakdown['total'] == 0:
+                profile_text += f"  Пока нет билетов\n"
+            
+            profile_text += wins_text
+            profile_text += days_text
+            
+            await message.answer(profile_text)
 
         @self.router.message(Command("help"))
         async def command_help(message: Message, bot_id: int = None):
@@ -241,6 +263,51 @@ class CoreModule(BotModule):
                 'status', self.default_messages['status'], bot_id=bot_id
             ).format(name=user['full_name'], tickets=tickets_count, days=config.days_until_end())
             await message.answer(status_msg)
+
+        @self.router.message(F.text == "🎫 Мои билеты")
+        async def show_my_tickets(message: Message, bot_id: int = None):
+            if not bot_id: return
+            user = await get_user_with_stats(message.from_user.id)
+            if not user:
+                await message.answer("Вы не зарегистрированы. Нажмите /start")
+                return
+            
+            from database.bot_methods import get_user_tickets_breakdown, get_user_manual_tickets
+            breakdown = await get_user_tickets_breakdown(user['id'])
+            manual_list = await get_user_manual_tickets(user['id'])
+            bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
+            
+            text = "🎫 Ваши билеты\n\n"
+            text += f"╔══════════════════════\n"
+            text += f"║ ВСЕГО: {breakdown['total']} билетов\n"
+            text += f"╚══════════════════════\n\n"
+            
+            if breakdown['total'] == 0:
+                text += "У вас пока нет билетов.\n\n"
+                if bot_type == 'promo':
+                    text += "💡 Активируйте промокод,\nчтобы получить билеты!"
+                else:
+                    text += "💡 Загрузите чек с QR-кодом,\nчтобы получить билеты!"
+            else:
+                text += "📊 Откуда билеты:\n\n"
+                
+                if bot_type == 'promo' and breakdown['from_promo'] > 0:
+                    text += f"🔑 Промокоды: +{breakdown['from_promo']}\n"
+                elif bot_type == 'receipt' and breakdown['from_receipts'] > 0:
+                    text += f"🧾 Чеки: +{breakdown['from_receipts']}\n"
+                
+                if breakdown['from_manual'] > 0:
+                    text += f"🎁 Бонусы: +{breakdown['from_manual']}\n"
+                    if manual_list:
+                        text += "\n📋 Последние начисления:\n"
+                        for t in manual_list[:5]:
+                            reason = t.get('reason') or 'Бонус'
+                            text += f"  • +{t['tickets']} — {reason}\n"
+                
+                text += "\n───────────────────\n"
+                text += f"🎲 Чем больше билетов —\n   тем выше шанс на приз!"
+            
+            await message.answer(text)
 
         @self.router.message(F.text == "📋 Мои чеки")
         @self.router.message(F.text == "📋 Мои активации")

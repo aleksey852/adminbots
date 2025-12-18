@@ -68,9 +68,17 @@ def setup_routes(
         if not user_data or user_data['bot_id'] != bot['id']:
             raise HTTPException(404, "User not found")
         
+        # Load manual tickets
+        from database.bot_methods import get_user_manual_tickets, get_user_total_tickets, bot_db_context
+        async with bot_db_context(bot['id']):
+            manual_tickets = await get_user_manual_tickets(user_id)
+            total_tickets = await get_user_total_tickets(user_id)
+        
         return templates.TemplateResponse("users/detail.html", get_template_context(
             request, user=user, user_data=user_data,
-            receipts=await get_user_receipts_detailed(user_id, limit=50), 
+            receipts=await get_user_receipts_detailed(user_id, limit=50),
+            manual_tickets=manual_tickets,
+            total_tickets=total_tickets or 0,
             title=f"Пользователь #{user_id}", message=msg
         ))
 

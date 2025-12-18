@@ -95,15 +95,19 @@
             <div class="card-header"><i class="bi bi-bar-chart"></i> Статистика</div>
             <div class="card-body">
                 <div class="row text-center">
-                    <div class="col-6">
+                    <div class="col-4">
                         <div class="fs-3 fw-bold text-primary">{{ user_data.valid_receipts or 0 }}</div>
-                        <small class="text-muted">{% if bot.type == 'promo' %}Активированных кодов{% else %}Принятых
-                            чеков{% endif %}</small>
+                        <small class="text-muted">{% if bot.type == 'promo' %}Активаций{% else %}Чеков{% endif
+                            %}</small>
                     </div>
-                    <div class="col-6">
-                        <div class="fs-3 fw-bold text-secondary">{{ user_data.total_receipts or 0 }}</div>
-                        <small class="text-muted">{% if bot.type == 'promo' %}Всего активаций{% else %}Всего чеков{%
-                            endif %}</small>
+                    <div class="col-4">
+                        <div class="fs-3 fw-bold text-warning">{{ manual_tickets|length if manual_tickets else 0 }}
+                        </div>
+                        <small class="text-muted">Ручных</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-3 fw-bold text-success">{{ total_tickets }}</div>
+                        <small class="text-muted">Всего билетов</small>
                     </div>
                 </div>
                 {% if user_data.total_sum %}
@@ -270,6 +274,37 @@
                 </div>
             </div>
         </div>
+
+        {% if manual_tickets %}
+        <div class="card mt-4">
+            <div class="card-header"><i class="bi bi-ticket-perforated text-warning"></i> Ручные билеты</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Билетов</th>
+                                <th>Причина</th>
+                                <th>Кем добавлено</th>
+                                <th>Дата</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in manual_tickets %}
+                            <tr>
+                                <td><span class="badge bg-warning text-dark">+{{ t.tickets }}</span></td>
+                                <td>{{ t.reason or '—' }}</td>
+                                <td><small class="text-muted">{{ t.created_by or '—' }}</small></td>
+                                <td><small>{{ t.created_at.strftime('%d.%m.%Y %H:%M') if t.created_at else '—'
+                                        }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
