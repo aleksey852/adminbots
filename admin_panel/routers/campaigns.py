@@ -229,8 +229,8 @@ def setup_routes(
         # Validate quantity
         if quantity < 1:
             return JSONResponse({"status": "error", "message": "Количество должно быть больше 0"}, status_code=400)
-        if quantity > 100000:
-            return JSONResponse({"status": "error", "message": "Максимум 100 000 кодов за раз"}, status_code=400)
+        if quantity > 3000000:
+            return JSONResponse({"status": "error", "message": "Максимум 3 000 000 кодов за раз"}, status_code=400)
         
         # Character set (no ambiguous chars like 0/O, 1/I/L, B/8)
         CHAR_SET = 'ACDEFGHJKLMNPRSTUVWXYZ2345679'

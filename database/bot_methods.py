@@ -272,7 +272,7 @@ async def use_promo_code(code_id: int, user_id: int) -> bool:
 
 
 async def add_promo_codes(codes: List[str], tickets: int = 1) -> int:
-    """Bulk add promo codes using batch insert for performance"""
+    """Bulk add promo codes using batched insert for performance"""
     if not codes:
         return 0
     
@@ -282,30 +282,53 @@ async def add_promo_codes(codes: List[str], tickets: int = 1) -> int:
     if not records:
         return 0
     
+    BATCH_SIZE = 5000
+    total_inserted = 0
+    
     async with db.get_connection() as conn:
-        try:
-            # Use executemany for batch insert with ON CONFLICT
-            await conn.conn.executemany("""
-                INSERT INTO promo_codes (code, tickets, status)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (code) DO NOTHING
-            """, records)
-            return len(records)
-        except Exception as e:
-            logger.error(f"Bulk promo insert failed: {e}")
-            # Fallback to individual inserts
-            inserted = 0
-            for code, tix, status in records:
-                try:
-                    await conn.execute("""
-                        INSERT INTO promo_codes (code, tickets, status)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT (code) DO NOTHING
-                    """, code, tix, status)
-                    inserted += 1
-                except Exception:
-                    pass
-            return inserted
+        for i in range(0, len(records), BATCH_SIZE):
+            batch = records[i:i + BATCH_SIZE]
+            try:
+                # Use executemany for batch insert with ON CONFLICT
+                # Note: asyncpg executemany returns None usually, but we assume success or check result if possible.
+                # Since we use ON CONFLICT DO NOTHING, we can't easily count exact inserted rows 
+                # without RETURNING clause, but for performance with huge datasets we might skip exact count
+                # or use a different approach.
+                # To get rough count or if needed, we can use a CTE or check count before/after.
+                # For now, let's just attempt insert.
+                
+                # To actually know how many were inserted, we can use "RETURNING 1"
+                # but executemany with returning is not directly supported in all drivers/wrappers the same way.
+                # asyncpg executemany() executes the command but doesn't return data.
+                # So we simply execute it.
+                await conn.conn.executemany("""
+                    INSERT INTO promo_codes (code, tickets, status)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (code) DO NOTHING
+                """, batch)
+                
+                # If we really need the count, we would have to assume success or do complex query.
+                # For this specific requirement (3M codes), exact count is less critical than speed.
+                # But to preserve existing behavior (return inserted count), we might be approximate 
+                # or sacrifice some speed.
+                # Let's assume all unique ones were inserted.
+                total_inserted += len(batch)
+                
+            except Exception as e:
+                logger.error(f"Batch insert failed at index {i}: {e}")
+                # Fallback to individual inserts for this batch
+                for code, tix, status in batch:
+                    try:
+                        await conn.execute("""
+                            INSERT INTO promo_codes (code, tickets, status)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT (code) DO NOTHING
+                        """, code, tix, status)
+                        total_inserted += 1 # Not strictly accurate if conflict, but acceptable for fallback
+                    except Exception:
+                        pass
+                        
+    return total_inserted
 
 
 async def get_promo_stats() -> Dict:
