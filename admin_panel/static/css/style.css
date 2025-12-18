@@ -1189,3 +1189,10 @@ h6 {
     margin-bottom: 1rem;
     min-height: 2.5rem;
 }
+
+/* Mobile padding adjustment */
+@media (max-width: 768px) {
+    .container-fluid.p-4 {
+        padding: 1rem !important;
+    }
+}

@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title"><i class="bi bi-gift"></i> Розыгрыш</h1>
+<div class="page-header-premium">
+    <div class="title-area">
+        <h1>Розыгрыш</h1>
+        <p>Проведение конкурсов и выбор победителей</p>
+    </div>
 </div>
 
 {% if created %}
@@ -14,7 +17,7 @@
 <div class="row g-4">
     <div class="col-md-7">
         <div class="card">
-            <div class="card-header"><i class="bi bi-plus-circle"></i> Провести розыгрыш</div>
+            <div class="card-header"><i class="bi bi-plus-circle"></i> Настройки розыгрыша</div>
             <div class="card-body">
                 {% if participants == 0 %}
                 <div class="alert alert-warning">
@@ -31,28 +34,47 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Призы</label>
+                        <label class="form-label fw-bold">🏆 Призовые места</label>
                         <div id="prizesContainer">
-                            <div class="card mb-2 prize-row border-light bg-light">
-                                <div class="card-body p-2">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <span class="badge bg-secondary me-2 index-badge">1</span>
-                                        <input type="text" class="form-control me-2" name="prize_names"
-                                            placeholder="Название приза" required>
-                                        <input type="number" class="form-control me-2" name="winner_counts"
-                                            placeholder="Кол-во" value="1" min="1" style="max-width: 100px;" required>
-                                        <button type="button" class="btn btn-outline-danger btn-sm remove-prize"
-                                            disabled><i class="bi bi-trash"></i></button>
+                            <div class="card mb-3 prize-row border shadow-sm">
+                                <div class="card-body p-3">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="badge bg-warning text-dark rounded-circle me-3 d-flex align-items-center justify-content-center"
+                                            style="width: 24px; height: 24px;">1</div>
+                                        <div class="flex-grow-1">
+                                            <input type="text" class="form-control fw-bold" name="prize_names"
+                                                placeholder="Название приза (например, iPhone 15)" required>
+                                        </div>
                                     </div>
-                                    <textarea class="form-control form-control-sm mb-2" name="prize_msgs" rows="2"
-                                        placeholder="Сообщение победителю (заменяет стандартное)"></textarea>
-                                    <input type="file" class="form-control form-control-sm" name="prize_photo_0"
-                                        accept="image/*">
+
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-md-4">
+                                            <label class="small text-muted mb-1">Количество победителей</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                name="winner_counts" placeholder="1" value="1" min="1" required>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="small text-muted mb-1">Фото приза (опционально)</label>
+                                            <input type="file" class="form-control form-control-sm" name="prize_photo_0"
+                                                accept="image/*">
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-2">
+                                        <label class="small text-muted mb-1">Сообщение победителю</label>
+                                        <textarea class="form-control form-control-sm" name="prize_msgs" rows="2"
+                                            placeholder="Поздравляем! Вы выиграли [приз]! Свяжитесь с нами..."></textarea>
+                                    </div>
+
+                                    <div class="text-end mt-2">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-prize"
+                                            disabled>Удалить приз</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addPrizeRow()">
-                            <i class="bi bi-plus-circle"></i> Добавить приз
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="addPrizeRow()">
+                            <i class="bi bi-plus-lg me-1"></i> Добавить еще призовое место
                         </button>
                     </div>
 
@@ -61,17 +83,35 @@
                             const container = document.getElementById('prizesContainer');
                             const count = container.children.length + 1;
                             const div = document.createElement('div');
-                            div.className = 'card mb-2 prize-row border-light bg-light';
+                            div.className = 'card mb-3 prize-row border shadow-sm';
                             div.innerHTML = `
-                                <div class="card-body p-2">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <span class="badge bg-secondary me-2 index-badge">${count}</span>
-                                        <input type="text" class="form-control me-2" name="prize_names" placeholder="Название приза" required>
-                                        <input type="number" class="form-control me-2" name="winner_counts" placeholder="Кол-во" value="1" min="1" style="max_width: 100px;" required>
-                                        <button type="button" class="btn btn-outline-danger btn-sm remove-prize" onclick="removePrizeRow(this)"><i class="bi bi-trash"></i></button>
+                                <div class="card-body p-3">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="badge bg-secondary text-white rounded-circle me-3 d-flex align-items-center justify-content-center index-badge" style="width: 24px; height: 24px;">${count}</div>
+                                        <div class="flex-grow-1">
+                                            <input type="text" class="form-control fw-bold" name="prize_names" placeholder="Название приза" required>
+                                        </div>
                                     </div>
-                                    <textarea class="form-control form-control-sm mb-2" name="prize_msgs" rows="2" placeholder="Сообщение победителю (заменяет стандартное)"></textarea>
-                                    <input type="file" class="form-control form-control-sm" name="prize_photo_${count - 1}" accept="image/*">
+                                    
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-md-4">
+                                            <label class="small text-muted mb-1">Количество победителей</label>
+                                            <input type="number" class="form-control form-control-sm" name="winner_counts" placeholder="1" value="1" min="1" required>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="small text-muted mb-1">Фото приза (опционально)</label>
+                                            <input type="file" class="form-control form-control-sm" name="prize_photo_${count - 1}" accept="image/*">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-2">
+                                        <label class="small text-muted mb-1">Сообщение победителю</label>
+                                        <textarea class="form-control form-control-sm" name="prize_msgs" rows="2" placeholder="Поздравляем! Вы выиграли [приз]!"></textarea>
+                                    </div>
+                                    
+                                    <div class="text-end mt-2">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-prize" onclick="removePrizeRow(this)">Удалить приз</button>
+                                    </div>
                                 </div>
                             `;
                             container.appendChild(div);
@@ -86,7 +126,16 @@
                         function updatePrizeNumbers() {
                             const rows = document.querySelectorAll('.prize-row');
                             rows.forEach((row, index) => {
-                                row.querySelector('.index-badge').innerText = (index + 1);
+                                const badge = row.querySelector('.index-badge') || row.querySelector('.badge');
+                                if (badge) {
+                                    badge.innerText = (index + 1);
+                                    if (index === 0) {
+                                        badge.className = 'badge bg-warning text-dark rounded-circle me-3 d-flex align-items-center justify-content-center';
+                                    } else {
+                                        badge.className = 'badge bg-secondary text-white rounded-circle me-3 d-flex align-items-center justify-content-center index-badge';
+                                    }
+                                }
+
                                 const photoInput = row.querySelector('input[type="file"]');
                                 if (photoInput) {
                                     photoInput.name = `prize_photo_${index}`;
@@ -95,8 +144,10 @@
                                 if (index === 0) {
                                     btn.disabled = true;
                                     btn.removeAttribute('onclick');
+                                    btn.style.display = 'none'; // Hide delete for first item
                                 } else {
                                     btn.disabled = false;
+                                    btn.style.display = 'inline-block';
                                     btn.onclick = function () { removePrizeRow(this); };
                                 }
                             });
@@ -104,42 +155,46 @@
                     </script>
 
                     <hr class="my-4">
-                    <h6 class="mb-3"><i class="bi bi-emoji-frown text-secondary"></i> Сообщение ОСТАЛЬНЫМ</h6>
+                    <h6 class="mb-3 text-muted fw-bold text-uppercase"
+                        style="font-size: 0.8rem; letter-spacing: 0.05em;">Утешительное сообщение</h6>
 
                     <div class="mb-3">
-                        <label class="form-label">Текст</label>
+                        <label class="form-label">Текст для тех, кто не выиграл</label>
                         <textarea name="lose_text" class="form-control" rows="3"
                             placeholder="К сожалению, в этот раз удача не на вашей стороне..."></textarea>
-                        <small class="text-muted">Если оставить пустым, придёт стандартное "К сожалению, вы не
-                            выиграли"</small>
+                        <small class="text-muted">Если оставить пустым, придёт стандартное уведомление.</small>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Фото остальным (опционально)</label>
+                        <label class="form-label">Картинка (опционально)</label>
                         <input type="file" name="lose_photo" class="form-control" accept="image/*">
                     </div>
 
                     <hr class="my-4">
 
-                    <div class="mb-4">
-                        <div class="form-check form-switch">
+                    <div class="mb-4 bg-surface p-3 rounded border">
+                        <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" name="is_final" id="isFinalRaffle"
                                 value="true">
-                            <label class="form-check-label" for="isFinalRaffle">
-                                <strong>🏆 Финальный розыгрыш</strong>
+                            <label class="form-check-label fw-bold" for="isFinalRaffle">
+                                Финальный розыгрыш
                             </label>
                         </div>
-                        <small class="text-muted">Среди ВСЕХ билетов (чеки + промокоды + ручные начисления)</small>
+                        <div class="text-muted small mt-1 ms-4 ps-1">
+                            Выбирает победителя среди <strong>ВСЕХ</strong> билетов за всё время (чеки, промокоды,
+                            ручные).
+                        </div>
                     </div>
 
                     <div class="mb-4">
-                        <label class="form-label">Запланировать на (опционально)</label>
+                        <label class="form-label">Когда провести?</label>
                         <input type="datetime-local" name="scheduled_for" class="form-control">
-                        <small class="text-muted">Оставьте пустым для немедленного проведения.</small>
+                        <small class="text-muted">Выберите дату для отложенного запуска или оставьте пустым для запуска
+                            прямо сейчас.</small>
                     </div>
 
-                    <button type="submit" class="btn btn-warning w-100">
-                        <i class="bi bi-shuffle"></i> Создать розыгрыш
+                    <button type="submit" class="btn btn-warning w-100 py-2 fw-bold">
+                        <i class="bi bi-shuffle me-2"></i> Запустить розыгрыш
                     </button>
                 </form>
                 {% endif %}

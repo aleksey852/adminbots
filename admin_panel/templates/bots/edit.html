@@ -1,28 +1,36 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="page-header-premium">
+    <div class="title-area">
+        <h1>⚙️ Редактирование бота</h1>
+        <p>Управление настройками, модулями и доступом</p>
+    </div>
+
+    <div class="action-area d-flex gap-2">
+        <a href="/" class="btn btn-outline-light text-body border-0 btn-sm d-flex align-items-center">
+            <i class="bi bi-arrow-left me-1"></i> Назад
+        </a>
+        <form method="POST" action="/bots/{{ edit_bot.id }}/restart"
+            onsubmit="return confirm('Перезапустить бота? Это прервет текущие операции.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-warning shadow-sm fw-bold">
+                <i class="bi bi-arrow-clockwise me-1"></i> Перезапустить
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="container-fluid p-0">
     <div class="row justify-content-center">
-        <div class="col-md-10 col-lg-8">
-            <div class="d-flex align-items-center justify-content-between mb-4">
-                <div class="d-flex align-items-center">
-                    <a href="/" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i> Назад</a>
-                    <h1 class="page-title mb-0">⚙️ Редактирование бота</h1>
-                </div>
-                <form method="POST" action="/bots/{{ edit_bot.id }}/restart"
-                    onsubmit="return confirm('Перезапустить бота? Это прервет текущие операции.');">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-warning shadow-sm">
-                        <i class="bi bi-arrow-clockwise me-1"></i> Перезапустить
-                    </button>
-                </form>
-            </div>
+        <div class="col-lg-10">
 
             {% if message %}
-            <div class="alert alert-success mb-4">
+            <div class="alert alert-success-custom mb-4">
                 <i class="bi bi-check-circle me-2"></i> {{ message }}
             </div>
             {% endif %}
+
 
             {% if error %}
             <div class="alert alert-danger mb-4">
@@ -109,11 +117,13 @@
 
                         <div class="accordion" id="modulesAccordion">
                             {% for module in modules %}
-                            <div class="accordion-item mb-2 border rounded overflow-hidden">
+                            <div class="accordion-item mb-2 border rounded overflow-hidden"
+                                style="background: var(--bg-surface); border-color: var(--border-color) !important;">
                                 <h2 class="accordion-header" id="heading{{ module.name }}">
                                     <div class="accordion-button collapsed p-3 d-flex align-items-center gap-3 w-100"
                                         type="button" data-bs-toggle="collapse"
-                                        data-bs-target="#collapse{{ module.name }}">
+                                        data-bs-target="#collapse{{ module.name }}"
+                                        style="background: transparent; color: var(--text-primary); box-shadow: none;">
                                         <div class="form-check form-switch mb-0">
                                             <input class="form-check-input" type="checkbox" name="modules"
                                                 value="{{ module.name }}" id="check{{ module.name }}" {% if
@@ -137,14 +147,15 @@
                                                 </span>
                                                 {% endif %}
                                             </div>
-                                            <div class="text-muted small text-truncate" style="max-width: 300px;">{{
+                                            <div class="small text-truncate"
+                                                style="color: var(--text-secondary); max-width: 300px;">{{
                                                 module.description }}</div>
                                         </div>
                                     </div>
                                 </h2>
                                 <div id="collapse{{ module.name }}" class="accordion-collapse collapse"
                                     data-bs-parent="#modulesAccordion">
-                                    <div class="accordion-body bg-light">
+                                    <div class="accordion-body" style="background: rgba(0,0,0,0.02);">
                                         {% if module.settings %}
                                         {% for setting in module.settings %}
                                         <div class="mb-3">
