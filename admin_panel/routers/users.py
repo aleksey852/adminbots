@@ -151,9 +151,10 @@ def setup_routes(
         if not user_data or user_data['bot_id'] != bot['id']:
             raise HTTPException(404, "User not found")
         
-        from database.bot_methods import add_manual_tickets
+        from database.bot_methods import add_manual_tickets, bot_db_context
         created_by = user.get('username', 'admin') if isinstance(user, dict) else str(user)
-        await add_manual_tickets(user_id, max(1, min(tickets, 10000)), reason, created_by)
+        async with bot_db_context(bot['id']):
+            await add_manual_tickets(user_id, max(1, min(tickets, 10000)), reason, created_by)
         return RedirectResponse(f"/users/{user_id}?msg=tickets_added", 303)
 
     @router.post("/{user_id}/update", dependencies=[Depends(verify_csrf_token)])
