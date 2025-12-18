@@ -86,8 +86,7 @@ def setup_routes(app_templates: Jinja2Templates):
     @router.post("/login")
     async def login(request: Request):
         import bcrypt
-        from database.panel_db import get_panel_user
-        from database import update_panel_user_login
+        from database.panel_db import get_panel_user, update_panel_user_login
         
         form = await request.form()
         username = form.get("username")

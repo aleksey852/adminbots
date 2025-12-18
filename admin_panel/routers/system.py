@@ -109,7 +109,7 @@ def setup_routes(
     
     @router.get("/panel-users", response_class=HTMLResponse)
     async def panel_users_list(request: Request, user: Dict = Depends(require_superadmin), msg: str = None):
-        from database import get_all_panel_users
+        from database.panel_db import get_all_panel_users
         
         users = await get_all_panel_users()
         message = None
@@ -138,7 +138,7 @@ def setup_routes(
         user: Dict = Depends(require_superadmin)
     ):
         import bcrypt
-        from database import get_panel_user, create_panel_user
+        from database.panel_db import get_panel_user, create_panel_user
         
         existing = await get_panel_user(username)
         if existing:
@@ -159,7 +159,7 @@ def setup_routes(
         user: Dict = Depends(require_superadmin)
     ):
         import bcrypt
-        from database import update_panel_user
+        from database.panel_db import update_panel_user
         
         password_hash = None
         if password.strip():
@@ -175,7 +175,7 @@ def setup_routes(
         user_id: int,
         user: Dict = Depends(require_superadmin)
     ):
-        from database import get_panel_user_by_id, delete_panel_user, count_superadmins
+        from database.panel_db import get_panel_user_by_id, delete_panel_user, count_superadmins
         
         target_user = await get_panel_user_by_id(user_id)
         if not target_user:
