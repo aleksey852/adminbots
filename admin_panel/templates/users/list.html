@@ -61,63 +61,48 @@
                 </thead>
                 <tbody>
                     {% for u in users %}
-                    <tr {% if u.is_blocked %}class="table-danger" style="opacity: 0.7;" {% endif %}>
+                    <tr {% if u.is_blocked %}class="table-danger opacity-75" {% endif %}>
                         <td>
                             <span class="text-muted">#</span>{{ u.id }}
                         </td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
-                                <div class="user-avatar-sm" style="
-                                    width: 36px; height: 36px;
-                                    background: linear-gradient(135deg, var(--primary), #8b5cf6);
-                                    border-radius: 10px;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    color: #fff;
-                                    font-weight: 600;
-                                    font-size: 0.8rem;
-                                ">
+                                <div class="user-avatar" style="width: 36px; height: 36px; font-size: 0.8rem;">
                                     {{ (u.full_name or 'U')[0]|upper }}
                                 </div>
                                 <div>
                                     <div class="fw-semibold">{{ u.full_name or 'Без имени' }}</div>
-                                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                                    <div class="text-muted small">
                                         {% if u.username %}@{{ u.username }}{% else %}
-                                        <code style="font-size: 0.75rem;">{{ u.telegram_id }}</code>
+                                        <code>{{ u.telegram_id }}</code>
                                         {% endif %}
                                         {% if u.is_blocked %}
-                                        <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">Заблок.</span>
+                                        <span class="badge bg-danger ms-1">Заблок.</span>
                                         {% endif %}
                                     </div>
                                 </div>
                             </div>
                         </td>
                         <td class="d-none d-md-table-cell">
-                            <span style="color: var(--text-muted);">{{ u.phone or '—' }}</span>
+                            <span class="text-muted">{{ u.phone or '—' }}</span>
                         </td>
                         {% if has_module('receipts') or has_module('promo') %}
                         <td class="text-center">
-                            <span class="badge" style="
-                                background: {{ 'rgba(16, 185, 129, 0.1)' if u.receipt_count else 'rgba(100, 116, 139, 0.1)' }};
-                                color: {{ 'var(--success)' if u.receipt_count else 'var(--text-muted)' }};
-                                min-width: 40px;
-                            ">
-                                {{ u.receipt_count or 0 }}
-                            </span>
+                            {% if u.receipt_count %}
+                            <span class="badge badge-success">{{ u.receipt_count }}</span>
+                            {% else %}
+                            <span class="badge text-muted bg-secondary bg-opacity-10">0</span>
+                            {% endif %}
                         </td>
                         {% endif %}
                         <td class="d-none d-lg-table-cell">
-                            <span style="font-size: 0.85rem; color: var(--text-muted);">
+                            <span class="text-muted small">
                                 {{ u.registered_at.strftime('%d.%m.%Y') if u.registered_at else '—' }}
                             </span>
                         </td>
                         <td>
-                            <a href="/users/{{ u.id }}" class="btn btn-sm" style="
-                                background: rgba(99, 102, 241, 0.1);
-                                color: var(--primary);
-                                border-radius: 8px;
-                            ">
+                            <a href="/users/{{ u.id }}"
+                                class="btn btn-sm btn-outline-primary border-0 bg-primary-subtle">
                                 <i class="bi bi-chevron-right"></i>
                             </a>
                         </td>
@@ -125,8 +110,7 @@
                     {% else %}
                     <tr>
                         <td colspan="10" class="text-center py-5">
-                            <i class="bi bi-inbox"
-                                style="font-size: 3rem; color: var(--border-color); display: block; margin-bottom: 1rem;"></i>
+                            <i class="bi bi-inbox text-muted display-6 d-block mb-3"></i>
                             <p class="text-muted mb-0">
                                 {% if search_query %}
                                 Пользователи не найдены
@@ -146,25 +130,23 @@
 <!-- Pagination -->
 {% if total_pages > 1 and not search_query %}
 <nav class="mt-4" aria-label="Pagination">
-    <ul class="pagination justify-content-center" style="gap: 0.25rem;">
+    <ul class="pagination justify-content-center gap-1">
         {% if page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ page - 1 }}"
-                style="border-radius: 10px; border: none; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <a class="page-link shadow-sm border-0" href="?page={{ page - 1 }}">
                 <i class="bi bi-chevron-left me-1"></i>Назад
             </a>
         </li>
         {% endif %}
 
         <li class="page-item disabled">
-            <span class="page-link" style="border-radius: 10px; border: none; background: var(--primary); color: #fff;">
+            <span class="page-link border-0 bg-primary text-white shadow-sm">
                 {{ page }} / {{ total_pages }}
             </span>
         </li>
 
         {% if page < total_pages %} <li class="page-item">
-            <a class="page-link" href="?page={{ page + 1 }}"
-                style="border-radius: 10px; border: none; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <a class="page-link shadow-sm border-0" href="?page={{ page + 1 }}">
                 Вперёд<i class="bi bi-chevron-right ms-1"></i>
             </a>
             </li>

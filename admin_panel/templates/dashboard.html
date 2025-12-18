@@ -8,7 +8,8 @@
             <p class="page-subtitle mb-0 text-muted">Обзор статистики и статуса системы</p>
         </div>
         <div class="d-flex gap-2">
-            <span class="badge bg-surface border px-3 py-2 d-flex align-items-center gap-2 text-muted">
+            <span class="badge d-flex align-items-center gap-2"
+                style="background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border-color);">
                 <i class="bi bi-clock"></i> {{ now().strftime('%d.%m.%Y') }}
             </span>
         </div>
@@ -312,15 +313,22 @@
     const users = dailyStats.map(d => d.users);
     const receipts = dailyStats.map(d => d.receipts);
 
+    // Helper to get CSS variable value
+    const getVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
     const ctx = document.getElementById('statsChart').getContext('2d');
 
+    // Use primary color from variables
+    const primaryColor = getVar('--primary-500') || '#6366f1';
+    const successColor = getVar('--success-text') || '#10b981';
+
     const gradient1 = ctx.createLinearGradient(0, 0, 0, 200);
-    gradient1.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
-    gradient1.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+    gradient1.addColorStop(0, primaryColor + '4D'); // 30% opacity
+    gradient1.addColorStop(1, primaryColor + '00'); // 0% opacity
 
     const gradient2 = ctx.createLinearGradient(0, 0, 0, 200);
-    gradient2.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
-    gradient2.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+    gradient2.addColorStop(0, successColor + '4D');
+    gradient2.addColorStop(1, successColor + '00');
 
     new Chart(ctx, {
         type: 'line',
@@ -330,7 +338,7 @@
                 {
                     label: 'Пользователи',
                     data: users,
-                    borderColor: '#6366f1',
+                    borderColor: primaryColor,
                     backgroundColor: gradient1,
                     borderWidth: 2.5,
                     tension: 0.4,
@@ -338,21 +346,21 @@
                     pointRadius: 0,
                     pointHoverRadius: 6,
                     pointHoverRadius: 6,
-                    pointHoverBackgroundColor: '#6366f1',
+                    pointHoverBackgroundColor: primaryColor,
                     pointHoverBorderColor: '#fff',
                     pointHoverBorderWidth: 2
                 },
                 {
                     label: '{% if bot and bot.type == "promo" %}Активации{% else %}Чеки{% endif %}',
                     data: receipts,
-                    borderColor: '#10b981',
+                    borderColor: successColor,
                     backgroundColor: gradient2,
                     borderWidth: 2.5,
                     tension: 0.4,
                     fill: true,
                     pointRadius: 0,
                     pointHoverRadius: 6,
-                    pointHoverBackgroundColor: '#10b981',
+                    pointHoverBackgroundColor: successColor,
                     pointHoverBorderColor: '#fff',
                     pointHoverBorderWidth: 2
                 }
