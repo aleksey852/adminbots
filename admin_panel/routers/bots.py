@@ -174,34 +174,20 @@ def setup_routes(
 
     @router.post("/{bot_id}/restart", dependencies=[Depends(verify_csrf_token)])
     async def restart_bot_route(request: Request, bot_id: int):
-        from bot_manager import bot_manager
+        from database.panel_db import get_panel_connection
         from utils.bot_middleware import clear_modules_cache
         
-        if not hasattr(bot_manager, 'polling_manager') or not bot_manager.polling_manager:
-            return RedirectResponse(f"/bots/{bot_id}/edit?error=System+not+ready", 303)
-
-        # 1. Stop polling
-        await bot_manager.polling_manager.stop_polling_for_bot(bot_id)
-        
-        # 2. Stop bot (closes DB connections)
-        await bot_manager.stop_bot(bot_id)
-        
-        # 3. Clear middleware cache (so new settings/modules are picked up)
+        # 1. Clear middleware cache in THIS process (Admin Panel)
         clear_modules_cache(bot_id)
         
-        # 4. Reload info from DB
-        bot = await get_bot_by_id(bot_id)
-        if not bot:
-             return RedirectResponse(f"/bots/{bot_id}/edit?error=Bot+not+found", 303)
-
-        # 5. Start bot
-        await bot_manager.start_bot(bot['id'], bot['token'], bot.get('type', 'receipt'), bot['database_url'])
-        
-        # 6. Start polling
-        new_bot_instance = bot_manager.bots.get(bot_id)
-        if new_bot_instance:
-             await bot_manager.polling_manager.start_polling_for_bot(bot_id, new_bot_instance)
-        
-        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Restarted+successfully", 303)
+        try:
+            # 2. Notify Bot Process to restart the bot
+            async with get_panel_connection() as db:
+                await db.execute("NOTIFY restart_bot, $1", str(bot_id))
+                
+            return RedirectResponse(f"/bots/{bot_id}/edit?msg=Restart+signal+sent", 303)
+        except Exception as e:
+            logger.error(f"Failed to send restart signal: {e}")
+            return RedirectResponse(f"/bots/{bot_id}/edit?error=Signal+failed", 303)
 
     return router

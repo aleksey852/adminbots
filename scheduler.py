@@ -31,7 +31,8 @@ async def pg_listener(
                 notification_queue.put_nowait((channel, payload))
             
             await conn.add_listener("new_bot", notify_handler)
-            logger.info("🔊 PostgreSQL Listener attached to 'new_bot'")
+            await conn.add_listener("restart_bot", notify_handler)
+            logger.info("🔊 PostgreSQL Listener attached to 'new_bot' and 'restart_bot'")
             
             while not shutdown_event.is_set():
                 try:
@@ -49,7 +50,50 @@ async def pg_listener(
                                     logger.info("✅ Bots reloaded dynamically")
                                 else:
                                     logger.warning("⚠️ PollingManager not initialized, cannot reload")
-                                
+                            
+                            elif channel == "restart_bot":
+                                logger.info(f"🔔 Notification: Restart Bot #{payload}")
+                                if polling_manager:
+                                    try:
+                                        bot_id = int(payload)
+                                        # 1. Stop polling
+                                        await polling_manager.stop_polling_for_bot(bot_id)
+                                        
+                                        # 2. Stop bot instance
+                                        await bot_manager.stop_bot(bot_id)
+                                        
+                                        # 3. Reload from registry to get fresh config
+                                        from database.panel_db import get_bot_by_id
+                                        bot_info = await get_bot_by_id(bot_id)
+                                        
+                                        if bot_info:
+                                            # 4. Start bot
+                                            await bot_manager.start_bot(
+                                                bot_info['id'], 
+                                                bot_info['token'], 
+                                                bot_info.get('type', 'receipt'), 
+                                                bot_info['database_url']
+                                            )
+                                            # 5. Start polling
+                                            new_bot = bot_manager.bots.get(bot_id)
+                                            if new_bot:
+                                                await polling_manager.start_polling_for_bot(bot_id, new_bot)
+                                            
+                                            logger.info(f"✅ Bot {bot_id} restarted successfully")
+                                        else:
+                                            logger.error(f"Failed to restart bot {bot_id}: Not found in registry")
+                                            
+                                        # Clear middleware cache if available in this process (Main process needs to clear its own cache too)
+                                        from utils.bot_middleware import clear_modules_cache
+                                        clear_modules_cache(bot_id)
+                                        
+                                    except ValueError:
+                                        logger.error(f"Invalid payload for restart_bot: {payload}")
+                                    except Exception as e:
+                                        logger.error(f"Restart bot failed: {e}")
+                                else:
+                                    logger.warning("⚠️ PollingManager not initialized, cannot restart")
+
                         except Exception as e:
                             logger.error(f"Error processing notification {channel}: {e}")
                         finally:
