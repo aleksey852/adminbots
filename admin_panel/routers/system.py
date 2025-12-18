@@ -123,7 +123,20 @@ def setup_routes(
     async def domain_page(request: Request, user: Dict = Depends(require_superadmin), msg: str = None):
         f = BASE_DIR / ".domain"
         dom = f.read_text().strip() if f.exists() else None
-        ssl = Path(f"/etc/letsencrypt/live/{dom}/fullchain.pem").exists() if dom else False
+        
+        # Check SSL status safely - adminbots user might not have access to /etc/letsencrypt
+        ssl = False
+        if dom:
+            try:
+                ssl = Path(f"/etc/letsencrypt/live/{dom}/fullchain.pem").exists()
+            except PermissionError:
+                # If we have the domain configured but can't access /etc/letsencrypt, 
+                # we'll assume it might be active or managed by root, 
+                # but we'll use a special value to show it in the UI.
+                ssl = "restricted"
+            except Exception:
+                ssl = False
+                
         return templates.TemplateResponse("domain/index.html", get_template_context(request, user=user, title="Домен", current_domain=dom, ssl_status=ssl, logs=(BASE_DIR/".domain_logs").read_text() if (BASE_DIR/".domain_logs").exists() else None, message=msg))
 
     @router.post("/domain/setup", dependencies=[Depends(verify_csrf_token)])

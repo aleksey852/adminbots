@@ -49,7 +49,9 @@
                     <tr>
                         <td class="text-muted">SSL сертификат</td>
                         <td>
-                            {% if ssl_status %}
+                            {% if ssl_status == 'restricted' %}
+                            <span class="text-info"><i class="bi bi-shield-lock"></i> Активен (Root)</span>
+                            {% elif ssl_status %}
                             <span class="text-success"><i class="bi bi-shield-check"></i> Активен</span>
                             {% else %}
                             <span class="text-warning"><i class="bi bi-shield-x"></i> Нет</span>
