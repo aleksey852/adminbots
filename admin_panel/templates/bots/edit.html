@@ -92,7 +92,12 @@
 
             <!-- Modules & Settings -->
             <div class="card shadow-sm mb-4">
-                <div class="card-header"><i class="bi bi-puzzle me-1"></i> Модули и Настройки</div>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div><i class="bi bi-puzzle me-1"></i> Модули и Настройки</div>
+                    <a href="/bots/{{ edit_bot.id }}/modules" class="btn btn-sm btn-light text-primary border">
+                        <i class="bi bi-diagram-3 me-1"></i> Настроить сценарии (Pipelines)
+                    </a>
+                </div>
                 <div class="card-body">
                     <form method="POST" action="/bots/{{ edit_bot.id }}/modules">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
