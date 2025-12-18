@@ -119,6 +119,13 @@
                                                 {% elif module.enabled %}
                                                 <span class="badge bg-success" style="font-size: 0.65em;">Активен</span>
                                                 {% endif %}
+
+                                                {% if module.workflow_steps %}
+                                                <span class="badge bg-info text-dark" style="font-size: 0.65em;"
+                                                    title="Adds steps: {{ module.workflow_steps|join(', ') }}">
+                                                    +{{ module.workflow_steps|length }} Steps
+                                                </span>
+                                                {% endif %}
                                             </div>
                                             <div class="text-muted small text-truncate" style="max-width: 300px;">{{
                                                 module.description }}</div>
