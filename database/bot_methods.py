@@ -10,6 +10,11 @@ from contextvars import ContextVar
 
 logger = logging.getLogger(__name__)
 
+def escape_like(text: str) -> str:
+    """Escape special LIKE characters (%, _) in search queries"""
+    if not text: return ""
+    return str(text).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
 _current_bot_db: ContextVar = ContextVar('current_bot_db', default=None)
 
 def set_current_bot_db(db): _current_bot_db.set(db)
@@ -48,8 +53,9 @@ async def get_users_paginated(page: int = 1, per_page: int = 50):
         return await conn.fetch("SELECT u.*, COALESCE(SUM(r.tickets), 0) as total_tickets, COUNT(r.id) as receipt_count FROM users u LEFT JOIN receipts r ON r.user_id = u.id AND r.status = 'valid' GROUP BY u.id ORDER BY u.registered_at DESC LIMIT $1 OFFSET $2", per_page, (page-1)*per_page)
 
 async def search_users(q: str):
+    escaped = escape_like(q)
     async with get_current_bot_db().get_connection() as conn:
-        return await conn.fetch("SELECT * FROM users WHERE full_name ILIKE $1 OR phone ILIKE $1 OR username ILIKE $1 OR telegram_id::text LIKE $1 LIMIT 100", f"%{q}%")
+        return await conn.fetch("SELECT * FROM users WHERE full_name ILIKE $1 OR phone ILIKE $1 OR username ILIKE $1 OR telegram_id::text LIKE $1 LIMIT 100", f"%{escaped}%")
 
 async def block_user(user_id: int, blocked: bool = True):
     async with get_current_bot_db().get_connection() as conn:
@@ -98,7 +104,7 @@ async def use_promo_code(cid: int, uid: int) -> bool:
 async def add_promo_codes(codes: List[str], tickets: int = 1) -> int:
     if not (recs := [(c.strip().upper(), tickets, 'active') for c in codes if c.strip()]): return 0
     async with get_current_bot_db().get_connection() as conn:
-        await conn.conn.executemany("INSERT INTO promo_codes (code, tickets, status) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", recs)
+        await conn.executemany("INSERT INTO promo_codes (code, tickets, status) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", recs)
     return len(recs)
 
 # === Campaigns & Raffle ===
@@ -120,8 +126,21 @@ async def add_winner(cid: int, uid: int, tg_id: int, prize: str):
         return await conn.fetchval("INSERT INTO winners (campaign_id, user_id, telegram_id, prize_name) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id", cid, uid, tg_id, prize)
 
 async def get_raffle_participants():
+    """Get participants with their total tickets for raffle selection"""
     async with get_current_bot_db().get_connection() as conn:
-        return await conn.fetch("SELECT u.id, u.telegram_id, SUM(s.t) as tickets FROM users u JOIN (SELECT user_id, tickets as t FROM receipts WHERE status='valid' UNION ALL SELECT user_id, tickets FROM manual_tickets UNION ALL SELECT user_id, tickets FROM promo_codes WHERE status='used') s ON u.id = s.user_id WHERE u.is_blocked = FALSE GROUP BY u.id HAVING SUM(s.t) > 0")
+        return await conn.fetch("""
+            SELECT u.id as user_id, u.telegram_id, u.full_name, u.username, 
+                   SUM(s.t) as total_tickets 
+            FROM users u 
+            JOIN (
+                SELECT user_id, tickets as t FROM receipts WHERE status='valid' 
+                UNION ALL SELECT user_id, tickets FROM manual_tickets 
+                UNION ALL SELECT user_id, tickets FROM promo_codes WHERE status='used'
+            ) s ON u.id = s.user_id 
+            WHERE u.is_blocked = FALSE 
+            GROUP BY u.id 
+            HAVING SUM(s.t) > 0
+        """)
 
 async def get_participants_count():
     async with get_current_bot_db().get_connection() as conn:
@@ -131,11 +150,45 @@ async def get_total_tickets_count():
     async with get_current_bot_db().get_connection() as conn:
         return await conn.fetchval("SELECT COALESCE(SUM(tickets), 0) FROM (SELECT tickets FROM receipts WHERE status='valid' UNION ALL SELECT tickets FROM manual_tickets UNION ALL SELECT tickets FROM promo_codes WHERE status='used') s") or 0
 
-async def get_participants_with_tickets(): return await get_raffle_participants()
+async def get_participants_with_tickets(): 
+    return await get_raffle_participants()
+
+async def select_random_winners_db(count: int, prize: str, exclude_user_ids: list = None):
+    """
+    Memory-efficient DB-side weighted random winner selection.
+    Uses PostgreSQL random() with inverse weight for weighted selection.
+    """
+    exclude_ids = exclude_user_ids or []
+    async with get_current_bot_db().get_connection() as conn:
+        # Weighted random: users with more tickets have proportionally higher chance
+        return await conn.fetch("""
+            WITH eligible AS (
+                SELECT u.id as user_id, u.telegram_id, u.full_name, u.username,
+                       SUM(s.t) as total_tickets
+                FROM users u
+                JOIN (
+                    SELECT user_id, tickets as t FROM receipts WHERE status='valid'
+                    UNION ALL SELECT user_id, tickets FROM manual_tickets
+                    UNION ALL SELECT user_id, tickets FROM promo_codes WHERE status='used'
+                ) s ON u.id = s.user_id
+                WHERE u.is_blocked = FALSE
+                  AND u.id != ALL($3::int[])
+                GROUP BY u.id
+                HAVING SUM(s.t) > 0
+            )
+            SELECT user_id, telegram_id, full_name, username, total_tickets, $2 as prize_name
+            FROM eligible
+            ORDER BY -log(random()) / total_tickets  -- Weighted random using exponential distribution
+            LIMIT $1
+        """, count, prize, exclude_ids)
 
 async def get_raffle_losers(cid: int):
     async with get_current_bot_db().get_connection() as conn:
         return await conn.fetch("SELECT DISTINCT u.id, u.telegram_id FROM users u JOIN (SELECT user_id FROM receipts WHERE status='valid' UNION SELECT user_id FROM manual_tickets UNION SELECT user_id FROM promo_codes WHERE status='used') s ON u.id = s.user_id WHERE u.is_blocked = FALSE AND u.id NOT IN (SELECT user_id FROM winners WHERE campaign_id = $1)", cid)
+
+async def get_raffle_losers_paginated(cid: int, last_id: int = 0, limit: int = 100):
+    async with get_current_bot_db().get_connection() as conn:
+        return await conn.fetch("SELECT DISTINCT u.id, u.telegram_id FROM users u JOIN (SELECT user_id FROM receipts WHERE status='valid' UNION SELECT user_id FROM manual_tickets UNION SELECT user_id FROM promo_codes WHERE status='used') s ON u.id = s.user_id WHERE u.is_blocked = FALSE AND u.id NOT IN (SELECT user_id FROM winners WHERE campaign_id = $1) AND u.id > $2 ORDER BY u.id LIMIT $3", cid, last_id, limit)
 
 async def mark_winner_notified(wid: int):
     async with get_current_bot_db().get_connection() as conn:
@@ -167,7 +220,11 @@ async def get_all_users_for_broadcast():
 
 async def get_stats() -> Dict:
     async with get_current_bot_db().get_connection() as conn:
-        t = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        import config
+        # Use timezone-aware 'now' then strip TZ for naive DB comparison if necessary
+        # config.get_now() returns aware datetime
+        t = config.get_now().replace(hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
+        
         u = await conn.fetchrow("SELECT COUNT(*) as total_users, COUNT(*) FILTER (WHERE registered_at >= $1) as users_today, COUNT(*) FILTER (WHERE is_blocked=TRUE) as blocked FROM users", t)
         r = await conn.fetchrow("SELECT COUNT(*) as total_receipts, COUNT(*) FILTER (WHERE status='valid') as valid_receipts, COUNT(*) FILTER (WHERE created_at >= $1) as receipts_today, COALESCE(SUM(tickets) FILTER (WHERE status='valid'), 0) as total_tickets, COUNT(DISTINCT user_id) FILTER (WHERE status='valid') as participants FROM receipts", t)
         return {**dict(u), **dict(r), "total_winners": await conn.fetchval("SELECT COUNT(*) FROM winners")}
@@ -230,6 +287,10 @@ async def add_manual_tickets(uid: int, tix: int, reason: str = None, by: str = N
     async with get_current_bot_db().get_connection() as conn:
         return await conn.fetchval("INSERT INTO manual_tickets (user_id, tickets, reason, created_by) VALUES ($1, $2, $3, $4) RETURNING id", uid, tix, reason, by)
 
+async def get_user_manual_tickets(uid: int):
+    async with get_current_bot_db().get_connection() as conn:
+        return await conn.fetch("SELECT * FROM manual_tickets WHERE user_id = $1 ORDER BY created_at DESC", uid)
+
 async def get_user_total_tickets(uid: int):
     async with get_current_bot_db().get_connection() as conn:
         return await conn.fetchval("SELECT COALESCE((SELECT SUM(tickets) FROM receipts WHERE user_id=$1 AND status='valid'), 0) + COALESCE((SELECT SUM(tickets) FROM manual_tickets WHERE user_id=$1), 0) + COALESCE((SELECT SUM(tickets) FROM promo_codes WHERE user_id=$1 AND status='used'), 0)", uid)
@@ -240,12 +301,21 @@ async def get_all_tickets_for_final_raffle():
 
 # === Utils & Legacy ===
 
+# Whitelist of allowed fields for dynamic updates
+ALLOWED_USER_FIELDS = {'full_name', 'phone', 'username', 'is_blocked'}
+
 async def update_user_fields(uid: int, **kwargs):
     async with get_current_bot_db().get_connection() as conn:
         fields, vals = [], []
         for k, v in kwargs.items():
-            if v is not None: fields.append(f"{k} = ${len(vals)+1}"); vals.append(v)
-        if fields: await conn.execute(f"UPDATE users SET {', '.join(fields)} WHERE id=${len(vals)+1}", *vals, uid)
+            if k not in ALLOWED_USER_FIELDS:
+                logger.warning(f"Attempted to update non-whitelisted field: {k}")
+                continue
+            if v is not None: 
+                fields.append(f"{k} = ${len(vals)+1}")
+                vals.append(v)
+        if fields: 
+            await conn.execute(f"UPDATE users SET {', '.join(fields)} WHERE id=${len(vals)+1}", *vals, uid)
 
 async def get_user_receipts_detailed(uid, limit=50): return await get_user_receipts(uid, limit)
 async def get_total_users_count():
@@ -286,8 +356,11 @@ async def get_all_settings():
 async def get_all_messages():
     async with get_current_bot_db().get_connection() as conn: return await conn.fetch("SELECT * FROM messages ORDER BY key")
 async def save_winners_atomic(cid, winners):
-    for w in winners: await add_winner(cid, w['user_id'], w['telegram_id'], w['prize_name'])
+    if not winners: return 0
+    recs = [(cid, w['user_id'], w['telegram_id'], w['prize_name']) for w in winners]
+    async with get_current_bot_db().get_connection() as conn:
+        await conn.executemany("INSERT INTO winners (campaign_id, user_id, telegram_id, prize_name) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING", recs)
     return len(winners)
 async def get_campaign_winners(cid):
     async with get_current_bot_db().get_connection() as conn: return await conn.fetch("SELECT * FROM winners WHERE campaign_id = $1", cid)
-async def get_all_users_count(): return await get_total_users_count()
+# Removed get_all_users_count (redundant alias)

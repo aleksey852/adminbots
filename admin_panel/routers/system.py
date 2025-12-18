@@ -135,7 +135,11 @@ def setup_routes(
         try:
             logs = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
         except Exception as e:
-            logs = f"Error: {e}\nRun: sudo usermod -aG systemd-journal adminbots && sudo systemctl restart admin_panel"
+            logs = f"Похоже, у пользователя 'adminbots' нет прав на чтение журналов systemd.\n\n" \
+                   f"Ошибка: {e}\n\n" \
+                   f"Для исправления выполните на сервере:\n" \
+                   f"sudo usermod -aG systemd-journal adminbots\n" \
+                   f"sudo systemctl restart admin_panel"
         return templates.TemplateResponse("settings/logs.html", get_template_context(request, user=user, title="Логи", logs=logs, active_service=service, q=q, active_level=level, lines=lines))
 
     @router.get("/migration", response_class=HTMLResponse)

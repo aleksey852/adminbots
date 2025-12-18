@@ -51,7 +51,7 @@ class BotDatabase:
         
         conn = await asyncio.wait_for(self._pool.acquire(), timeout=10.0)
         try:
-            yield BotDBWrapper(conn)
+            yield DBWrapper(conn)
         finally:
             await self._pool.release(conn)
     
@@ -236,13 +236,17 @@ class BotDatabase:
             logger.info(f"Bot {self.bot_id}: Schema initialized")
 
 
-class BotDBWrapper:
+class DBWrapper:
     """Consistent interface for asyncpg"""
     def __init__(self, conn):
         self.conn = conn
     
     async def execute(self, query: str, *args):
         return await self.conn.execute(query, *args)
+    
+    async def executemany(self, query: str, args_list):
+        """Execute query with multiple argument sets (batch insert/update)"""
+        return await self.conn.executemany(query, args_list)
     
     async def fetch(self, query: str, *args) -> List[Dict]:
         return [dict(r) for r in await self.conn.fetch(query, *args)]

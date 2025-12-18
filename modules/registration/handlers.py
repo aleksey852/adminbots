@@ -85,40 +85,24 @@ class RegistrationModule(BotModule):
                 if not phone.startswith('+'):
                      phone = '+' + phone
             elif message.text:
-                # 1. Strip whitespace
+                # 1. Strip whitespace and separators
                 text = message.text.strip()
-                
-                # 2. Check basic validity (digits, maybe +, spaces, parens, dashes)
-                # Remove common separators
                 clean = re.sub(r'[\s\-\(\)]', '', text)
                 
-                # 3. Handle Russian 8 suffix logic (8999... -> 7999...)
-                # If starts with 8 and is 11 digits, replace 8 with 7
+                # 2. Handle Russian 8 prefix logic
+                # Only if starts with 8 and is 11 digits total (e.g., 89991234567)
                 if len(clean) == 11 and clean.startswith('8'):
                      clean = '7' + clean[1:]
                 
-                # 4. Final Validation: must be digits only now.
-                # Must be 10-15 digits. Even 10 is risky without country code, but some users might try.
-                # Let's enforce international format -> we expect roughly 11+ digits usually.
-                # If user entered 9991234567 (10 digits), we assume +7 for RU context if needed?
-                # No, that's dangerous. Let's stick to 11-15 digits for safety or strict specific codes.
-                # But for general bot, let's accept 10-15 and if it doesn't have country code, prepend +? 
+                # 3. Final Validation: must be digits (after stripping +)
+                digits_only = clean[1:] if clean.startswith('+') else clean
                 
-                # If clean starts with +, remove it for digit count check
-                if clean.startswith('+'):
-                    clean = clean[1:]
-                
-                if not clean.isdigit():
-                    msg = config_manager.get_message('reg_phone_error', self.default_messages['reg_phone_error'], bot_id=bot_id)
-                    await message.answer(msg)
-                    return
-                
-                if len(clean) < 10 or len(clean) > 15:
+                if not digits_only.isdigit() or len(digits_only) < 10 or len(digits_only) > 15:
                     msg = config_manager.get_message('reg_phone_error', self.default_messages['reg_phone_error'], bot_id=bot_id)
                     await message.answer(msg)
                     return
 
-                phone = '+' + clean
+                phone = clean if clean.startswith('+') else '+' + clean
             else:
                 msg = config_manager.get_message('reg_phone_request', self.default_messages['reg_phone_request'], bot_id=bot_id)
                 await message.answer(msg)

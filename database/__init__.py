@@ -38,10 +38,10 @@ from database.bot_methods import (
     get_recent_campaigns,
     # Winners & Raffle
     get_raffle_participants, get_participants_count, get_participants_with_tickets,
-    get_total_tickets_count, save_winners_atomic, add_winner,
+    get_total_tickets_count, save_winners_atomic, add_winner, select_random_winners_db,
     get_campaign_winners, get_recent_raffles_with_winners,
     get_all_winners_for_export, get_user_wins, get_raffle_losers,
-    mark_winner_notified,
+    mark_winner_notified, get_raffle_losers_paginated,
     # Broadcast
     get_broadcast_progress, save_broadcast_progress, delete_broadcast_progress,
     get_all_users_for_broadcast,

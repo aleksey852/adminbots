@@ -7,80 +7,305 @@
     <title>{{ title|default('Dashboard', true) }} - Admin Bots</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --sidebar-width: 240px;
+            --sidebar-width: 260px;
+            --sidebar-collapsed-width: 70px;
             --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-darker: #020617;
+            --bg-light: #f8fafc;
+            --border-color: #e2e8f0;
+            --text-muted: #64748b;
+            --card-radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
-            background: #f1f5f9;
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-light);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0;
+            overflow-x: hidden;
         }
 
+        /* ===== SIDEBAR ===== */
         .sidebar {
             position: fixed;
             top: 0;
             left: 0;
             width: var(--sidebar-width);
             height: 100vh;
-            background: linear-gradient(135deg, #1e293b, #0f172a);
+            background: linear-gradient(180deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
             display: flex;
             flex-direction: column;
             z-index: 1000;
+            transition: var(--transition);
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .sidebar-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .sidebar-brand {
+            color: #fff;
+            font-size: 1.25rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+        }
+
+        .sidebar-brand i {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .sidebar-body {
             flex: 1;
             overflow-y: auto;
-            padding: 1rem;
+            padding: 1rem 0.75rem;
         }
 
-        .sidebar-brand {
+        .sidebar-body::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar-body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        /* Bot Selector */
+        .bot-selector {
+            margin-bottom: 1.5rem;
+        }
+
+        .bot-selector .dropdown-toggle {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             color: #fff;
-            font-size: 1.2rem;
-            font-weight: 700;
-            padding: 1rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            text-align: left;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .bot-selector .dropdown-toggle:hover,
+        .bot-selector .dropdown-toggle:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .bot-selector .dropdown-menu {
+            width: 100%;
+            background: var(--bg-dark);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 0.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .bot-selector .dropdown-item {
+            color: #94a3b8;
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            transition: var(--transition);
+        }
+
+        .bot-selector .dropdown-item:hover,
+        .bot-selector .dropdown-item.active {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .bot-meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            padding: 0.25rem 0.5rem;
+            opacity: 0.7;
+        }
+
+        /* Navigation */
+        .nav-section {
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-section-title {
+            color: #475569;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.75rem 1rem 0.5rem;
         }
 
         .sidebar .nav-link {
             color: #94a3b8;
-            padding: 0.6rem 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 0.2rem;
-            transition: all 0.2s;
+            padding: 0.65rem 1rem;
+            border-radius: 10px;
+            margin-bottom: 2px;
+            transition: var(--transition);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .sidebar .nav-link i {
+            font-size: 1.1rem;
+            width: 1.25rem;
+            text-align: center;
         }
 
         .sidebar .nav-link:hover {
             color: #fff;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateX(4px);
         }
 
         .sidebar .nav-link.active {
             color: #fff;
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
         }
 
-        .sidebar .nav-link i {
-            width: 1.5rem;
-            margin-right: 0.5rem;
+        .sidebar-footer {
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(0, 0, 0, 0.2);
         }
 
-        .nav-section-title {
-            color: #64748b;
-            font-size: 0.7rem;
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
             font-weight: 600;
-            text-transform: uppercase;
-            padding: 0.5rem 1rem;
-            margin-top: 1rem;
         }
 
+        .user-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-name {
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-role {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .logout-btn {
+            color: #ef4444;
+            font-size: 0.85rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: var(--transition);
+        }
+
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+        }
+
+        /* ===== MOBILE TOGGLE ===== */
+        .mobile-header {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: var(--bg-dark);
+            z-index: 999;
+            padding: 0 1rem;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .mobile-brand {
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .menu-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            font-size: 1.25rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .menu-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            backdrop-filter: blur(4px);
+        }
+
+        /* ===== MAIN CONTENT ===== */
         .main-content {
             margin-left: var(--sidebar-width);
             padding: 2rem;
             min-height: 100vh;
+            transition: var(--transition);
         }
 
         .page-header {
@@ -93,234 +318,551 @@
         }
 
         .page-title {
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             font-weight: 700;
             color: #1e293b;
             margin: 0;
         }
 
+        .page-subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        /* ===== CARDS ===== */
         .card {
             border: none;
-            border-radius: 1rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border-radius: var(--card-radius);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+            transition: var(--transition);
+            overflow: hidden;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 24px rgba(0, 0, 0, 0.08);
         }
 
         .card-header {
             background: #fff;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--border-color);
             font-weight: 600;
             padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
+        .card-header i {
+            color: var(--primary);
+        }
+
+        .card-footer {
+            background: #fff;
+            border-top: 1px solid var(--border-color);
+            padding: 0.75rem 1.25rem;
+        }
+
+        /* Stat Cards */
         .stat-card {
-            border-left: 4px solid var(--primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--primary);
+        }
+
+        .stat-card.success::before {
+            background: var(--success);
+        }
+
+        .stat-card.warning::before {
+            background: var(--warning);
+        }
+
+        .stat-card.danger::before {
+            background: var(--danger);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+
+        .stat-card.success .stat-icon {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .stat-card.warning .stat-icon {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .stat-card.danger .stat-icon {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
         }
 
         .stat-value {
-            font-size: 1.8rem;
+            font-size: 1.75rem;
             font-weight: 700;
             color: #1e293b;
+            line-height: 1.2;
         }
 
         .stat-label {
-            color: #64748b;
+            color: var(--text-muted);
             font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        .stat-change {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+        }
+
+        .stat-change.positive {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .stat-change.negative {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        /* ===== BUTTONS ===== */
+        .btn {
+            border-radius: 10px;
+            padding: 0.6rem 1.25rem;
+            font-weight: 500;
+            transition: var(--transition);
         }
 
         .btn-primary {
-            background: var(--primary);
-            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
 
         .btn-primary:hover {
-            background: #4f46e5;
-            border-color: #4f46e5;
+            background: linear-gradient(135deg, var(--primary-dark), #4338ca);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-outline-primary {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        /* Quick Action Cards */
+        .quick-action {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border-radius: 12px;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            text-decoration: none;
+            color: #1e293b;
+            transition: var(--transition);
+        }
+
+        .quick-action:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .quick-action-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        /* ===== TABLES ===== */
+        .table {
+            margin-bottom: 0;
         }
 
         .table th {
             font-weight: 600;
-            color: #64748b;
+            color: var(--text-muted);
             font-size: 0.75rem;
             text-transform: uppercase;
+            letter-spacing: 0.03em;
+            border-bottom-width: 1px;
+            padding: 0.85rem 1rem;
         }
 
-        .badge-valid {
-            background: #dcfce7;
-            color: #166534;
+        .table td {
+            padding: 0.85rem 1rem;
+            vertical-align: middle;
+            border-color: var(--border-color);
+        }
+
+        .table-hover tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        /* ===== BADGES ===== */
+        .badge {
+            font-weight: 500;
+            padding: 0.4em 0.75em;
+            border-radius: 6px;
+        }
+
+        .badge-valid,
+        .badge-completed {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
         }
 
         .badge-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .badge-completed {
-            background: #dcfce7;
-            color: #166534;
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
         }
 
         .badge-scheduled {
-            background: #dbeafe;
-            color: #1e40af;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
         }
 
-        .alert-success-custom {
-            background: #dcfce7;
-            border: 1px solid #86efac;
-            color: #166534;
-            border-radius: 0.5rem;
+        /* ===== FORMS ===== */
+        .form-control,
+        .form-select {
+            border-radius: 10px;
+            border-color: var(--border-color);
+            padding: 0.65rem 1rem;
+            transition: var(--transition);
         }
 
-        .alert-info-custom {
-            background: #dbeafe;
-            border: 1px solid #93c5fd;
-            color: #1e40af;
-            border-radius: 0.5rem;
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
         }
 
         .form-label {
             font-weight: 500;
             color: #374151;
+            margin-bottom: 0.5rem;
         }
 
-        .sidebar-footer {
-            padding: 1rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            background: linear-gradient(135deg, #1e293b, #0f172a);
+        /* ===== ALERTS ===== */
+        .alert {
+            border-radius: 12px;
+            border: none;
         }
 
-        @media (max-width: 768px) {
+        .alert-success-custom {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+
+        .alert-info-custom {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 992px) {
             .sidebar {
-                width: 100%;
-                height: auto;
-                position: relative;
+                transform: translateX(-100%);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay.open {
+                display: block;
+            }
+
+            .mobile-header {
+                display: flex;
             }
 
             .main-content {
                 margin-left: 0;
+                padding: 80px 1rem 1.5rem;
             }
+
+            .page-title {
+                font-size: 1.25rem;
+            }
+
+            .stat-card .card-body {
+                padding: 1rem;
+            }
+
+            .stat-value {
+                font-size: 1.5rem;
+            }
+
+            .row.g-4 {
+                --bs-gutter-x: 0.75rem;
+                --bs-gutter-y: 0.75rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .main-content {
+                padding: 70px 0.75rem 1rem;
+            }
+
+            .card {
+                border-radius: 12px;
+            }
+
+            .stat-value {
+                font-size: 1.35rem;
+            }
+
+            .stat-label {
+                font-size: 0.8rem;
+            }
+
+            .btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .table-responsive {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .card:nth-child(2) {
+            animation-delay: 0.05s;
+        }
+
+        .card:nth-child(3) {
+            animation-delay: 0.1s;
+        }
+
+        .card:nth-child(4) {
+            animation-delay: 0.15s;
         }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 
 <body>
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+        <div class="mobile-brand">
+            <i class="bi bi-robot"></i> Admin Bots
+        </div>
+        <button class="menu-toggle" onclick="toggleSidebar()">
+            <i class="bi bi-list"></i>
+        </button>
+    </header>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
     <nav class="sidebar">
-        <div class="sidebar-brand"><i class="bi bi-robot"></i> Admin Bots</div>
+        <div class="sidebar-header">
+            <a href="/" class="sidebar-brand">
+                <i class="bi bi-robot"></i>
+                <span>Admin Bots</span>
+            </a>
+        </div>
 
         <div class="sidebar-body">
-            <div class="px-0 mb-3">
+            <!-- Bot Selector -->
+            <div class="bot-selector">
                 <div class="dropdown">
-                    <button
-                        class="btn btn-dark btn-sm w-100 dropdown-toggle text-start d-flex justify-content-between align-items-center border-secondary"
-                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span class="text-truncate">
-                            <i class="bi bi-telegram me-1"></i>
-                            {% if bot %}{{ bot.name }}{% else %}Нет ботов{% endif %}
-                        </span>
+                    <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-telegram me-2"></i>
+                        {% if bot %}{{ bot.name }}{% else %}Выберите бота{% endif %}
+                        <i class="bi bi-chevron-down ms-auto" style="font-size: 0.75rem;"></i>
                     </button>
-                    <ul class="dropdown-menu w-100 shadow border-0">
+                    <ul class="dropdown-menu">
                         {% for b in bots %}
                         <li>
-                            <form action="/bot/switch/{{ b.id }}" method="post" class="m-0 p-0">
+                            <form action="/bot/switch/{{ b.id }}" method="post" class="m-0">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <button type="submit"
-                                    class="dropdown-item d-flex justify-content-between align-items-center {% if bot and bot.id == b.id %}active{% endif %}">
+                                    class="dropdown-item d-flex align-items-center justify-content-between {% if bot and bot.id == b.id %}active{% endif %}">
                                     <span>{{ b.name }}</span>
-                                    {% if bot and bot.id == b.id %}<i class="bi bi-check"></i>{% endif %}
+                                    {% if bot and bot.id == b.id %}<i class="bi bi-check-lg"></i>{% endif %}
                                 </button>
                             </form>
                         </li>
                         {% endfor %}
                         {% if is_superadmin %}
                         <li>
-                            <hr class="dropdown-divider">
+                            <hr class="dropdown-divider" style="border-color: rgba(255,255,255,0.1);">
                         </li>
-                        <li><a class="dropdown-item" href="/bots/new"><i class="bi bi-plus-circle me-2"></i>Добавить
-                                бота</a></li>
+                        <li>
+                            <a class="dropdown-item" href="/bots/new">
+                                <i class="bi bi-plus-circle me-2"></i>Добавить бота
+                            </a>
+                        </li>
                         {% endif %}
                     </ul>
                 </div>
                 {% if bot %}
-                <div class="text-muted small mt-1 ps-1" style="font-size: 0.75rem;">
-                    ID: {{ bot.id }} | {{ bot.type|upper }}
+                <div class="bot-meta">
+                    ID: {{ bot.id }} • {{ bot.type|upper }}
                 </div>
                 {% endif %}
             </div>
 
-            <div class="nav-section-title">Главное</div>
-            <ul class="nav flex-column">
-                <li><a class="nav-link {% if request.url.path == '/' %}active{% endif %}" href="/"><i
-                            class="bi bi-speedometer2"></i> Dashboard</a></li>
-            </ul>
+            <!-- Navigation -->
+            <div class="nav-section">
+                <div class="nav-section-title">Главное</div>
+                <ul class="nav flex-column">
+                    <li><a class="nav-link {% if request.url.path == '/' %}active{% endif %}" href="/">
+                            <i class="bi bi-grid-1x2-fill"></i>Dashboard
+                        </a></li>
+                </ul>
+            </div>
 
-            <div class="nav-section-title">Данные</div>
-            <ul class="nav flex-column">
-                <li><a class="nav-link {% if '/users' in request.url.path %}active{% endif %}" href="/users"><i
-                            class="bi bi-people"></i> Пользователи</a></li>
-                {% if not bot or bot.type == 'receipt' %}
-                <li><a class="nav-link {% if '/receipts' in request.url.path %}active{% endif %}" href="/receipts"><i
-                            class="bi bi-receipt"></i> Чеки</a></li>
-                {% endif %}
-                {% if not bot or bot.type == 'promo' %}
-                <li><a class="nav-link {% if '/codes' in request.url.path %}active{% endif %}" href="/codes"><i
-                            class="bi bi-upc-scan"></i> Промокоды</a></li>
-                {% endif %}
-                <li><a class="nav-link {% if '/winners' in request.url.path %}active{% endif %}" href="/winners"><i
-                            class="bi bi-trophy"></i> Победители</a></li>
-            </ul>
+            <div class="nav-section">
+                <div class="nav-section-title">Данные</div>
+                <ul class="nav flex-column">
+                    <li><a class="nav-link {% if '/users' in request.url.path %}active{% endif %}" href="/users">
+                            <i class="bi bi-people-fill"></i>Пользователи
+                        </a></li>
+                    {% if not bot or bot.type == 'receipt' %}
+                    <li><a class="nav-link {% if '/receipts' in request.url.path %}active{% endif %}" href="/receipts">
+                            <i class="bi bi-receipt"></i>Чеки
+                        </a></li>
+                    {% endif %}
+                    {% if not bot or bot.type == 'promo' %}
+                    <li><a class="nav-link {% if '/codes' in request.url.path %}active{% endif %}" href="/codes">
+                            <i class="bi bi-upc-scan"></i>Промокоды
+                        </a></li>
+                    {% endif %}
+                    <li><a class="nav-link {% if '/winners' in request.url.path %}active{% endif %}" href="/winners">
+                            <i class="bi bi-trophy-fill"></i>Победители
+                        </a></li>
+                </ul>
+            </div>
 
-            <div class="nav-section-title">Действия</div>
-            <ul class="nav flex-column">
-                <li><a class="nav-link {% if '/broadcast' in request.url.path %}active{% endif %}" href="/broadcast"><i
-                            class="bi bi-megaphone"></i> Рассылка</a></li>
-                <li><a class="nav-link {% if '/raffle' in request.url.path %}active{% endif %}" href="/raffle"><i
-                            class="bi bi-gift"></i> Розыгрыш</a></li>
-                <li><a class="nav-link {% if '/campaigns' in request.url.path %}active{% endif %}" href="/campaigns"><i
-                            class="bi bi-list-task"></i> Кампании</a></li>
-                {% if bot %}
-                <li><a class="nav-link {% if '/bots/' ~ bot.id ~ '/edit' in request.url.path %}active{% endif %}"
-                        href="/bots/{{ bot.id }}/edit"><i class="bi bi-gear-fill"></i> Настройки бота</a></li>
-                {% endif %}
-                {% if is_superadmin %}
-                <li><a class="nav-link {% if '/backups' in request.url.path %}active{% endif %}" href="/backups"><i
-                            class="bi bi-server"></i> Резервные копии</a></li>
-                {% endif %}
-            </ul>
+            <div class="nav-section">
+                <div class="nav-section-title">Действия</div>
+                <ul class="nav flex-column">
+                    <li><a class="nav-link {% if '/broadcast' in request.url.path %}active{% endif %}"
+                            href="/broadcast">
+                            <i class="bi bi-megaphone-fill"></i>Рассылка
+                        </a></li>
+                    <li><a class="nav-link {% if '/raffle' in request.url.path %}active{% endif %}" href="/raffle">
+                            <i class="bi bi-gift-fill"></i>Розыгрыш
+                        </a></li>
+                    <li><a class="nav-link {% if '/campaigns' in request.url.path %}active{% endif %}"
+                            href="/campaigns">
+                            <i class="bi bi-list-task"></i>Кампании
+                        </a></li>
+                    {% if bot %}
+                    <li><a class="nav-link {% if '/bots/' ~ bot.id ~ '/edit' in request.url.path %}active{% endif %}"
+                            href="/bots/{{ bot.id }}/edit">
+                            <i class="bi bi-sliders"></i>Настройки бота
+                        </a></li>
+                    {% endif %}
+                </ul>
+            </div>
 
-            <div class="nav-section-title">Настройки</div>
-            <ul class="nav flex-column">
-                <li><a class="nav-link {% if request.url.path == '/settings' %}active{% endif %}" href="/settings"><i
-                            class="bi bi-gear"></i> Промо</a></li>
-                <li><a class="nav-link {% if '/settings/messages' in request.url.path %}active{% endif %}"
-                        href="/settings/messages"><i class="bi bi-chat-text"></i> Тексты</a></li>
-                {% if is_superadmin %}
+            <div class="nav-section">
+                <div class="nav-section-title">Настройки</div>
+                <ul class="nav flex-column">
+                    <li><a class="nav-link {% if request.url.path == '/settings' %}active{% endif %}" href="/settings">
+                            <i class="bi bi-gear-fill"></i>Промо
+                        </a></li>
+                    <li><a class="nav-link {% if '/settings/messages' in request.url.path %}active{% endif %}"
+                            href="/settings/messages">
+                            <i class="bi bi-chat-square-text-fill"></i>Тексты
+                        </a></li>
+                </ul>
+            </div>
+
+            {% if is_superadmin %}
+            <div class="nav-section">
                 <div class="nav-section-title">SuperAdmin</div>
                 <ul class="nav flex-column">
                     <li><a class="nav-link {% if '/settings/logs' in request.url.path %}active{% endif %}"
-                            href="/settings/logs"><i class="bi bi-journal-text"></i> Логи системы</a></li>
-                    <li><a class="nav-link {% if '/migration' in request.url.path %}active{% endif %}"
-                            href="/migration"><i class="bi bi-box-arrow-right"></i> Переезд сервера</a></li>
-                    <li><a class="nav-link {% if '/domain' in request.url.path %}active{% endif %}" href="/domain"><i
-                                class="bi bi-globe"></i> Домен</a></li>
-                    <li><a class="nav-link {% if '/backups' in request.url.path %}active{% endif %}" href="/backups"><i
-                                class="bi bi-server"></i> Резервные копии</a></li>
+                            href="/settings/logs">
+                            <i class="bi bi-terminal-fill"></i>Логи системы
+                        </a></li>
+                    <li><a class="nav-link {% if '/domain' in request.url.path %}active{% endif %}" href="/domain">
+                            <i class="bi bi-globe2"></i>Домен
+                        </a></li>
+                    <li><a class="nav-link {% if '/backups' in request.url.path %}active{% endif %}" href="/backups">
+                            <i class="bi bi-hdd-stack-fill"></i>Бэкапы
+                        </a></li>
                     <li><a class="nav-link {% if '/panel-users' in request.url.path %}active{% endif %}"
-                            href="/panel-users"><i class="bi bi-people-fill"></i> Пользователи панели</a></li>
+                            href="/panel-users">
+                            <i class="bi bi-person-badge-fill"></i>Пользователи
+                        </a></li>
                 </ul>
-                {% endif %}
+            </div>
+            {% endif %}
         </div>
 
         <div class="sidebar-footer">
-            <div class="text-muted small mb-2" style="font-size: 0.7rem;">
-                {% if current_user %}
-                <i class="bi bi-person-circle"></i> {{ current_user.username }}
-                <span
-                    class="badge {% if current_user.role == 'superadmin' %}bg-danger{% else %}bg-secondary{% endif %}">{{
-                    current_user.role }}</span>
-                {% endif %}
+            {% if current_user %}
+            <div class="user-info">
+                <div class="user-avatar">
+                    {{ current_user.username[0]|upper }}
+                </div>
+                <div class="user-details">
+                    <div class="user-name">{{ current_user.username }}</div>
+                    <div class="user-role">{{ current_user.role }}</div>
+                </div>
             </div>
-            <a class="nav-link text-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> Выход</a>
+            {% endif %}
+            <a class="logout-btn" href="/logout">
+                <i class="bi bi-box-arrow-left"></i>Выход
+            </a>
         </div>
     </nav>
 
@@ -330,6 +872,29 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('open');
+            document.querySelector('.sidebar-overlay').classList.toggle('open');
+        }
+
+        // Close sidebar on link click (mobile)
+        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 992) {
+                    toggleSidebar();
+                }
+            });
+        });
+
+        // Close sidebar on resize if open
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 992) {
+                document.querySelector('.sidebar').classList.remove('open');
+                document.querySelector('.sidebar-overlay').classList.remove('open');
+            }
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 

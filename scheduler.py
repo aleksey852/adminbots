@@ -1,0 +1,151 @@
+"""
+Scheduler Module - PostgreSQL Listener and Campaign Processing
+"""
+import asyncio
+import logging
+
+from aiogram import Bot
+
+from database.panel_db import get_panel_connection
+from database.bot_db import bot_db_manager
+from database import bot_methods
+from bot_manager import bot_manager
+from campaigns import execute_broadcast, execute_raffle, execute_single_message
+import config
+
+logger = logging.getLogger(__name__)
+
+
+async def pg_listener(
+    shutdown_event: asyncio.Event,
+    notification_queue: asyncio.Queue,
+    polling_manager,
+):
+    """Listen for notifications from PostgreSQL (uses panel DB)"""
+    try:
+        async with get_panel_connection() as db:
+            conn = db.conn
+            
+            # Define callback
+            def notify_handler(conn, pid, channel, payload):
+                notification_queue.put_nowait((channel, payload))
+            
+            await conn.add_listener("new_bot", notify_handler)
+            logger.info("🔊 PostgreSQL Listener attached to 'new_bot'")
+            
+            while not shutdown_event.is_set():
+                try:
+                    # Wait for notification
+                    await asyncio.wait_for(notification_queue.get(), timeout=5.0)
+                    
+                    while not notification_queue.empty():
+                        channel, payload = await notification_queue.get()
+                        try:
+                            if channel == "new_bot":
+                                logger.info("🔔 Notification: New Bot added. Reloading dynamically...")
+                                # Use PollingManager to add new bots without restart
+                                if polling_manager:
+                                    await polling_manager.reload_bots()
+                                    logger.info("✅ Bots reloaded dynamically")
+                                else:
+                                    logger.warning("⚠️ PollingManager not initialized, cannot reload")
+                                
+                        except Exception as e:
+                            logger.error(f"Error processing notification {channel}: {e}")
+                        finally:
+                            notification_queue.task_done()
+                            
+                except asyncio.TimeoutError:
+                    continue
+    except Exception as e:
+        logger.critical(f"PG Listener failed: {e}")
+
+
+async def process_campaign(campaign: dict, shutdown_event: asyncio.Event):
+    """Process a single campaign (with per-bot database context)"""
+    cid = campaign['id']
+    ctype = campaign['type']
+    content = campaign['content'] if isinstance(campaign['content'], dict) else {}
+    
+    # Campaigns now stored per-bot, bot_id passed via _bot_id from scheduler
+    bot_id = campaign.get('_bot_id') or campaign.get('bot_id')
+    
+    if not bot_id:
+        logger.error(f"Campaign #{cid} has no bot_id. Skipping.")
+        return
+    
+    # Get Bot instance
+    bot = bot_manager.bots.get(bot_id)
+    if not bot:
+        logger.error(f"Bot {bot_id} not found for campaign #{cid}. Skipping.")
+        return
+    
+    logger.info(f"🚀 Starting campaign #{cid} ({ctype}) for Bot #{bot_id}")
+    
+    # Use context manager for safe database context management
+    try:
+        async with bot_methods.bot_db_context(bot_id):
+            if ctype == "broadcast":
+                await execute_broadcast(bot, bot_id, cid, content, shutdown_event)
+            elif ctype == "message":
+                await execute_single_message(bot, bot_id, cid, content)
+            elif ctype == "raffle":
+                await execute_raffle(bot, bot_id, cid, content, shutdown_event)
+            else:
+                logger.error(f"Unknown campaign type: {ctype}")
+    except RuntimeError as e:
+        logger.error(f"Campaign #{cid} database context error: {e}")
+    except Exception as e:
+        logger.error(f"Campaign #{cid} failed: {e}", exc_info=True)
+
+
+async def scheduler(
+    shutdown_event: asyncio.Event,
+    notification_queue: asyncio.Queue,
+    polling_manager,
+):
+    """Background scheduler - processes notifications + periodic fallback check"""
+    # Start PG Listener task
+    listener_task = asyncio.create_task(
+        pg_listener(shutdown_event, notification_queue, polling_manager)
+    )
+    
+    logger.info("⏰ Scheduler started")
+    while not shutdown_event.is_set():
+        try:
+            # 1. Check pending campaigns for each bot
+            for bot_id, bot in bot_manager.bots.items():
+                try:
+                    bot_db = bot_db_manager.get(bot_id)
+                    if not bot_db:
+                        continue
+                    
+                    async with bot_db.get_connection() as conn:
+                        pending = await conn.fetch("""
+                            SELECT * FROM campaigns 
+                            WHERE is_completed = FALSE 
+                            AND (scheduled_for IS NULL OR scheduled_for <= NOW())
+                            ORDER BY id
+                        """)
+                    
+                    for campaign in pending:
+                        campaign_dict = dict(campaign)
+                        campaign_dict['_bot_id'] = bot_id  # Add bot_id for processing
+                        await process_campaign(campaign_dict, shutdown_event)
+                except Exception as e:
+                    logger.error(f"Scheduler error for bot {bot_id}: {e}")
+            
+            # 2. Wait
+            await asyncio.wait_for(shutdown_event.wait(), timeout=config.SCHEDULER_INTERVAL)
+            
+        except asyncio.TimeoutError:
+            pass  # Continue loop
+        except Exception as e:
+            logger.error(f"Scheduler error: {e}")
+            await asyncio.sleep(5)
+    
+    listener_task.cancel()
+    try:
+        await listener_task
+    except asyncio.CancelledError:
+        pass

@@ -45,21 +45,21 @@ async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
         
         count = 0
         total_lines = 0
+        processed_lines = 0
         
         try:
-            # 2. Count lines for progress
+            # Count lines for progress
             with open(file_path, 'rb') as f:
                 total_lines = sum(1 for _ in f)
             
             await update_job(job_id, details={"total_lines": total_lines})
 
-            # 3. Process in chunks
+            # Process in chunks
             CHUNK_SIZE = 50000
-            processed_lines = 0
             current_chunk = []
             
             def chunk_generator():
-                nonlocal processed_lines, current_chunk, count
+                nonlocal processed_lines, current_chunk
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     for line in f:
                         if line.strip():
@@ -83,19 +83,19 @@ async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
                 # Sleep briefly to yield event loop if needed
                 await asyncio.sleep(0.01)
 
-        # Success
-        await update_job(job_id, status='completed', progress=100, details={"processed": processed_lines, "added": count})
-        logger.info(f"Import finished. Added {count} codes.")
-        
-        # Notify Admins
-        bot_instance = bot_manager.bots.get(bot_id)
-        if bot_instance:
-            msg = f"✅ <b>Импорт завершен!</b>\n\nДобавлено кодов: {count}"
-            for admin_id in config.ADMIN_IDS:
-                try:
-                    await bot_instance.send_message(admin_id, msg, parse_mode="HTML")
-                except Exception as e:
-                    logger.error(f"Failed to notify admin {admin_id}: {e}")
+            # Success
+            await update_job(job_id, status='completed', progress=100, details={"processed": processed_lines, "added": count})
+            logger.info(f"Import finished. Added {count} codes.")
+            
+            # Notify Admins
+            bot_instance = bot_manager.bots.get(bot_id)
+            if bot_instance:
+                msg = f"✅ <b>Импорт завершен!</b>\n\nДобавлено кодов: {count}"
+                for admin_id in config.ADMIN_IDS:
+                    try:
+                        await bot_instance.send_message(admin_id, msg, parse_mode="HTML")
+                    except Exception as e:
+                        logger.error(f"Failed to notify admin {admin_id}: {e}")
 
         except Exception as e:
             logger.error(f"Import failed: {e}")

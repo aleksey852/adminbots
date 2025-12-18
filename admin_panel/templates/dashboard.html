@@ -2,91 +2,158 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">Dashboard</h1>
+    <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">Обзор статистики и быстрые действия</p>
+    </div>
 </div>
 
+<!-- Stats Grid -->
 <div class="row g-4 mb-4">
-    <div class="col-md-3">
+    <div class="col-xl-3 col-lg-6 col-md-6">
         <div class="card stat-card">
             <div class="card-body">
-                <div class="stat-value">{{ stats.total_users if stats else 0 }}</div>
-                <div class="stat-label">Пользователей</div>
-                <div class="d-flex justify-content-between mt-2">
-                    <small class="text-success" title="За последние 24 часа">+{{ stats.users_24h if stats else 0 }}
-                        (24ч)</small>
-                    <small class="text-primary" title="За последние 7 дней">+{{ stats.users_7d if stats else 0 }}
-                        (7д)</small>
+                <div class="d-flex align-items-start justify-content-between">
+                    <div>
+                        <div class="stat-value">{{ stats.total_users if stats else 0 }}</div>
+                        <div class="stat-label">Пользователей</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <span class="stat-change positive">
+                        <i class="bi bi-arrow-up"></i> +{{ stats.users_today if stats else 0 }} сегодня
+                    </span>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card" style="border-left-color: #10b981;">
+    <div class="col-xl-3 col-lg-6 col-md-6">
+        <div class="card stat-card success">
             <div class="card-body">
-                <div class="stat-value">{{ stats.valid_receipts if stats else 0 }}</div>
-                <div class="stat-label">
-                    {% if bot.type == 'promo' %}Активировано кодов{% else %}Принятых чеков{% endif %}
+                <div class="d-flex align-items-start justify-content-between">
+                    <div>
+                        <div class="stat-value">{{ stats.valid_receipts if stats else 0 }}</div>
+                        <div class="stat-label">
+                            {% if bot and bot.type == 'promo' %}Активаций{% else %}Принято чеков{% endif %}
+                        </div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-{% if bot and bot.type == 'promo' %}upc-scan{% else %}receipt{% endif %}"></i>
+                    </div>
                 </div>
-                <div class="d-flex justify-content-between mt-2">
-                    <small class="text-success" title="За последние 24 часа">+{{ stats.receipts_24h if stats else 0 }}
-                        (24ч)</small>
-                    <small class="text-primary" title="За последние 7 дней">+{{ stats.receipts_7d if stats else 0 }}
-                        (7д)</small>
+                <div class="d-flex gap-2 mt-3">
+                    <span class="stat-change positive">
+                        <i class="bi bi-arrow-up"></i> +{{ stats.receipts_today if stats else 0 }} сегодня
+                    </span>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card" style="border-left-color: #f59e0b;">
+    <div class="col-xl-3 col-lg-6 col-md-6">
+        <div class="card stat-card warning">
             <div class="card-body">
-                <div class="stat-value">{{ stats.total_tickets if stats else 0 }}</div>
-                <div class="stat-label">Всего билетов</div>
-                <small class="text-muted">{{ participants if participants else 0 }} участников</small>
-                {% if stats.tickets_today %}<br><small class="text-success">+{{ stats.tickets_today }} сегодня</small>{%
-                endif %}
+                <div class="d-flex align-items-start justify-content-between">
+                    <div>
+                        <div class="stat-value">{{ stats.total_tickets if stats else 0 }}</div>
+                        <div class="stat-label">Всего билетов</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-ticket-perforated-fill"></i>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <span class="text-muted" style="font-size: 0.85rem;">
+                        <i class="bi bi-person-check"></i> {{ participants if participants else 0 }} участников
+                    </span>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card" style="border-left-color: #ef4444;">
+    <div class="col-xl-3 col-lg-6 col-md-6">
+        <div class="card stat-card danger">
             <div class="card-body">
-                <div class="stat-value">{{ stats.total_winners if stats else 0 }}</div>
-                <div class="stat-label">Победителей</div>
-                <small class="text-muted">{{ stats.completed_campaigns if stats else 0 }} розыгрышей</small>
+                <div class="d-flex align-items-start justify-content-between">
+                    <div>
+                        <div class="stat-value">{{ stats.total_winners if stats else 0 }}</div>
+                        <div class="stat-label">Победителей</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-trophy-fill"></i>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <span class="text-muted" style="font-size: 0.85rem;">
+                        <i class="bi bi-gift"></i> {{ stats.completed_campaigns if stats else 0 }} розыгрышей
+                    </span>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Chart & Quick Actions Row -->
 <div class="row g-4 mb-4">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-graph-up"></i> Динамика за 14 дней</span>
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-graph-up-arrow"></i>
+                <span>Динамика за 14 дней</span>
             </div>
             <div class="card-body">
                 <canvas id="statsChart" height="100"></canvas>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-lg-4">
         <div class="card h-100">
-            <div class="card-header"><i class="bi bi-lightning"></i> Быстрые действия</div>
-            <div class="card-body d-flex flex-column gap-2">
-                <a href="/broadcast" class="btn btn-outline-primary"><i class="bi bi-megaphone"></i> Создать
-                    рассылку</a>
-                <a href="/raffle" class="btn btn-outline-warning"><i class="bi bi-gift"></i> Провести розыгрыш</a>
-                <a href="/users" class="btn btn-outline-secondary"><i class="bi bi-people"></i> Найти пользователя</a>
-                <a href="/settings" class="btn btn-outline-secondary"><i class="bi bi-gear"></i> Настройки промо</a>
+            <div class="card-header">
+                <i class="bi bi-lightning-charge-fill"></i>
+                <span>Быстрые действия</span>
+            </div>
+            <div class="card-body d-flex flex-column gap-3">
+                <a href="/broadcast" class="quick-action">
+                    <div class="quick-action-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
+                        <i class="bi bi-megaphone-fill"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600;">Рассылка</div>
+                        <small class="text-muted">Отправить сообщение всем</small>
+                    </div>
+                </a>
+                <a href="/raffle" class="quick-action">
+                    <div class="quick-action-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                        <i class="bi bi-gift-fill"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600;">Розыгрыш</div>
+                        <small class="text-muted">Провести розыгрыш призов</small>
+                    </div>
+                </a>
+                <a href="/users" class="quick-action">
+                    <div class="quick-action-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                        <i class="bi bi-search"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600;">Найти</div>
+                        <small class="text-muted">Поиск пользователя</small>
+                    </div>
+                </a>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Campaigns & Info Row -->
 <div class="row g-4">
-    <div class="col-md-6">
+    <div class="col-lg-7">
         <div class="card">
-            <div class="card-header"><i class="bi bi-clock-history"></i> Последние кампании</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history"></i> Последние кампании</span>
+                <a href="/campaigns" class="btn btn-sm btn-outline-primary">Все →</a>
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
@@ -95,60 +162,106 @@
                                 <th>ID</th>
                                 <th>Тип</th>
                                 <th>Статус</th>
-                                <th>Отправлено</th>
+                                <th class="text-end">Результат</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for c in recent_campaigns %}
                             <tr>
-                                <td>#{{ c.id }}</td>
+                                <td><span class="text-muted">#</span>{{ c.id }}</td>
                                 <td>
                                     {% if c.type == 'broadcast' %}
-                                    <span class="badge bg-primary">Рассылка</span>
+                                    <span class="badge"
+                                        style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
+                                        <i class="bi bi-megaphone me-1"></i>Рассылка
+                                    </span>
                                     {% elif c.type == 'raffle' %}
-                                    <span class="badge bg-warning text-dark">Розыгрыш</span>
+                                    <span class="badge"
+                                        style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                                        <i class="bi bi-gift me-1"></i>Розыгрыш
+                                    </span>
                                     {% else %}
                                     <span class="badge bg-secondary">{{ c.type }}</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if c.is_completed %}
-                                    <span class="badge badge-completed">✓ Завершена</span>
+                                    <span class="badge badge-completed">
+                                        <i class="bi bi-check-circle me-1"></i>Завершена
+                                    </span>
                                     {% elif c.scheduled_for %}
-                                    <span class="badge badge-scheduled">⏰ {{ c.scheduled_for.strftime('%d.%m %H:%M') if
-                                        c.scheduled_for else '' }}</span>
+                                    <span class="badge badge-scheduled">
+                                        <i class="bi bi-clock me-1"></i>{{ c.scheduled_for.strftime('%d.%m %H:%M') if
+                                        c.scheduled_for else '' }}
+                                    </span>
                                     {% else %}
-                                    <span class="badge badge-pending">⏳ В очереди</span>
+                                    <span class="badge badge-pending">
+                                        <i class="bi bi-hourglass-split me-1"></i>В очереди
+                                    </span>
                                     {% endif %}
                                 </td>
-                                <td>{{ c.sent_count or 0 }} / {{ c.failed_count or 0 }}</td>
+                                <td class="text-end">
+                                    <span class="text-success">{{ c.sent_count or 0 }}</span>
+                                    <span class="text-muted">/</span>
+                                    <span class="text-danger">{{ c.failed_count or 0 }}</span>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="4" class="text-center text-muted py-3">Нет кампаний</td>
+                                <td colspan="4" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox"
+                                        style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                                    Нет кампаний
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
             </div>
-            <div class="card-footer bg-white">
-                <a href="/campaigns" class="text-decoration-none">Все кампании →</a>
-            </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header"><i class="bi bi-info-circle"></i> Информация</div>
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-bar-chart-fill"></i>
+                <span>Сводка</span>
+            </div>
             <div class="card-body">
-                <p><strong>Пользователь:</strong> {{ user }}</p>
-                <p><strong>За 7 дней:</strong> +{{ stats.users_7d if stats else 0 }} пользователей, +{{
-                    stats.receipts_7d if stats else 0 }} {% if bot.type == 'promo' %}активаций{% else %}чеков{% endif %}
-                </p>
-                <p><strong>{% if bot.type == 'promo' %}Активаций кодов{% else %}Всего чеков{% endif %}:</strong>
-                    {{ stats.total_receipts if stats else 0 }} ({{ stats.valid_receipts if stats else 0 }} принято)</p>
-                <hr>
-                <p class="text-muted mb-0"><small>Статистика обновляется каждую минуту</small></p>
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                    <span class="text-muted">За 7 дней</span>
+                    <span class="fw-semibold">
+                        <span class="text-success">+{{ stats.users_7d if stats else 0 }}</span> польз.
+                        /
+                        <span class="text-primary">+{{ stats.receipts_7d if stats else 0 }}</span>
+                        {% if bot and bot.type == 'promo' %}актив.{% else %}чеков{% endif %}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                    <span class="text-muted">Всего чеков</span>
+                    <span class="fw-semibold">{{ stats.total_receipts if stats else 0 }}</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                    <span class="text-muted">Конверсия</span>
+                    <span class="fw-semibold">
+                        {% if stats and stats.total_users %}
+                        {{ ((participants or 0) / stats.total_users * 100)|round(1) }}%
+                        {% else %}0%{% endif %}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center py-2">
+                    <span class="text-muted">Активный бот</span>
+                    <span class="fw-semibold">{% if bot %}{{ bot.name }}{% else %}—{% endif %}</span>
+                </div>
+
+                <hr class="my-3">
+
+                <div class="text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-clock me-1"></i>
+                        Обновлено только что
+                    </small>
+                </div>
             </div>
         </div>
     </div>
@@ -158,7 +271,6 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Parse daily stats from server
         const dailyStats = {{ daily_stats | tojson | safe
     }};
 
@@ -170,43 +282,103 @@
     const receipts = dailyStats.map(d => d.receipts);
 
     const ctx = document.getElementById('statsChart').getContext('2d');
+
+    const gradient1 = ctx.createLinearGradient(0, 0, 0, 200);
+    gradient1.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
+    gradient1.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+
+    const gradient2 = ctx.createLinearGradient(0, 0, 0, 200);
+    gradient2.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
+    gradient2.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+
     new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: 'Новые пользователи',
+                    label: 'Пользователи',
                     data: users,
                     borderColor: '#6366f1',
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                    tension: 0.3,
-                    fill: true
+                    backgroundColor: gradient1,
+                    borderWidth: 2.5,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: '#6366f1',
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 2
                 },
                 {
-                    label: '{% if bot.type == "promo" %}Активировано кодов{% else %}Принятые чеки{% endif %}',
+                    label: '{% if bot and bot.type == "promo" %}Активации{% else %}Чеки{% endif %}',
                     data: receipts,
                     borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    tension: 0.3,
-                    fill: true
+                    backgroundColor: gradient2,
+                    borderWidth: 2.5,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: '#10b981',
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 2
                 }
             ]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
             plugins: {
                 legend: {
-                    position: 'bottom'
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        padding: 20,
+                        font: {
+                            size: 12,
+                            family: 'Inter'
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    titleFont: { size: 13, family: 'Inter' },
+                    bodyFont: { size: 12, family: 'Inter' },
+                    padding: 12,
+                    cornerRadius: 8,
+                    displayColors: true,
+                    boxPadding: 6
                 }
             },
             scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: { size: 11, family: 'Inter' },
+                        color: '#64748b'
+                    }
+                },
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0,0,0,0.04)'
+                    },
+                    ticks: {
+                        font: { size: 11, family: 'Inter' },
+                        color: '#64748b'
+                    }
                 }
             }
         }
     });
-});
+    });
 </script>
 {% endblock %}

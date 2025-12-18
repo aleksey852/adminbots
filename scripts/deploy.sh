@@ -65,6 +65,8 @@ EOF
 sysctl -p /etc/sysctl.d/99-admin-bots.conf
 
 # 3. Create service user
+if ! id "$SERVICE_USER" &>/dev/null; then
+    log "Creating service user $SERVICE_USER..."
     useradd -m -s /bin/bash "$SERVICE_USER"
     usermod -aG systemd-journal "$SERVICE_USER"
 fi
@@ -89,7 +91,7 @@ fi
 # Ensure .git permissions
 if [ -d "$PROJECT_DIR/.git" ]; then
     chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_DIR/.git"
-
+fi
 
 # Git safe dir
 if [ -d "$PROJECT_DIR" ]; then

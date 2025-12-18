@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Optional, Any, List, Dict
 from datetime import datetime
 import asyncpg
+from database.bot_db import DBWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -49,28 +50,12 @@ async def get_panel_connection():
     
     conn = await asyncio.wait_for(_panel_pool.acquire(), timeout=10.0)
     try:
-        yield PanelDBWrapper(conn)
+        yield DBWrapper(conn)
     finally:
         await _panel_pool.release(conn)
 
 
-class PanelDBWrapper:
-    """Consistent interface for asyncpg"""
-    def __init__(self, conn):
-        self.conn = conn
-    
-    async def execute(self, query: str, *args):
-        return await self.conn.execute(query, *args)
-    
-    async def fetch(self, query: str, *args) -> List[Dict]:
-        return [dict(r) for r in await self.conn.fetch(query, *args)]
-    
-    async def fetchrow(self, query: str, *args) -> Optional[Dict]:
-        row = await self.conn.fetchrow(query, *args)
-        return dict(row) if row else None
-    
-    async def fetchval(self, query: str, *args) -> Any:
-        return await self.conn.fetchval(query, *args)
+# Remove PanelDBWrapper (using shared DBWrapper)
 
 
 async def _create_panel_schema():
@@ -142,15 +127,25 @@ async def register_bot(token: str, name: str, bot_type: str, database_url: str, 
     async with get_panel_connection() as db:
         return await db.fetchval("INSERT INTO bot_registry (token, name, type, database_url, admin_ids) VALUES ($1, $2, $3, $4, $5) RETURNING id", token, name, bot_type, database_url, admin_ids or [])
 
+# Whitelist of allowed fields for dynamic updates
+ALLOWED_BOT_FIELDS = {'token', 'name', 'type', 'database_url', 'is_active', 'admin_ids', 'enabled_modules', 'archived_at', 'archived_by'}
+
 async def update_bot(bot_id: int, **kwargs):
     """Update bot registry record"""
     if not kwargs: return False
     async with get_panel_connection() as db:
         fields = []
         vals = []
-        for i, (k, v) in enumerate(kwargs.items(), 1):
-            fields.append(f"{k} = ${i}")
+        idx = 1
+        for k, v in kwargs.items():
+            if k not in ALLOWED_BOT_FIELDS:
+                logger.warning(f"Attempted to update non-whitelisted bot field: {k}")
+                continue
+            fields.append(f"{k} = ${idx}")
             vals.append(v)
+            idx += 1
+        if not fields:
+            return False
         vals.append(bot_id)
         query = f"UPDATE bot_registry SET {', '.join(fields)} WHERE id = ${len(vals)}"
         return "UPDATE 1" in await db.execute(query, *vals)
@@ -208,14 +203,24 @@ async def get_all_panel_users():
 async def create_panel_user(username: str, password_hash: str, role: str = 'admin'):
     async with get_panel_connection() as db: return await db.fetchval("INSERT INTO panel_users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id", username, password_hash, role)
 
+# Whitelist of allowed fields for panel user updates
+ALLOWED_PANEL_USER_FIELDS = {'username', 'password_hash', 'role', 'last_login'}
+
 async def update_panel_user(user_id: int, **kwargs):
     if not kwargs: return False
     async with get_panel_connection() as db:
         fields = []
         vals = []
-        for i, (k, v) in enumerate(kwargs.items(), 1):
-            fields.append(f"{k} = ${i}")
+        idx = 1
+        for k, v in kwargs.items():
+            if k not in ALLOWED_PANEL_USER_FIELDS:
+                logger.warning(f"Attempted to update non-whitelisted panel_user field: {k}")
+                continue
+            fields.append(f"{k} = ${idx}")
             vals.append(v)
+            idx += 1
+        if not fields:
+            return False
         vals.append(user_id)
         query = f"UPDATE panel_users SET {', '.join(fields)} WHERE id = ${len(vals)}"
         return "UPDATE 1" in await db.execute(query, *vals)
@@ -239,12 +244,24 @@ async def check_db_health() -> bool:
             return await db.fetchval("SELECT 1") == 1
     except: return False
 
+import re
+
+DB_NAME_PATTERN = re.compile(r'^[a-z][a-z0-9_]{0,62}$')
+
 async def create_bot_database(db_name: str, base_url: str) -> str:
+    """Create a new database for a bot. Validates db_name to prevent injection."""
     import urllib.parse
+    
+    # Validate database name (PostgreSQL identifier rules)
+    if not DB_NAME_PATTERN.match(db_name):
+        raise ValueError(f"Invalid database name: {db_name}. Must be lowercase alphanumeric with underscores, starting with a letter.")
+    
     parsed = urllib.parse.urlparse(base_url)
     conn = await asyncpg.connect(f"{parsed.scheme}://{parsed.netloc}/postgres")
     try:
         if not await conn.fetchval("SELECT 1 FROM pg_database WHERE datname = $1", db_name):
+            # Use quote_ident for extra safety (though we already validated)
             await conn.execute(f'CREATE DATABASE "{db_name}"')
-    finally: await conn.close()
+    finally: 
+        await conn.close()
     return f"{parsed.scheme}://{parsed.netloc}/{db_name}"

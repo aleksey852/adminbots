@@ -39,14 +39,13 @@ async def check_subscription(
         member = await bot.get_chat_member(chat_id=int(channel_id), user_id=user_id)
         if member.status in ['member', 'administrator', 'creator']:
             return True, channel_id, channel_url
+        # User is not subscribed
+        return False, channel_id, channel_url
     except Exception as e:
-        logger.warning(f"Bot {bot_id}: Subscription check failed for user {user_id}: {e}")
-        # If we can't check (e.g. bot not admin), we might default to allowing or blocking.
-        # Safest for user experience is to allow or show specific error, but here we return False to enforce check if possible.
-        # However, if bot is not admin in channel, this will always fail.
-        pass
-        
-    return False, channel_id, channel_url
+        # Fail-open: if we can't check (bot not admin in channel, network error),
+        # allow user through to avoid blocking everyone due to misconfiguration
+        logger.warning(f"Bot {bot_id}: Subscription check failed for user {user_id}, allowing through: {e}")
+        return True, channel_id, channel_url
 
 def get_subscription_keyboard(channel_url: str) -> InlineKeyboardMarkup:
     """Get keyboard for subscription enforcement."""

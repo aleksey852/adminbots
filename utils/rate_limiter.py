@@ -36,7 +36,9 @@ async def check_rate_limit(user_id: int, bot_id: int = None) -> Tuple[bool, str]
         hourly_limit = int(config_manager.get_setting("RECEIPTS_RATE_LIMIT", config.RECEIPTS_RATE_LIMIT, bot_id=bot_id))
         daily_limit = int(config_manager.get_setting("RECEIPTS_DAILY_LIMIT", config.RECEIPTS_DAILY_LIMIT, bot_id=bot_id))
         
-        now = datetime.now()
+        # Use timezone-aware now (naive for string formatting consistency)
+        now = config.get_now().replace(tzinfo=None)
+        
         # Key should include bot_id so limits are per-bot? Or per-user global?
         # Usually rate limits are per-bot for multi-tenant.
         suffix = f":{bot_id}" if bot_id else ""
@@ -60,7 +62,8 @@ async def increment_rate_limit(user_id: int, bot_id: int = None):
     if not _redis:
         return
     try:
-        now = datetime.now()
+        # Use timezone-aware now (naive for string formatting)
+        now = config.get_now().replace(tzinfo=None)
         suffix = f":{bot_id}" if bot_id else ""
         hour_key = f"receipts:h:{user_id}{suffix}:{now.strftime('%Y%m%d%H')}"
         day_key = f"receipts:d:{user_id}{suffix}:{now.strftime('%Y%m%d')}"

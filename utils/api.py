@@ -6,21 +6,35 @@ import config
 
 logger = logging.getLogger(__name__)
 _session = None
+_session_lock = asyncio.Lock()
 
 
 async def init_api_client():
+    """Initialize the API client session (call once at startup)."""
     global _session
-    _session = aiohttp.ClientSession(
-        connector=aiohttp.TCPConnector(limit=100, limit_per_host=20),
-        timeout=aiohttp.ClientTimeout(total=30, connect=10)
-    )
+    if _session is None:
+        _session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(limit=100, limit_per_host=20),
+            timeout=aiohttp.ClientTimeout(total=30, connect=10)
+        )
 
 
 async def close_api_client():
+    """Close the API client session (call at shutdown)."""
     global _session
     if _session:
         await _session.close()
         _session = None
+
+
+async def _ensure_session():
+    """Ensure session is initialized with thread-safe lock."""
+    global _session
+    if _session is None:
+        async with _session_lock:
+            # Double-check after acquiring lock
+            if _session is None:
+                await init_api_client()
 
 
 async def check_receipt(qr_file=None, qr_raw: str = None, user_id: int = None) -> dict:
@@ -28,9 +42,7 @@ async def check_receipt(qr_file=None, qr_raw: str = None, user_id: int = None) -
     if not config.PROVERKA_CHEKA_TOKEN:
         return {"code": -1, "message": "API token not configured"}
     
-    global _session
-    if not _session:
-        await init_api_client()
+    await _ensure_session()
     
     try:
         data = aiohttp.FormData()

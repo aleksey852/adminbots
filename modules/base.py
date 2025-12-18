@@ -70,6 +70,9 @@ class BotModule(ABC):
 class ModuleLoader:
     """
     Manages loading and registering bot modules.
+    
+    Module enable/disable is managed through panel_db (bot_registry.enabled_modules)
+    and enforced in BotMiddleware. This class handles module registration and lookup.
     """
     
     def __init__(self):
@@ -98,42 +101,9 @@ class ModuleLoader:
                 return module
         return None
     
-    async def load_enabled_modules(self, bot_id: int):
-        """Load enabled modules for a specific bot from database.
-        
-        Uses bots.enabled_modules as primary source, falls back to module_settings.
-        """
-        from database.db import get_connection
-        
-        async with get_connection() as db:
-            # First try to get from bots.enabled_modules (new approach)
-            bot = await db.fetchrow(
-                "SELECT enabled_modules FROM bots WHERE id = $1", bot_id
-            )
-            
-            if bot and bot['enabled_modules']:
-                enabled = set(bot['enabled_modules'])
-            else:
-                # Fallback to module_settings table (legacy)
-                rows = await db.fetch("""
-                    SELECT module_name, is_enabled 
-                    FROM module_settings 
-                    WHERE bot_id = $1
-                """, bot_id)
-                
-                enabled = set()
-                for row in rows:
-                    if row['is_enabled']:
-                        enabled.add(row['module_name'])
-                
-                # If still no settings, use defaults
-                if not rows:
-                    for module in self.modules.values():
-                        if module.default_enabled:
-                            enabled.add(module.name)
-            
-            self._enabled_modules[bot_id] = enabled
-            logger.info(f"Bot {bot_id}: enabled modules = {enabled}")
+    def set_enabled_modules(self, bot_id: int, module_names: set):
+        """Set enabled modules for a bot (called from middleware)."""
+        self._enabled_modules[bot_id] = module_names
     
     def is_enabled(self, bot_id: int, module_name: str) -> bool:
         """Check if a module is enabled for a specific bot."""
@@ -143,83 +113,9 @@ class ModuleLoader:
             return module.default_enabled if module else False
         return module_name in self._enabled_modules.get(bot_id, set())
     
-    async def enable_module(self, bot_id: int, module_name: str) -> bool:
-        """Enable a module for a bot."""
-        module = self.modules.get(module_name)
-        if not module:
-            return False
-        
-        from database.db import get_connection
-        
-        async with get_connection() as db:
-            await db.execute("""
-                INSERT INTO module_settings (bot_id, module_name, is_enabled, settings)
-                VALUES ($1, $2, TRUE, $3)
-                ON CONFLICT (bot_id, module_name) 
-                DO UPDATE SET is_enabled = TRUE
-            """, bot_id, module_name, "{}")
-        
-        if bot_id not in self._enabled_modules:
-            self._enabled_modules[bot_id] = set()
-        self._enabled_modules[bot_id].add(module_name)
-        
-        await module.on_enable(bot_id)
-        return True
-    
-    async def disable_module(self, bot_id: int, module_name: str) -> bool:
-        """Disable a module for a bot."""
-        module = self.modules.get(module_name)
-        if not module:
-            return False
-        
-        from database.db import get_connection
-        
-        async with get_connection() as db:
-            await db.execute("""
-                INSERT INTO module_settings (bot_id, module_name, is_enabled, settings)
-                VALUES ($1, $2, FALSE, $3)
-                ON CONFLICT (bot_id, module_name) 
-                DO UPDATE SET is_enabled = FALSE
-            """, bot_id, module_name, "{}")
-        
-        if bot_id in self._enabled_modules:
-            self._enabled_modules[bot_id].discard(module_name)
-        
-        await module.on_disable(bot_id)
-        return True
-    
-    async def get_module_settings(self, bot_id: int, module_name: str) -> Dict[str, Any]:
-        """Get settings for a module for a specific bot."""
-        from database.db import get_connection
-        import json
-        
-        module = self.modules.get(module_name)
-        defaults = module.default_settings if module else {}
-        
-        async with get_connection() as db:
-            row = await db.fetchrow("""
-                SELECT settings FROM module_settings 
-                WHERE bot_id = $1 AND module_name = $2
-            """, bot_id, module_name)
-            
-            if row and row['settings']:
-                settings = json.loads(row['settings']) if isinstance(row['settings'], str) else row['settings']
-                return {**defaults, **settings}
-            
-            return defaults
-    
-    async def set_module_settings(self, bot_id: int, module_name: str, settings: Dict[str, Any]):
-        """Update settings for a module for a specific bot."""
-        from database.db import get_connection
-        import json
-        
-        async with get_connection() as db:
-            await db.execute("""
-                INSERT INTO module_settings (bot_id, module_name, is_enabled, settings)
-                VALUES ($1, $2, TRUE, $3)
-                ON CONFLICT (bot_id, module_name) 
-                DO UPDATE SET settings = $3
-            """, bot_id, module_name, json.dumps(settings))
+    def get_default_enabled_modules(self) -> set:
+        """Get set of module names that are enabled by default."""
+        return {m.name for m in self.modules.values() if m.default_enabled}
 
 
 # Global module loader instance

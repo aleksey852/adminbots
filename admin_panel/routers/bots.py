@@ -116,17 +116,26 @@ def setup_routes(
     async def delete_bot_permanently(request: Request, bot_id: int, confirm: str = Form(...), user: Dict = Depends(require_superadmin)):
         from database.panel_db import delete_bot_registry
         bot = await get_bot_by_id(bot_id)
-        if not bot or confirm != bot['name']: return RedirectResponse(f"/bots/{bot_id}/edit?msg=Bad+confirm", 303)
+        if not bot or confirm != bot['name']: 
+            return RedirectResponse(f"/bots/{bot_id}/edit?msg=Bad+confirm", 303)
         
         try:
             db = bot_db_manager.get(bot_id)
             if db:
                 async with db.get_connection() as conn:
-                    for t in ["winners", "promo_codes", "receipts", "campaigns", "messages", "settings", "manual_tickets", "users"]:
-                        await conn.execute(f"DELETE FROM {t}")
+                    # Use transaction to ensure atomicity
+                    async with conn.conn.transaction():
+                        # Use TRUNCATE CASCADE for faster deletion with FK handling
+                        tables = ["winners", "promo_codes", "receipts", "campaigns", 
+                                  "messages", "settings", "manual_tickets", "broadcast_progress", "jobs"]
+                        for t in tables:
+                            await conn.execute(f"TRUNCATE {t} CASCADE")
+                        # Users last (other tables depend on it)
+                        await conn.execute("TRUNCATE users CASCADE")
                 await bot_db_manager.disconnect(bot_id)
             await delete_bot_registry(bot_id)
-            if request.session.get("active_bot_id") == bot_id: request.session.pop("active_bot_id", None)
+            if request.session.get("active_bot_id") == bot_id: 
+                request.session.pop("active_bot_id", None)
             return RedirectResponse("/?msg=Deleted", 303)
         except Exception as e:
             logger.error(f"Delete failed: {e}")

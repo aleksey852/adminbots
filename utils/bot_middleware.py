@@ -84,16 +84,37 @@ class BotMiddleware(BaseMiddleware):
             context_token = _current_bot_db.set(bot_db)
         
         try:
-            # Load enabled modules for this bot
-            enabled_modules = await get_enabled_modules(bot_id)
+            # OPTIMIZATION: Fetch bot_info once and reuse it for modules and admins
+            from database.panel_db import get_bot_by_id
+            
+            # Wrap in try/except for resilience
+            try:
+                bot_info = await get_bot_by_id(bot_id)
+            except Exception as e:
+                logger.error(f"Failed to get bot info for {bot_id}: {e}")
+                bot_info = None
+            
+            # 1. Load enabled modules with fallback
+            if bot_info and bot_info.get('enabled_modules'):
+                enabled_modules = set(bot_info['enabled_modules'])
+            else:
+                # Use cache if available, otherwise default
+                enabled_modules = _enabled_modules_cache.get(
+                    bot_id, 
+                    {'core', 'registration', 'receipts', 'promo', 'admin'}
+                )
+            _enabled_modules_cache[bot_id] = enabled_modules
             data["enabled_modules"] = enabled_modules
             
-            # Load settings/messages into cache if not already loaded
+            # 2. Load settings/messages into cache if not already loaded
             from utils.config_manager import config_manager
             if bot_id not in config_manager._settings:
-                await config_manager.load_for_bot(bot_id)
+                try:
+                    await config_manager.load_for_bot(bot_id)
+                except Exception as e:
+                    logger.warning(f"Failed to load config for bot {bot_id}: {e}")
             
-            # Check if user is admin for this bot
+            # 3. Check if user is admin for this bot
             user_id = None
             if isinstance(event, Message) and event.from_user:
                 user_id = event.from_user.id
@@ -101,9 +122,6 @@ class BotMiddleware(BaseMiddleware):
                 user_id = event.from_user.id
             
             if user_id:
-                # Get bot admins from panel registry
-                from database.panel_db import get_bot_by_id
-                bot_info = await get_bot_by_id(bot_id)
                 bot_admins = bot_info.get('admin_ids', []) if bot_info else []
                 data["is_bot_admin"] = user_id in (bot_admins or [])
             else:

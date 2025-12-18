@@ -179,9 +179,8 @@ def get_template_context(request: Request, **kwargs) -> Dict:
         if not request.state.bot:
             return False
         modules = request.state.bot.get('enabled_modules')
-        if modules is None:
-            # Default modules if None (legacy/default behavior)
-            return True
+        if not modules:
+            return False
         return module_name in modules
 
     context = {
