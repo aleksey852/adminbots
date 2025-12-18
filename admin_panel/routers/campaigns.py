@@ -204,8 +204,8 @@ def setup_routes(
     async def create_raffle(
         request: Request, 
         prize_names: list[str] = Form(None), winner_counts: list[int] = Form(None), 
-        prize_msgs: list[str] = Form(None), # Added prize_msgs
-        # Fallback for single values if form old cached
+        prize_msgs: list[str] = Form(None),
+        # Fallback for old forms
         prize_name: str = Form(None), winner_count: int = Form(None),
         win_text: str = Form(None), win_photo: UploadFile = File(None),
         lose_text: str = Form(None), lose_photo: UploadFile = File(None),
@@ -214,16 +214,39 @@ def setup_routes(
     ):
         if not request.state.bot: return RedirectResponse("/")
         
-        # Parse prizes
+        async def save_media(file, prefix, text):
+            if not (file and isinstance(file, UploadFile) and file.filename): return {"text": text} if text else {}
+            path = UPLOADS_DIR / f"{prefix}_{uuid.uuid4().hex[:8]}{Path(file.filename).suffix}"
+            async with aiofiles.open(path, 'wb') as f:
+                while chunk := await file.read(1024*1024): await f.write(chunk)
+            res = {"photo_path": str(path)}
+            if text: res["caption"] = text
+            return res
+
+        # manual form access for dynamic file fields
+        form_data = await request.form()
+        
         prizes = []
         if prize_names and winner_counts:
-            # New format
             for i, (name, count) in enumerate(zip(prize_names, winner_counts)):
                 if name.strip() and count > 0:
                     prize_data = {"name": name.strip(), "count": count}
-                    # Attach specific message if available
+                    
+                    # Prize Text
                     if prize_msgs and i < len(prize_msgs) and prize_msgs[i].strip():
                          prize_data["msg"] = prize_msgs[i].strip()
+                    
+                    # Prize Photo (prize_photo_0, prize_photo_1, etc.)
+                    photo_key = f"prize_photo_{i}"
+                    photo_file = form_data.get(photo_key)
+                    
+                    if isinstance(photo_file, UploadFile) and photo_file.filename:
+                        # Save photo, no caption here as 'msg' is separate text or caption depending on usage
+                        # We save path directly
+                        saved = await save_media(photo_file, f"prize_{i}", None)
+                        if "photo_path" in saved:
+                            prize_data["photo_path"] = saved["photo_path"]
+
                     prizes.append(prize_data)
         elif prize_name and winner_count:
             # Legacy format
@@ -231,13 +254,6 @@ def setup_routes(
         
         if not prizes:
              raise HTTPException(400, "At least one prize required")
-
-        async def save_media(file, prefix, text):
-            if not (file and file.filename): return {"text": text}
-            path = UPLOADS_DIR / f"{prefix}_{uuid.uuid4().hex[:8]}{Path(file.filename).suffix}"
-            async with aiofiles.open(path, 'wb') as f:
-                while chunk := await file.read(1024*1024): await f.write(chunk)
-            return {"photo_path": str(path), "caption": text}
 
         content = {
             "prizes": prizes, # List of prizes

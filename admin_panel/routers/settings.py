@@ -27,11 +27,7 @@ SUBSCRIPTION_FIELDS = [
     ("SUBSCRIPTION_CHANNEL_URL", "Ссылка на канал"),
 ]
 
-RAFFLE_FIELDS = [
-    ("ENABLE_MONTHLY_RAFFLE", "Включить ежемесячный розыгрыш (true/false)"),
-    ("MONTHLY_RAFFLE_PRIZE", "Приз ежемесячного розыгрыша"),
-    ("MONTHLY_RAFFLE_COUNT", "Количество победителей"),
-]
+
 
 # Will be set by setup_routes
 templates = None
@@ -112,22 +108,7 @@ def setup_routes(
         await config_manager.set_setting(key, value, bot['id'])
         return RedirectResponse("/settings/subscription?updated=1", 303)
 
-    @router.get("/raffle", response_class=HTMLResponse)
-    async def raffle_settings_page(request: Request, user: str = Depends(get_current_user), updated: str = None):
-        from utils.config_manager import config_manager
-        if not (bot := request.state.bot): return RedirectResponse("/")
-        if not config_manager._initialized: await config_manager.load()
 
-        defaults = {"ENABLE_MONTHLY_RAFFLE": "false", "MONTHLY_RAFFLE_PRIZE": "VIP статус", "MONTHLY_RAFFLE_COUNT": "1"}
-        fields = [(k, l, config_manager.get_setting(k, defaults.get(k, ""), bot['id'])) for k, l in RAFFLE_FIELDS]
-        return templates.TemplateResponse("settings/raffle.html", get_template_context(request, user=user, title="Настройки розыгрышей", raffle_fields=fields, updated=updated))
-
-    @router.post("/raffle/update", dependencies=[Depends(verify_csrf_token)])
-    async def update_raffle_setting(request: Request, key: str = Form(...), value: str = Form(...), user: str = Depends(get_current_user)):
-        from utils.config_manager import config_manager
-        if not (bot := request.state.bot): return RedirectResponse("/")
-        await config_manager.set_setting(key, value, bot['id'])
-        return RedirectResponse("/settings/raffle?updated=1", 303)
 
     @router.get("/messages", response_class=HTMLResponse)
     async def messages_page(request: Request, user: str = Depends(get_current_user), updated: str = None):

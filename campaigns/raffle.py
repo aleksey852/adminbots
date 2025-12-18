@@ -99,16 +99,21 @@ async def execute_raffle(
         # 1. Try to find prize-specific message
         if prizes:
              for p in prizes:
-                 if p['name'] == w.get('prize_name') and p.get('msg'):
-                     msg = {"text": p['msg']}
-                     # If global template has photo, maybe we should reuse it? 
-                     # For now, prize specific text overrides everything, but let's assume photo from global if available?
-                     # The user request was "text", so let's keep it simple. 
-                     # If they want photo per prize, that's a bigger change.
-                     # Let's check win_msg_template for photo/photo_path and add it if msg is text-only
-                     if win_msg_template:
-                        if "photo" in win_msg_template: msg["photo"] = win_msg_template["photo"]
-                        if "photo_path" in win_msg_template: msg["photo_path"] = win_msg_template["photo_path"]
+                 if p['name'] == w.get('prize_name'):
+                     # Determine effective text/caption
+                     raw_text = p.get('msg') or win_msg_template.get('text') or win_msg_template.get('caption')
+                     if not raw_text:
+                         raw_text = f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"
+                     
+                     final_text = raw_text.replace("{prize}", w.get('prize_name', ''))
+                     
+                     # Determine effective photo
+                     final_path = p.get('photo_path') or win_msg_template.get('photo_path')
+                     
+                     if final_path:
+                         msg = {"photo_path": final_path, "caption": final_text}
+                     else:
+                         msg = {"text": final_text}
                      break
         
         # 2. Fallback to global template
