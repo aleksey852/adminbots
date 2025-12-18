@@ -1845,3 +1845,158 @@ input[type="file"]::file-selector-button:hover {
 [data-theme="dark"] .accordion-body {
     background: var(--bg-surface-subtle);
 }
+
+/* =========================================
+   Phase 8: Dark Text Visibility Fixes
+   ========================================= */
+
+/* Stat Change Text (Dashboard +users, +today) */
+.stat-change {
+    color: var(--text-secondary);
+}
+
+.stat-change.positive {
+    color: var(--success-text);
+}
+
+.stat-change.negative {
+    color: var(--danger-text);
+}
+
+[data-theme="dark"] .stat-change {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .stat-change.positive {
+    color: #34d399;
+}
+
+/* Card Subtitle Dark Mode */
+[data-theme="dark"] .card-subtitle,
+[data-theme="dark"] .card-subtitle.text-muted {
+    color: var(--text-secondary) !important;
+}
+
+/* Card Title Dark Mode */
+[data-theme="dark"] .card-title {
+    color: var(--text-primary);
+}
+
+/* List Items Dark Mode */
+[data-theme="dark"] .card ul,
+[data-theme="dark"] .card ol,
+[data-theme="dark"] .card li,
+[data-theme="dark"] .alert ul,
+[data-theme="dark"] .alert ol,
+[data-theme="dark"] .alert li {
+    color: inherit;
+}
+
+/* Input Group Text Dark Mode */
+[data-theme="dark"] .input-group-text {
+    background: var(--bg-surface);
+    border-color: var(--border-hover);
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .input-group .form-control {
+    border-color: var(--border-hover);
+}
+
+/* Logs Toolbar */
+.logs-toolbar {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .logs-toolbar {
+    background: var(--bg-surface);
+    border-color: var(--border-hover);
+}
+
+/* Terminal Window Dark Mode */
+.terminal-window {
+    background: #1a1a2e;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+}
+
+.terminal-header {
+    background: #16213e;
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.terminal-controls {
+    display: flex;
+    gap: 6px;
+}
+
+.terminal-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.terminal-dot.red {
+    background: #ff5f56;
+}
+
+.terminal-dot.yellow {
+    background: #ffbd2e;
+}
+
+.terminal-dot.green {
+    background: #27ca3f;
+}
+
+.terminal-body {
+    padding: 1rem;
+    max-height: 600px;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #e0e0e0;
+}
+
+.log-line {
+    padding: 2px 0;
+    word-break: break-all;
+}
+
+.log-line.error {
+    color: #ff6b6b;
+}
+
+.log-line.warning {
+    color: #ffd93d;
+}
+
+.log-line.info {
+    color: #a0a0a0;
+}
+
+/* h3/h4 in cards Dark Mode */
+[data-theme="dark"] .card h3,
+[data-theme="dark"] .card h4,
+[data-theme="dark"] .card h5,
+[data-theme="dark"] .card h6 {
+    color: var(--text-primary);
+}
+
+/* Text Muted Visibility */
+[data-theme="dark"] .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+/* Strong/Bold in Dark Alerts */
+[data-theme="dark"] .alert strong {
+    color: inherit;
+}
