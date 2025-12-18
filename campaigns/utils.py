@@ -36,7 +36,7 @@ async def send_message_with_retry(
                     caption=content.get("caption"),
                 )
             else:
-                text = content.get("text") or ""
+                text = str(content.get("text") or "")
                 if not text.strip():
                     raise ValueError("Empty text message")
                 await bot.send_message(telegram_id, text)

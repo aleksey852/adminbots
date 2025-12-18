@@ -357,7 +357,7 @@ async def get_recent_raffles_with_winners(limit=5):
         recs = [dict(r) for r in await conn.fetch("SELECT * FROM campaigns WHERE type='raffle' AND is_completed=TRUE ORDER BY completed_at DESC LIMIT $1", limit)]
         for r in recs:
             r['content'] = json.loads(r['content']) if isinstance(r['content'], str) else r['content']
-            r['winners'] = await conn.fetch("SELECT w.*, u.full_name, u.username FROM winners w JOIN users u ON w.user_id = u.id WHERE w.campaign_id = $1", r['id'])
+            r['winners'] = await conn.fetch("SELECT w.*, u.full_name, u.username, u.phone FROM winners w JOIN users u ON w.user_id = u.id WHERE w.campaign_id = $1", r['id'])
         return recs
 async def get_stats_by_days(days=14):
     async with get_current_bot_db().get_connection() as conn: return await conn.fetch("WITH ds AS (SELECT generate_series(CURRENT_DATE-($1||' days')::interval,CURRENT_DATE,'1 day'::interval)::date AS d) SELECT ds.d as day, COALESCE(u.c,0) as users, COALESCE(r.c,0) as receipts FROM ds LEFT JOIN (SELECT DATE(registered_at) as d,COUNT(*) as c FROM users GROUP BY 1) u ON ds.d=u.d LEFT JOIN (SELECT DATE(created_at) as d,COUNT(*) as c FROM receipts WHERE status='valid' GROUP BY 1) r ON ds.d=r.d ORDER BY 1", str(days))

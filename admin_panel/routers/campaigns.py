@@ -223,35 +223,52 @@ def setup_routes(
             if text: res["caption"] = text
             return res
 
-        # manual form access for dynamic file fields
+
         form_data = await request.form()
         
+        # Parse prizes manually by index keys to ensure correct mapping
+        # Keys are like: prize_names, winner_counts, prize_msgs - usually lists
+        # But we also have prize_photo_{i} which relies on index.
+        # Safer to iterate indices based on prize_names list length from form.
+        
+        # Get raw validation lists
+        raw_names = form_data.getlist("prize_names")
+        raw_counts = form_data.getlist("winner_counts")
+        raw_msgs = form_data.getlist("prize_msgs")
+        
         prizes = []
-        if prize_names and winner_counts:
-            for i, (name, count) in enumerate(zip(prize_names, winner_counts)):
-                if name.strip() and count > 0:
-                    prize_data = {"name": name.strip(), "count": count}
+        if raw_names and raw_counts:
+            # We assume the frontend maintains parallel array order
+            count_len = min(len(raw_names), len(raw_counts))
+            
+            for i in range(count_len):
+                name = raw_names[i].strip()
+                try:
+                    count = int(raw_counts[i])
+                except ValueError:
+                    count = 0
+                
+                if name and count > 0:
+                    prize_data = {"name": name, "count": count}
                     
-                    # Prize Text
-                    if prize_msgs and i < len(prize_msgs) and prize_msgs[i].strip():
-                         prize_data["msg"] = prize_msgs[i].strip()
+                    # Prize Text (safe index access)
+                    if i < len(raw_msgs) and raw_msgs[i].strip():
+                        prize_data["msg"] = raw_msgs[i].strip()
                     
-                    # Prize Photo (prize_photo_0, prize_photo_1, etc.)
+                    # Prize Photo (prize_photo_{i})
+                    # Note: index i corresponds to the DOM order.
                     photo_key = f"prize_photo_{i}"
                     photo_file = form_data.get(photo_key)
                     
                     if isinstance(photo_file, UploadFile) and photo_file.filename:
-                        # Save photo, no caption here as 'msg' is separate text or caption depending on usage
-                        # We save path directly
                         saved = await save_media(photo_file, f"prize_{i}", None)
                         if "photo_path" in saved:
                             prize_data["photo_path"] = saved["photo_path"]
 
                     prizes.append(prize_data)
-        elif prize_name and winner_count:
-            # Legacy format
-            prizes.append({"name": prize_name.strip(), "count": winner_count})
         
+
+
         if not prizes:
              raise HTTPException(400, "At least one prize required")
 
@@ -266,5 +283,4 @@ def setup_routes(
         
         cid = await add_campaign("raffle", content, config.parse_scheduled_time(scheduled_for) if scheduled_for else None)
         return RedirectResponse(f"/raffle?created={cid}", 303)
-
     return router

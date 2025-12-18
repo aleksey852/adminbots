@@ -13,6 +13,7 @@ from .keyboards import get_contact_keyboard, get_start_keyboard
 from modules.core.keyboards import get_main_keyboard
 from database.bot_methods import add_user
 from utils.config_manager import config_manager
+from utils.subscription import check_subscription, get_subscription_keyboard
 from bot_manager import bot_manager
 import config
 
@@ -34,6 +35,7 @@ class RegistrationModule(BotModule):
         "reg_phone_request": "Отправьте номер телефона",
         "reg_success": "✅ Регистрация завершена!",
         "reg_success_promo": "✅ Регистрация завершена!\n\nОтправьте промокод сообщением в этот чат.\n\nАкция: {start} — {end}\n\n👇 Введите промокод",
+        "sub_warning": "⚠️ Для участия в акции необходимо подписаться на наш канал!",
     }
     
     # E.164-ish validator
@@ -45,6 +47,12 @@ class RegistrationModule(BotModule):
         
         @self.router.message(Registration.name)
         async def process_name(message: Message, state: FSMContext, bot_id: int = None):
+            is_sub, _, channel_url = await check_subscription(message.from_user.id, message.bot, bot_id)
+            if not is_sub:
+                msg = config_manager.get_message('sub_warning', self.default_messages['sub_warning'], bot_id=bot_id)
+                await message.answer(msg, reply_markup=get_subscription_keyboard(channel_url))
+                return
+
             if message.text == "❌ Отмена":
                 await state.clear()
                 msg = config_manager.get_message('reg_cancel', self.default_messages['reg_cancel'], bot_id=bot_id)
