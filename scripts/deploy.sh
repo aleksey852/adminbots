@@ -97,8 +97,8 @@ DOMAIN="" # Optional, can be set later in nginx
 
 # 6. Database Setup
 log "Setting up Database..."
-sudo -u postgres psql -c "CREATE USER $SERVICE_USER WITH PASSWORD '$DB_PASS';" 2>/dev/null || \
-sudo -u postgres psql -c "ALTER USER $SERVICE_USER WITH PASSWORD '$DB_PASS';"
+sudo -u postgres psql -c "CREATE USER $SERVICE_USER WITH PASSWORD '$DB_PASS' CREATEDB;" 2>/dev/null || \
+sudo -u postgres psql -c "ALTER USER $SERVICE_USER WITH PASSWORD '$DB_PASS' CREATEDB;"
 sudo -u postgres psql -c "CREATE DATABASE admin_bots OWNER $SERVICE_USER;" 2>/dev/null || true
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE admin_bots TO $SERVICE_USER;"
 
