@@ -2000,3 +2000,27 @@ input[type="file"]::file-selector-button:hover {
 [data-theme="dark"] .alert strong {
     color: inherit;
 }
+
+/* Form Helper Text Dark Mode */
+[data-theme="dark"] .form-text {
+    color: var(--text-tertiary) !important;
+}
+
+[data-theme="dark"] small,
+[data-theme="dark"] .small {
+    color: var(--text-secondary);
+}
+
+/* Card Body Text Dark Mode */
+[data-theme="dark"] .card-body {
+    color: var(--text-primary);
+}
+
+/* Ensure links are visible in dark mode */
+[data-theme="dark"] a:not(.btn):not(.nav-link) {
+    color: var(--primary-400);
+}
+
+[data-theme="dark"] a:not(.btn):not(.nav-link):hover {
+    color: var(--primary-300);
+}
