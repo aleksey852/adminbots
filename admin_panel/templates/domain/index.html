@@ -5,10 +5,22 @@
     <h1 class="page-title"><i class="bi bi-globe"></i> Настройка домена</h1>
 </div>
 
-{% if message %}
-<div
-    class="alert {% if 'error' in message or 'Ошибка' in message %}alert-danger{% else %}alert-success-custom{% endif %} mb-3">
-    {{ message }}
+{% if message == 'success' %}
+<div class="alert alert-success-custom mb-3">
+    <i class="bi bi-check-circle"></i> Домен и SSL успешно настроены!
+</div>
+{% elif message == 'dns_pending' %}
+<div class="alert alert-warning mb-3">
+    <i class="bi bi-hourglass-split"></i> <strong>Nginx настроен!</strong> DNS пока не указывает на сервер.
+    Настройте A-запись и повторите для получения SSL.
+</div>
+{% elif message == 'timeout' %}
+<div class="alert alert-danger mb-3">
+    <i class="bi bi-clock"></i> Таймаут: скрипт выполнялся слишком долго. Проверьте логи.
+</div>
+{% elif message == 'error' %}
+<div class="alert alert-danger mb-3">
+    <i class="bi bi-x-circle"></i> Ошибка настройки домена. Смотрите логи справа.
 </div>
 {% endif %}
 

@@ -128,15 +128,31 @@ def setup_routes(
 
     @router.post("/domain/setup", dependencies=[Depends(verify_csrf_token)])
     async def domain_setup(request: Request, domain: str = Form(...), email: str = Form("")):
+        import logging
+        logger = logging.getLogger(__name__)
         path = BASE_DIR / "scripts" / "setup_domain.sh"
         try:
             res = subprocess.run(["sudo", "bash", str(path), domain.strip().lower(), email], capture_output=True, text=True, timeout=120)
-            (BASE_DIR/".domain_logs").write_text(res.stdout + (res.stderr or ""))
+            output = res.stdout + (res.stderr or "")
+            (BASE_DIR/".domain_logs").write_text(output)
+            logger.info(f"Domain setup exit code: {res.returncode}, output length: {len(output)}")
+            
+            # Check for specific outcomes
             if res.returncode == 0:
+                # Check if it's a DNS warning (script exits 0 but DNS not configured)
+                if "DNS propagation" in output or "does not resolve" in output:
+                    (BASE_DIR/".domain").write_text(domain.strip().lower())
+                    return RedirectResponse("/domain?msg=dns_pending", 303)
                 (BASE_DIR/".domain").write_text(domain.strip().lower())
                 return RedirectResponse("/domain?msg=success", 303)
-            return RedirectResponse("/domain?msg=error", 303)
+            else:
+                logger.error(f"Domain setup failed: {output[-500:]}")
+                return RedirectResponse("/domain?msg=error", 303)
+        except subprocess.TimeoutExpired:
+            (BASE_DIR/".domain_logs").write_text("Timeout: скрипт выполнялся более 120 сек")
+            return RedirectResponse("/domain?msg=timeout", 303)
         except Exception as e:
+            logger.error(f"Domain setup exception: {e}")
             (BASE_DIR/".domain_logs").write_text(str(e))
             return RedirectResponse("/domain?msg=error", 303)
 
