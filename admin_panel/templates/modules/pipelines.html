@@ -35,9 +35,16 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0" id="currentChainTitle">Выберите сценарий</h5>
-                <button class="btn btn-sm btn-primary" id="saveOrderBtn" style="display: none;" onclick="saveOrder()">
-                    <i class="bi bi-save me-1"></i> Сохранить порядок
-                </button>
+                <div>
+                    <button class="btn btn-sm btn-outline-danger me-1" id="resetOrderBtn" style="display: none;"
+                        onclick="resetOrder()">
+                        <i class="bi bi-arrow-counterclockwise"></i> Сброс
+                    </button>
+                    <button class="btn btn-sm btn-primary" id="saveOrderBtn" style="display: none;"
+                        onclick="saveOrder()">
+                        <i class="bi bi-save me-1"></i> Сохранить порядок
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <div id="stepsContainer" class="text-center text-muted py-5">
@@ -71,7 +78,8 @@
             .then(r => r.json())
             .then(data => {
                 renderSteps(data.steps);
-                document.getElementById('saveOrderBtn').style.display = 'block';
+                document.getElementById('saveOrderBtn').style.display = 'inline-block';
+                document.getElementById('resetOrderBtn').style.display = 'inline-block';
             });
     }
 
@@ -98,10 +106,22 @@
             if (index === 0) badgeClass = 'bg-success';
             else if (index === steps.length - 1) badgeClass = 'bg-primary';
 
+            let enabledBadge = '';
+            let opacityStyle = '';
+
+            if (step.is_enabled === false) {
+                enabledBadge = '<span class="badge bg-danger ms-2">Disabled</span>';
+                opacityStyle = 'opacity: 0.6;';
+                item.style.backgroundColor = '#f8f9fa';
+            }
+
             item.innerHTML = `
             <div class="me-3 text-muted"><i class="bi bi-grip-vertical"></i></div>
-            <div class="flex-grow-1">
-                <div class="fw-bold fs-5">${step.name}</div>
+            <div class="flex-grow-1" style="${opacityStyle}">
+                <div class="fw-bold fs-5">
+                    ${step.name} 
+                    ${enabledBadge}
+                </div>
                 <div class="small text-muted">
                     Module: <span class="badge bg-light text-dark border">${step.module_name || 'System'}</span>
                     ${step.state ? `| State: <code>${step.state}</code>` : ''}
@@ -156,23 +176,52 @@
                 btn.innerHTML = originalText;
                 if (data.status === 'success') {
                     // Show toast or alert
-                    const toast = document.createElement('div');
-                    toast.className = 'position-fixed bottom-0 end-0 p-3';
-                    toast.style.zIndex = 1050;
-                    toast.innerHTML = `
-                <div class="toast show align-items-center text-white bg-success border-0">
-                    <div class="d-flex">
-                        <div class="toast-body">Порядок сохранён успешно!</div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                    </div>
-                </div>
-            `;
-                    document.body.appendChild(toast);
-                    setTimeout(() => toast.remove(), 3000);
+                    showToast('Порядок сохранён успешно!');
                 } else {
                     alert('Error saving order');
                 }
             });
+    }
+
+    function resetOrder() {
+        if (!currentChain) return;
+        if (!confirm('Вы уверены? Это сбросит порядок шагов к умолчанию.')) return;
+
+        const btn = document.getElementById('resetOrderBtn');
+        btn.disabled = true;
+
+        fetch(`/bots/${botId}/pipelines/${currentChain}/reset`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-Token': '{{ csrf_token }}'
+            }
+        })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                if (data.status === 'success') {
+                    showToast('Порядок сброшен к умолчанию');
+                    loadChain(currentChain); // Reload
+                } else {
+                    alert('Error resetting order');
+                }
+            });
+    }
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'position-fixed bottom-0 end-0 p-3';
+        toast.style.zIndex = 1050;
+        toast.innerHTML = `
+            <div class="toast show align-items-center text-white bg-success border-0">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
     }
 </script>
 {% endblock %}

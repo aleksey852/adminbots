@@ -10,7 +10,9 @@ from database.panel_db import (
     get_module_settings,
     set_module_settings,
     get_all_pipeline_configs,
-    set_pipeline_config
+    get_all_pipeline_configs,
+    set_pipeline_config,
+    delete_pipeline_config
 )
 from modules.base import module_loader
 from modules.workflow import workflow_manager
@@ -105,12 +107,12 @@ def setup_routes(
         ))
 
 
-    @router.get("/pipelines/{chain_name}")
     async def get_pipeline_details(bot_id: int, chain_name: str, user: Dict = Depends(get_current_user)):
         """API to get steps for drag-n-drop editor"""
         default_steps = workflow_manager.get_steps(chain_name)
         custom_order_names = await get_all_pipeline_configs(bot_id)
         custom_order = custom_order_names.get(chain_name, [])
+        enabled_modules = set(await get_bot_enabled_modules(bot_id))
         
         # Sort
         if custom_order:
@@ -125,12 +127,20 @@ def setup_routes(
         else:
             final_steps = default_steps
             
-        # Sanitize steps for JSON response
+        # Sanitize steps for JSON response and inject is_enabled
         sanitized_steps = []
         for step in final_steps:
             safe_step = step.copy()
             if safe_step.get("state"):
                 safe_step["state"] = str(safe_step["state"])
+            
+            # Check enabled status
+            mod_name = safe_step.get("module_name")
+            is_enabled = True
+            if mod_name:
+                is_enabled = mod_name in enabled_modules
+            safe_step["is_enabled"] = is_enabled
+            
             sanitized_steps.append(safe_step)
 
         return {
@@ -146,6 +156,12 @@ def setup_routes(
         filtered_order = [name for name in order if name in valid_steps]
         
         await set_pipeline_config(bot_id, chain_name, filtered_order)
+        return {"status": "success"}
+
+    @router.post("/pipelines/{chain_name}/reset")
+    async def reset_pipeline_order(bot_id: int, chain_name: str, user: Dict = Depends(get_current_user)):
+        """Reset step order to default"""
+        await delete_pipeline_config(bot_id, chain_name)
         return {"status": "success"}
     
     return router
