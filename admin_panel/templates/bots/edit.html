@@ -108,78 +108,127 @@
                 </div>
             </div>
 
-            <!-- Statistics -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Статистика</div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="h4 mb-0">{{ stats.total_users or 0 }}</div>
-                            <small class="text-muted">Пользователей</small>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="h4 mb-0">{{ stats.valid_receipts or 0 }}</div>
-                            <small class="text-muted">Чеков</small>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="h4 mb-0">{{ stats.total_tickets or 0 }}</div>
-                            <small class="text-muted">Билетов</small>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="h4 mb-0">{{ stats.total_winners or 0 }}</div>
-                            <small class="text-muted">Победителей</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        </div>
+    </div>
 
-            <!-- Danger Zone -->
-            <div class="card shadow-sm border-danger">
-                <div class="card-header bg-danger text-white"><i class="bi bi-exclamation-triangle me-1"></i> Опасная
-                    зона</div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <h6>📦 Экспорт данных</h6>
-                            <p class="text-muted small">Скачать все данные бота для переноса на другой сервер.</p>
-                            <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-outline-primary">
-                                <i class="bi bi-download me-1"></i> Скачать JSON
-                            </a>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <h6>🔄 Миграция данных</h6>
-                            <p class="text-muted small">Перенести пользователей в другого бота на этом сервере.</p>
-                            <a href="/bots/{{ edit_bot.id }}/migrate" class="btn btn-outline-info">
-                                <i class="bi bi-box-arrow-right me-1"></i> Мигрировать
-                            </a>
-                        </div>
-                    </div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <h6>📁 Архивировать бота</h6>
-                            <p class="text-muted small">Бот перестанет работать, но данные сохранятся.</p>
-                            <form method="POST" action="/bots/{{ edit_bot.id }}/archive"
-                                onsubmit="return confirm('Архивировать бота {{ edit_bot.name }}?')">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-outline-warning">
-                                    <i class="bi bi-archive me-1"></i> Архивировать
-                                </button>
-                            </form>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <h6>🗑️ Удалить полностью</h6>
-                            <p class="text-muted small">Безвозвратно удалить бота и ВСЕ данные.</p>
-                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
-                                data-bs-target="#deleteModal">
-                                <i class="bi bi-trash me-1"></i> Удалить навсегда
-                            </button>
-                        </div>
-                    </div>
+    <!-- Subscription Module -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header"><i class="bi bi-broadcast me-1"></i> Модуль подписки</div>
+        <div class="card-body">
+            {% if subscription_settings %}
+            {% for key, label, value in subscription_settings %}
+            <form method="post" action="/bots/{{ edit_bot.id }}/subscription" class="mb-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <!-- Only show fields relevant to the current item in loop for simplicity -->
+                <!-- But we need one form for all or individual forms? -->
+                <!-- Let's do one shared form or individual. The router expects all fields.
+                                 Let's restructure: ONE form for all fields. -->
+            </form>
+            {% endfor %}
+
+            <!-- Rewriting loop to single form -->
+            <form method="post" action="/bots/{{ edit_bot.id }}/subscription">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                {% for key, label, value in subscription_settings %}
+                <div class="mb-3">
+                    <label class="form-label">{{ label }}</label>
+
+                    {% if key == 'SUBSCRIPTION_REQUIRED' %}
+                    <select name="{{ key }}" class="form-select">
+                        <option value="false" {% if value !='true' %}selected{% endif %}>Отключено</option>
+                        <option value="true" {% if value=='true' %}selected{% endif %}>Включено</option>
+                    </select>
+                    {% else %}
+                    <input type="text" name="{{ key }}" class="form-control" value="{{ value }}"
+                        placeholder="{% if key == 'SUBSCRIPTION_CHANNEL_ID' %}-1001234567890{% else %}https://t.me/channel{% endif %}">
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i> Сохранить настройки подписки
+                </button>
+            </form>
+            {% else %}
+            <p class="text-muted">Настройки подписки недоступны.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Статистика</div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="h4 mb-0">{{ stats.total_users or 0 }}</div>
+                    <small class="text-muted">Пользователей</small>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="h4 mb-0">{{ stats.valid_receipts or 0 }}</div>
+                    <small class="text-muted">Чеков</small>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="h4 mb-0">{{ stats.total_tickets or 0 }}</div>
+                    <small class="text-muted">Билетов</small>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="h4 mb-0">{{ stats.total_winners or 0 }}</div>
+                    <small class="text-muted">Победителей</small>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Danger Zone -->
+    <div class="card shadow-sm border-danger">
+        <div class="card-header bg-danger text-white"><i class="bi bi-exclamation-triangle me-1"></i> Опасная
+            зона</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h6>📦 Экспорт данных</h6>
+                    <p class="text-muted small">Скачать все данные бота для переноса на другой сервер.</p>
+                    <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-outline-primary">
+                        <i class="bi bi-download me-1"></i> Скачать JSON
+                    </a>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h6>🔄 Миграция данных</h6>
+                    <p class="text-muted small">Перенести пользователей в другого бота на этом сервере.</p>
+                    <a href="/bots/{{ edit_bot.id }}/migrate" class="btn btn-outline-info">
+                        <i class="bi bi-box-arrow-right me-1"></i> Мигрировать
+                    </a>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h6>📁 Архивировать бота</h6>
+                    <p class="text-muted small">Бот перестанет работать, но данные сохранятся.</p>
+                    <form method="POST" action="/bots/{{ edit_bot.id }}/archive"
+                        onsubmit="return confirm('Архивировать бота {{ edit_bot.name }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-outline-warning">
+                            <i class="bi bi-archive me-1"></i> Архивировать
+                        </button>
+                    </form>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h6>🗑️ Удалить полностью</h6>
+                    <p class="text-muted small">Безвозвратно удалить бота и ВСЕ данные.</p>
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
+                        data-bs-target="#deleteModal">
+                        <i class="bi bi-trash me-1"></i> Удалить навсегда
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
 </div>
 
 <!-- Delete Confirmation Modal -->

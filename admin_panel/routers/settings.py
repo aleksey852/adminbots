@@ -21,11 +21,7 @@ SUPPORT_FIELDS = [
     ("SUPPORT_TELEGRAM", "Telegram поддержки (@username)"),
 ]
 
-SUBSCRIPTION_FIELDS = [
-    ("SUBSCRIPTION_REQUIRED", "Требовать подписку на канал (true/false)"),
-    ("SUBSCRIPTION_CHANNEL_ID", "ID канала (напр. -1001234567890)"),
-    ("SUBSCRIPTION_CHANNEL_URL", "Ссылка на канал"),
-]
+
 
 
 
@@ -90,25 +86,6 @@ def setup_routes(
         if not (bot := request.state.bot): return RedirectResponse("/")
         await config_manager.set_setting(key, value, bot['id'])
         return RedirectResponse("/settings/support?updated=1", 303)
-
-    @router.get("/subscription", response_class=HTMLResponse)
-    async def subscription_settings_page(request: Request, user: str = Depends(get_current_user), updated: str = None):
-        from utils.config_manager import config_manager
-        if not (bot := request.state.bot): return RedirectResponse("/")
-        if not config_manager._initialized: await config_manager.load()
-
-        defaults = {"SUBSCRIPTION_REQUIRED": "false", "SUBSCRIPTION_CHANNEL_ID": "", "SUBSCRIPTION_CHANNEL_URL": ""}
-        fields = [(k, l, config_manager.get_setting(k, defaults.get(k, ""), bot['id'])) for k, l in SUBSCRIPTION_FIELDS]
-        return templates.TemplateResponse("settings/subscription.html", get_template_context(request, user=user, title="Подписка", subscription_fields=fields, updated=updated))
-
-    @router.post("/subscription/update", dependencies=[Depends(verify_csrf_token)])
-    async def update_subscription_setting(request: Request, key: str = Form(...), value: str = Form(...), user: str = Depends(get_current_user)):
-        from utils.config_manager import config_manager
-        if not (bot := request.state.bot): return RedirectResponse("/")
-        await config_manager.set_setting(key, value, bot['id'])
-        return RedirectResponse("/settings/subscription?updated=1", 303)
-
-
 
     @router.get("/messages", response_class=HTMLResponse)
     async def messages_page(request: Request, user: str = Depends(get_current_user), updated: str = None):

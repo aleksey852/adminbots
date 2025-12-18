@@ -88,6 +88,8 @@ def setup_routes(
     @router.get("/{bot_id}/edit", response_class=HTMLResponse)
     async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
         from database.bot_methods import get_stats, bot_db_context
+        from utils.config_manager import config_manager
+        
         bot = await get_bot_by_id(bot_id)
         if not bot: raise HTTPException(404, "Bot not found")
         
@@ -95,8 +97,37 @@ def setup_routes(
             bot_db_manager.register(bot_id, bot['database_url'])
             await bot_db_manager.connect(bot_id)
         
+        if not config_manager._initialized: await config_manager.load()
+        
+        # Fetch subscription settings
+        SUBSCRIPTION_FIELDS = [
+            ("SUBSCRIPTION_REQUIRED", "Требовать подписку на канал"),
+            ("SUBSCRIPTION_CHANNEL_ID", "ID канала (напр. -1001234567890)"),
+            ("SUBSCRIPTION_CHANNEL_URL", "Ссылка на канал"),
+        ]
+        defaults = {"SUBSCRIPTION_REQUIRED": "false", "SUBSCRIPTION_CHANNEL_ID": "", "SUBSCRIPTION_CHANNEL_URL": ""}
+        sub_settings = [(k, l, config_manager.get_setting(k, defaults.get(k, ""), bot_id)) for k, l in SUBSCRIPTION_FIELDS]
+
         async with bot_db_context(bot_id): stats = await get_stats()
-        return templates.TemplateResponse("bots/edit.html", get_template_context(request, user=user, title=f"Бот: {bot['name']}", edit_bot=bot, stats=stats, message=msg))
+        return templates.TemplateResponse("bots/edit.html", get_template_context(
+            request, user=user, title=f"Бот: {bot['name']}", edit_bot=bot, stats=stats, message=msg,
+            subscription_settings=sub_settings
+        ))
+
+    @router.post("/{bot_id}/subscription", dependencies=[Depends(verify_csrf_token)])
+    async def update_bot_subscription(
+        request: Request, bot_id: int, 
+        SUBSCRIPTION_REQUIRED: str = Form("false"),
+        SUBSCRIPTION_CHANNEL_ID: str = Form(""),
+        SUBSCRIPTION_CHANNEL_URL: str = Form("")
+    ):
+        from utils.config_manager import config_manager
+        
+        await config_manager.set_setting('SUBSCRIPTION_REQUIRED', SUBSCRIPTION_REQUIRED, bot_id)
+        await config_manager.set_setting('SUBSCRIPTION_CHANNEL_ID', SUBSCRIPTION_CHANNEL_ID, bot_id)
+        await config_manager.set_setting('SUBSCRIPTION_CHANNEL_URL', SUBSCRIPTION_CHANNEL_URL, bot_id)
+        
+        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Subscription+updated", 303)
 
     @router.post("/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
     async def update_bot_route(request: Request, bot_id: int, name: str = Form(...), type: str = Form(...)):
