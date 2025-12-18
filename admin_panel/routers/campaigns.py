@@ -104,20 +104,21 @@ def setup_routes(
     @router.post("/codes/upload", dependencies=[Depends(verify_csrf_token)])
     async def upload_codes(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
         from admin_panel.utils.importer import process_promo_import
-        from database import create_job
+        from database import create_job, bot_db_context
         if not (bot := request.state.bot) or bot.get("type") != "promo": return JSONResponse({"error": "Wrong bot"}, 400)
         
         path = UPLOADS_DIR / f"imp_{bot['id']}_{int(time.time())}_{uuid.uuid4().hex[:6]}.txt"
         async with aiofiles.open(path, 'wb') as f:
             while chunk := await file.read(1024*1024): await f.write(chunk)
         
-        jid = await create_job('import_promo', {"file": path.name, "size_mb": round(path.stat().st_size/1024/1024, 2)})
+        async with bot_db_context(bot['id']):
+            jid = await create_job('import_promo', {"file": path.name, "size_mb": round(path.stat().st_size/1024/1024, 2)})
         background_tasks.add_task(process_promo_import, str(path), bot['id'], jid)
         return JSONResponse({"status": "queued", "job_id": jid})
 
     @router.post("/codes/generate", dependencies=[Depends(verify_csrf_token)])
     async def generate_codes(request: Request, quantity: int = Form(...), tickets: int = Form(1)):
-        from database import add_promo_codes
+        from database import add_promo_codes, bot_db_context
         from fastapi.responses import StreamingResponse
         import secrets, io
         if not (bot := request.state.bot) or bot.get("type") != "promo": return JSONResponse({"error": "Wrong bot"}, 400)
@@ -128,7 +129,8 @@ def setup_routes(
             codes.add(''.join(secrets.choice(chars) for _ in range(12)))
         
         codes_list = list(codes)
-        added = await add_promo_codes(codes_list, tickets)
+        async with bot_db_context(bot['id']):
+            added = await add_promo_codes(codes_list, tickets)
         
         return StreamingResponse(
             io.BytesIO('\n'.join(codes_list).encode()),
@@ -138,9 +140,11 @@ def setup_routes(
 
     @router.get("/api/jobs/active")
     async def get_active_jobs_api(request: Request):
-        from database import get_active_jobs
-        if not request.state.bot: return JSONResponse([])
-        return JSONResponse([{**dict(j), "details": json.loads(j['details']) if isinstance(j['details'], str) else j['details'], "created_at": j['created_at'].isoformat()} for j in await get_active_jobs()])
+        from database import get_active_jobs, bot_db_context
+        if not (bot := request.state.bot): return JSONResponse([])
+        async with bot_db_context(bot['id']):
+            jobs = await get_active_jobs()
+        return JSONResponse([{**dict(j), "details": json.loads(j['details']) if isinstance(j['details'], str) else j['details'], "created_at": j['created_at'].isoformat()} for j in jobs])
 
     @router.get("/raffle", response_class=HTMLResponse)
     async def raffle_page(request: Request, user: str = Depends(get_current_user), created: str = None):

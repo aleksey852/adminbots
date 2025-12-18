@@ -42,6 +42,7 @@ def get_faq_keyboard(bot_type: str = 'receipt'):
     b = InlineKeyboardBuilder()
     items = [
         ("🎯 Как участвовать?", "faq_how"),
+        ("🎲 Розыгрыши", "faq_raffle"),
         ("🧾 Лимиты" if bot_type == 'receipt' else "🔢 Лимиты", "faq_limit"),
         ("🏆 Про выигрыш", "faq_win"),
         ("❌ Не принято?", "faq_reject"),
