@@ -276,13 +276,13 @@ async def select_ticket_winners_db(count: int, prize: str, exclude_tickets: dict
                            ticket_type, ticket_id, ticket_value
     """
     exclude = exclude_tickets or {}
-    exclude_receipt_ids = exclude.get('receipt', [])
-    exclude_promo_ids = exclude.get('promo', [])
-    exclude_manual_ids = exclude.get('manual', [])
+    exclude_receipt_ids = exclude.get('receipt', []) or []
+    exclude_promo_ids = exclude.get('promo', []) or []
+    exclude_manual_ids = exclude.get('manual', []) or []
     
     async with get_current_bot_db().get_connection() as conn:
         # Build ticket pool: each row = 1 ticket
-        # For receipts: ticket_value = first 8 chars of raw_qr or "ЧЕК#" + id
+        # For receipts: ticket_value = first 12 chars of raw_qr or "ЧЕК#" + id
         # For promo: ticket_value = code itself
         # For manual: ticket_value = reason or "Начисление"
         
@@ -293,6 +293,7 @@ async def select_ticket_winners_db(count: int, prize: str, exclude_tickets: dict
             # Regular raffle: only tickets with value > 0
             ticket_condition = "tickets > 0"
         
+        # Parameters: $1=count, $2=prize, $3=exclude_receipt_ids, $4=exclude_promo_ids, $5=exclude_manual_ids
         return await conn.fetch(f"""
             WITH all_tickets AS (
                 -- Receipts
@@ -309,7 +310,7 @@ async def select_ticket_winners_db(count: int, prize: str, exclude_tickets: dict
                 WHERE r.status = 'valid' 
                   AND ({ticket_condition.replace('tickets', 'r.tickets')})
                   AND u.is_blocked = FALSE
-                  AND r.id != ALL($4::int[])
+                  AND r.id != ALL($3::int[])
                 
                 UNION ALL
                 
@@ -327,7 +328,7 @@ async def select_ticket_winners_db(count: int, prize: str, exclude_tickets: dict
                 WHERE p.status = 'used'
                   AND ({ticket_condition.replace('tickets', 'p.tickets')})
                   AND u.is_blocked = FALSE
-                  AND p.id != ALL($5::int[])
+                  AND p.id != ALL($4::int[])
                 
                 UNION ALL
                 
@@ -343,7 +344,7 @@ async def select_ticket_winners_db(count: int, prize: str, exclude_tickets: dict
                 FROM manual_tickets m
                 JOIN users u ON m.user_id = u.id
                 WHERE u.is_blocked = FALSE
-                  AND m.id != ALL($6::int[])
+                  AND m.id != ALL($5::int[])
             )
             SELECT 
                 ticket_id, ticket_type, ticket_value,
@@ -353,10 +354,9 @@ async def select_ticket_winners_db(count: int, prize: str, exclude_tickets: dict
             ORDER BY random()
             LIMIT $1
         """, count, prize, 
-            [], # unused $3 placeholder
-            exclude_receipt_ids or [],
-            exclude_promo_ids or [],
-            exclude_manual_ids or []
+            exclude_receipt_ids,
+            exclude_promo_ids,
+            exclude_manual_ids
         )
 
 async def get_raffle_losers(cid: int):
