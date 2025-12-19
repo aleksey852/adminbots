@@ -126,6 +126,7 @@ def setup_routes(
             await bot_db_manager.connect(bot_id)
         
         if not config_manager._initialized: await config_manager.load()
+        await config_manager.load_for_bot(bot_id)
         
         # --- Modules & Settings Logic ---
         enabled_modules = set(bot.get('enabled_modules') or [])

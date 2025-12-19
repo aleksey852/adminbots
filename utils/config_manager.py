@@ -92,18 +92,27 @@ class ConfigManager:
 
     async def load_for_bot(self, bot_id: int):
         """Load settings and messages for a specific bot into cache"""
+        from database.bot_db import bot_db_manager
         try:
-            db = bot_methods.get_current_bot_db()
-            async with db.get_connection() as conn:
-                # Load settings
-                rows = await conn.fetch("SELECT key, value FROM settings")
-                self._settings[bot_id] = {row['key']: row['value'] for row in rows}
+            db = bot_db_manager.get(bot_id)
+            if not db:
+                 db = bot_methods.get_current_bot_db()
+                 
+            if db:
+                async with db.get_connection() as conn:
+                    # Load settings
+                    rows = await conn.fetch("SELECT key, value FROM settings")
+                    if bot_id not in self._settings: self._settings[bot_id] = {}
+                    for row in rows:
+                        self._settings[bot_id][row['key']] = row['value']
+                    
+                    # Load messages
+                    rows = await conn.fetch("SELECT key, text FROM messages")
+                    if bot_id not in self._messages: self._messages[bot_id] = {}
+                    for row in rows:
+                        self._messages[bot_id][row['key']] = row['text']
                 
-                # Load messages
-                rows = await conn.fetch("SELECT key, text FROM messages")
-                self._messages[bot_id] = {row['key']: row['text'] for row in rows}
-            
-            logger.debug(f"Loaded {len(self._settings.get(bot_id, {}))} settings for bot {bot_id}")
+                logger.debug(f"Loaded {len(self._settings.get(bot_id, {}))} settings for bot {bot_id}")
         except Exception as e:
             logger.error(f"Failed to load settings for bot {bot_id}: {e}")
 
