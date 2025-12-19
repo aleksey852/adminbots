@@ -256,10 +256,13 @@ def setup_routes(
                     logger.info(f"Prize {i} photo: key={photo_key}, file={type(photo_file).__name__}, filename={getattr(photo_file, 'filename', None)}")
                     
                     if isinstance(photo_file, UploadFile) and photo_file.filename:
-                        saved = await save_media(photo_file, f"prize_{i}", None)
-                        logger.info(f"Prize {i} saved media: {saved}")
-                        if "photo_path" in saved:
-                            prize_data["photo_path"] = saved["photo_path"]
+                        try:
+                            saved = await save_media(photo_file, f"prize_{i}", None)
+                            logger.info(f"Prize {i} saved media: {saved}")
+                            if "photo_path" in saved:
+                                prize_data["photo_path"] = saved["photo_path"]
+                        except Exception as e:
+                            logger.exception(f"Prize {i} save_media FAILED: {e}")
 
                     prizes.append(prize_data)
         
