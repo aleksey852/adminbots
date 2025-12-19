@@ -107,6 +107,14 @@ async def add_promo_codes(codes: List[str], tickets: int = 1) -> int:
         await conn.executemany("INSERT INTO promo_codes (code, tickets, status) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", recs)
     return len(recs)
 
+async def get_user_promo_codes(uid: int, limit: int = 50):
+    """Get promo codes activated by a specific user"""
+    async with get_current_bot_db().get_connection() as conn:
+        return await conn.fetch(
+            "SELECT * FROM promo_codes WHERE user_id = $1 ORDER BY used_at DESC NULLS LAST LIMIT $2", 
+            uid, limit
+        )
+
 async def generate_unique_promo_code(tickets: int = 1) -> Optional[Dict]:
     """Generate a single unique promo code on-the-fly and insert into promo_codes"""
     import secrets

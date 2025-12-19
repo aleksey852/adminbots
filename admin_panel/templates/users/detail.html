@@ -328,6 +328,43 @@
             </div>
         </div>
         {% endif %}
+
+        {% if user_promo_codes %}
+        <div class="card mt-4">
+            <div class="card-header"><i class="bi bi-key text-info"></i> Активированные промокоды</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Код</th>
+                                <th>Статус</th>
+                                <th>Билетов</th>
+                                <th>Дата активации</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pc in user_promo_codes %}
+                            <tr>
+                                <td><code>{{ pc.code }}</code></td>
+                                <td>
+                                    {% if pc.status == 'used' %}
+                                    <span class="badge badge-success">Активирован</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ pc.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge badge-info">{{ pc.tickets or 1 }}</span></td>
+                                <td><small>{{ pc.used_at.strftime('%d.%m.%Y %H:%M') if pc.used_at else '—' }}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 

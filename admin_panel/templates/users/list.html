@@ -61,7 +61,8 @@
                 </thead>
                 <tbody>
                     {% for u in users %}
-                    <tr {% if u.is_blocked %}class="table-danger opacity-75" {% endif %}>
+                    <tr {% if u.is_blocked %}class="table-danger opacity-75" {% endif %}
+                        onclick="window.location='/users/{{ u.id }}'" style="cursor: pointer;">
                         <td>
                             <span class="text-muted">#</span>{{ u.id }}
                         </td>
@@ -101,10 +102,9 @@
                             </span>
                         </td>
                         <td>
-                            <a href="/users/{{ u.id }}"
-                                class="btn btn-sm btn-outline-primary border-0 bg-primary-subtle">
+                            <span class="btn btn-sm btn-outline-primary border-0 bg-primary-subtle">
                                 <i class="bi bi-chevron-right"></i>
-                            </a>
+                            </span>
                         </td>
                     </tr>
                     {% else %}

@@ -68,17 +68,19 @@ def setup_routes(
         if not user_data or user_data['bot_id'] != bot['id']:
             raise HTTPException(404, "User not found")
         
-        # Load manual tickets
-        from database.bot_methods import get_user_manual_tickets, get_user_total_tickets, bot_db_context
+        # Load manual tickets and promo codes
+        from database.bot_methods import get_user_manual_tickets, get_user_total_tickets, get_user_promo_codes, bot_db_context
         async with bot_db_context(bot['id']):
             manual_tickets = await get_user_manual_tickets(user_id)
             total_tickets = await get_user_total_tickets(user_id)
+            user_promo_codes = await get_user_promo_codes(user_id) if bot['type'] == 'promo' else []
         
         return templates.TemplateResponse("users/detail.html", get_template_context(
             request, user=user, user_data=user_data,
             receipts=await get_user_receipts_detailed(user_id, limit=50),
             manual_tickets=manual_tickets,
             total_tickets=total_tickets or 0,
+            user_promo_codes=user_promo_codes,
             title=f"Пользователь #{user_id}", message=msg
         ))
 
@@ -192,16 +194,13 @@ def setup_routes(
         if not user_data or user_data['bot_id'] != bot['id']:
             raise HTTPException(404, "User not found")
         
-        from database.bot_methods import generate_unique_promo_code, use_promo_code, bot_db_context
+        from database.bot_methods import generate_unique_promo_code, bot_db_context
         
         async with bot_db_context(bot['id']):
-            # Generate unique code on-the-fly
+            # Generate unique code on-the-fly (stays active until user activates via button)
             promo_code = await generate_unique_promo_code(tickets=1)
             if not promo_code:
                 return RedirectResponse(f"/users/{user_id}?msg=reserve_error", 303)
-            
-            # Mark as used immediately for this user
-            await use_promo_code(promo_code['id'], user_id)
         
         # Send message to user with inline button
         from aiogram import Bot as AiogramBot
