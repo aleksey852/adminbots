@@ -93,9 +93,9 @@
                         <th class="text-muted">Статус:</th>
                         <td>
                             {% if user_data.is_blocked %}
-                            <span class="badge bg-danger">Заблокирован</span>
+                            <span class="badge badge-danger">Заблокирован</span>
                             {% else %}
-                            <span class="badge bg-success">Активен</span>
+                            <span class="badge badge-success">Активен</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -278,7 +278,7 @@
                                     {% elif r.status == 'pending' %}
                                     <span class="badge badge-pending">Ожидает</span>
                                     {% else %}
-                                    <span class="badge bg-secondary">{{ r.status }}</span>
+                                    <span class="badge badge-secondary">{{ r.status }}</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ r.product_name[:40] if r.product_name else '-' }}{% if r.product_name and
@@ -351,7 +351,7 @@
                                     {% if pc.status == 'used' %}
                                     <span class="badge badge-success">Активирован</span>
                                     {% else %}
-                                    <span class="badge bg-secondary">{{ pc.status }}</span>
+                                    <span class="badge badge-secondary">{{ pc.status }}</span>
                                     {% endif %}
                                 </td>
                                 <td><span class="badge badge-info">{{ pc.tickets or 1 }}</span></td>

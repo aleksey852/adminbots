@@ -1529,6 +1529,16 @@ h6 {
     min-height: 2.5rem;
 }
 
+.danger-action-delete {
+    background: var(--danger-bg);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.danger-action-delete:hover {
+    background: var(--danger-bg);
+    border-color: var(--danger-text);
+}
+
 /* Mobile padding adjustment */
 @media (max-width: 768px) {
     .container-fluid.p-4 {

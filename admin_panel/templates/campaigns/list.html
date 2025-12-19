@@ -37,18 +37,18 @@
                         <td>#{{ c.id }}</td>
                         <td>
                             {% if c.type == 'broadcast' %}
-                            <span class="badge bg-primary">Рассылка</span>
+                            <span class="badge badge-primary">Рассылка</span>
                             {% elif c.type == 'raffle' %}
                             <span class="badge badge-warning">Розыгрыш</span>
                             {% elif c.type == 'message' %}
                             <span class="badge badge-info">Сообщение</span>
                             {% else %}
-                            <span class="badge bg-secondary">{{ c.type }}</span>
+                            <span class="badge badge-secondary">{{ c.type }}</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if c.status == 'cancelled' %}
-                            <span class="badge bg-danger">🚫 Отменена</span>
+                            <span class="badge badge-danger">🚫 Отменена</span>
                             {% elif c.is_completed %}
                             <span class="badge badge-completed">✓ Завершена</span>
                             {% elif c.status == 'running' %}
@@ -75,13 +75,7 @@
                                 onsubmit="return confirm('Вы уверены, что хотите отменить эту кампанию?');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Отменить">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
-                                        class="bi bi-x-circle" viewBox="0 0 16 16">
-                                        <path
-                                            d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
-                                        <path
-                                            d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
-                                    </svg>
+                                    <i class="bi bi-x-circle"></i>
                                 </button>
                             </form>
                             {% endif %}

@@ -5,7 +5,7 @@
     <div class="title-area">
         <div class="d-flex align-items-center gap-3">
             <h1>Чеки</h1>
-            <span class="badge bg-success-subtle text-success rounded-pill px-3">Всего: {{ total }}</span>
+            <span class="badge badge-success rounded-pill px-3">Всего: {{ total }}</span>
         </div>
         <p>История загруженных чеков и их статусы</p>
     </div>
@@ -41,12 +41,12 @@
                             {% elif r.status == 'pending' %}
                             <span class="badge badge-pending">Ожидает</span>
                             {% else %}
-                            <span class="badge bg-secondary">{{ r.status }}</span>
+                            <span class="badge badge-secondary">{{ r.status }}</span>
                             {% endif %}
                         </td>
                         <td>{{ r.product_name[:30] if r.product_name else '-' }}{% if r.product_name and
                             r.product_name|length > 30 %}...{% endif %}</td>
-                        <td><span class="badge bg-primary">{{ r.tickets if r.tickets else 1 }}</span></td>
+                        <td><span class="badge badge-primary">{{ r.tickets if r.tickets else 1 }}</span></td>
                         <td>{{ '%.2f ₽' % (r.total_sum / 100) if r.total_sum else '-' }}</td>
                         <td><small><code>{{ r.fiscal_drive_number or '-' }} / {{ r.fiscal_document_number or '-' }} / {{ r.fiscal_sign or '-' }}</code></small>
                         </td>

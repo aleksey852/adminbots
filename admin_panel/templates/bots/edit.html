@@ -144,31 +144,7 @@
                 </div>
             </div>
 
-            <!-- Statistics -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Быстрая статистика</div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="h4 mb-0">{{ stats.total_users or 0 }}</div>
-                            <small class="text-muted">Пользователей</small>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="h4 mb-0">{{ stats.valid_receipts or 0 }}</div>
-                            <small class="text-muted">{% if edit_bot.type == 'promo' %}Активаций{% else %}Чеков{% endif
-                                %}</small>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="h4 mb-0">{{ stats.total_tickets or 0 }}</div>
-                            <small class="text-muted">Билетов</small>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="h4 mb-0">{{ stats.total_winners or 0 }}</div>
-                            <small class="text-muted">Победителей</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
 
             <!-- Danger Zone -->
             <div class="card danger-zone-card shadow-sm">
@@ -214,7 +190,7 @@
 
                         <!-- Delete -->
                         <div class="col-md-12">
-                            <div class="danger-action-card" style="background: rgba(254, 226, 226, 0.3);">
+                            <div class="danger-action-card danger-action-delete">
                                 <div class="danger-action-title text-danger">
                                     <i class="bi bi-trash"></i> Удаление
                                 </div>
