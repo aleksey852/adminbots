@@ -240,6 +240,8 @@ def setup_routes(
     ):
         """Update campaign start/end dates"""
         from utils.config_manager import config_manager
+        from database.panel_db import get_bot_by_id
+        from database.bot_db import bot_db_manager
         
         # Simple validation
         try:
@@ -247,6 +249,14 @@ def setup_routes(
             datetime.strptime(end_date, "%Y-%m-%d")
         except ValueError:
              return RedirectResponse(f"/bots/{bot_id}/edit?error=Invalid+date+format", 303)
+             
+        # Ensure DB connected
+        bot = await get_bot_by_id(bot_id)
+        if not bot: raise HTTPException(404, "Bot not found")
+        
+        if not bot_db_manager.get(bot_id):
+            bot_db_manager.register(bot_id, bot['database_url'])
+            await bot_db_manager.connect(bot_id)
 
         await config_manager.set_setting("promo_start_date", start_date, bot_id)
         await config_manager.set_setting("promo_end_date", end_date, bot_id)

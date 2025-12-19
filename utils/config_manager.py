@@ -37,28 +37,42 @@ class ConfigManager:
         return default
 
     async def set_setting(self, key: str, value: str, bot_id: int):
-        """Update setting in DB and cache (uses current bot context)"""
-        db = bot_methods.get_current_bot_db()
-        async with db.get_connection() as conn:
-            await conn.execute("""
-                INSERT INTO settings (key, value, updated_at)
-                VALUES ($1, $2, NOW())
-                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
-            """, key, str(value))
+        """Update setting in DB and cache"""
+        from database.bot_db import bot_db_manager
+        
+        db = bot_db_manager.get(bot_id)
+        if not db:
+             # Try to simple reliance on global context if not found, or error?
+             # Better to rely on caller ensuring connection, but let's try get_current if explicit fails
+             db = bot_methods.get_current_bot_db()
+             
+        if db:
+            async with db.get_connection() as conn:
+                await conn.execute("""
+                    INSERT INTO settings (key, value, updated_at)
+                    VALUES ($1, $2, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
+                """, key, str(value))
         
         if bot_id not in self._settings:
             self._settings[bot_id] = {}
         self._settings[bot_id][key] = str(value)
 
     async def set_message(self, key: str, text: str, bot_id: int):
-        """Update message in DB and cache (uses current bot context)"""
-        db = bot_methods.get_current_bot_db()
-        async with db.get_connection() as conn:
-            await conn.execute("""
-                INSERT INTO messages (key, text, updated_at)
-                VALUES ($1, $2, NOW())
-                ON CONFLICT (key) DO UPDATE SET text = $2, updated_at = NOW()
-            """, key, text)
+        """Update message in DB and cache"""
+        from database.bot_db import bot_db_manager
+        
+        db = bot_db_manager.get(bot_id)
+        if not db:
+             db = bot_methods.get_current_bot_db()
+             
+        if db:
+            async with db.get_connection() as conn:
+                await conn.execute("""
+                    INSERT INTO messages (key, text, updated_at)
+                    VALUES ($1, $2, NOW())
+                    ON CONFLICT (key) DO UPDATE SET text = $2, updated_at = NOW()
+                """, key, text)
         
         if bot_id not in self._messages:
             self._messages[bot_id] = {}
