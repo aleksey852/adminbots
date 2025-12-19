@@ -20,12 +20,37 @@ import config
 logger = logging.getLogger(__name__)
 
 class RegistrationModule(BotModule):
-    """User registration module"""
+    """User registration module with optional subscription requirement"""
     
     name = "registration"
-    version = "1.0.0"
+    version = "2.0.0"
     description = "Модуль регистрации пользователей"
     default_enabled = True
+    
+    # Subscription settings integrated into registration
+    settings_schema = {
+        "subscription_required": {
+            "type": "checkbox",
+            "label": "Требовать подписку на канал",
+            "default": "false",
+            "required": False,
+            "group": "Подписка"
+        },
+        "subscription_channel_id": {
+            "type": "text",
+            "label": "ID канала (напр. -100...)",
+            "default": "",
+            "required": False,
+            "group": "Подписка"
+        },
+        "subscription_channel_url": {
+            "type": "text",
+            "label": "Ссылка на канал",
+            "default": "",
+            "required": False,
+            "group": "Подписка"
+        }
+    }
     
     default_messages = {
         "reg_cancel": "Хорошо! Возвращайтесь 👋",
