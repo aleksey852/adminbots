@@ -29,7 +29,7 @@
 
                         <!-- Step 1: Basic Info -->
                         <div class="mb-4">
-                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-1-circle me-2"></i>Основные настройки
+                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-1-circle me-2"></i>Основная информация
                             </h5>
 
                             <div class="mb-3">
@@ -48,69 +48,58 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Тип кампании</label>
-                                <div class="type-selector">
-                                    <label class="type-card {% if form__type != 'promo' %}selected{% endif %}"
-                                        data-type="receipt">
-                                        <input type="radio" name="type" value="receipt" {% if form__type !='promo'
-                                            %}checked{% endif %}>
-                                        <div class="type-check"><i class="bi bi-check"></i></div>
-                                        <span class="type-icon">🧾</span>
-                                        <div class="type-title">Регистрация чеков</div>
-                                        <div class="type-description">Пользователи загружают фото чеков для участия в
-                                            акции</div>
-                                    </label>
-                                    <label class="type-card {% if form__type == 'promo' %}selected{% endif %}"
-                                        data-type="promo">
-                                        <input type="radio" name="type" value="promo" {% if form__type=='promo'
-                                            %}checked{% endif %}>
-                                        <div class="type-check"><i class="bi bi-check"></i></div>
-                                        <span class="type-icon">🎁</span>
-                                        <div class="type-title">Промо-коды</div>
-                                        <div class="type-description">Пользователи вводят промокоды для получения
-                                            билетов</div>
-                                    </label>
-                                </div>
-                                <div class="form-text">Определяет основную логику работы бота</div>
-                            </div>
-                        </div>
-
-                        <!-- Step 2: Admin IDs -->
-                        <div class="mb-4">
-                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-2-circle me-2"></i>Администраторы</h5>
-
-                            <div class="mb-3">
                                 <label for="admin_ids" class="form-label">Telegram ID администраторов</label>
                                 <input type="text" class="form-control" id="admin_ids" name="admin_ids"
                                     placeholder="123456789, 987654321"
                                     value="{{ form__admin_ids if form__admin_ids else '' }}">
                                 <div class="form-text">
-                                    Через запятую. Узнать свой ID: <code>@userinfobot</code><br>
-                                    Эти пользователи получат доступ к админ-командам бота.
+                                    Через запятую. Узнать свой ID: <code>@userinfobot</code>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Step 3: Options -->
+                        <!-- Step 2: Bot Configuration -->
                         <div class="mb-4">
-                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-3-circle me-2"></i>Дополнительные опции
-                            </h5>
-                            <p class="text-muted small mb-3">Выберите дополнительные функции бота:</p>
+                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-2-circle me-2"></i>Настройки бота</h5>
+                            <p class="text-muted small mb-3">Выберите тип кампании и дополнительные опции:</p>
 
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox"
-                                                    id="require_subscription" name="require_subscription" value="true">
-                                                <label class="form-check-label fw-bold" for="require_subscription">
-                                                    📢 Требовать подписку на канал
-                                                </label>
+                            <div class="option-cards">
+                                <!-- Campaign Type -->
+                                <div class="option-group mb-3">
+                                    <label class="option-group-label">Тип кампании</label>
+                                    <div class="type-selector">
+                                        <label class="type-card {% if form__type != 'promo' %}selected{% endif %}">
+                                            <input type="radio" name="type" value="receipt" {% if form__type !='promo'
+                                                %}checked{% endif %}>
+                                            <div class="type-check"><i class="bi bi-check"></i></div>
+                                            <span class="type-icon">🧾</span>
+                                            <div class="type-title">Регистрация чеков</div>
+                                            <div class="type-description">Пользователи загружают фото чеков для участия
                                             </div>
-                                            <p class="text-muted small mt-2 mb-0">Пользователь должен подписаться на
-                                                канал для участия в акции</p>
-                                        </div>
+                                        </label>
+                                        <label class="type-card {% if form__type == 'promo' %}selected{% endif %}">
+                                            <input type="radio" name="type" value="promo" {% if form__type=='promo'
+                                                %}checked{% endif %}>
+                                            <div class="type-check"><i class="bi bi-check"></i></div>
+                                            <span class="type-icon">🎁</span>
+                                            <div class="type-title">Промо-коды</div>
+                                            <div class="type-description">Пользователи вводят промокоды для участия
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Additional Options -->
+                                <div class="option-group">
+                                    <label class="option-group-label">Дополнительно</label>
+                                    <div class="type-selector">
+                                        <label class="type-card option-toggle" id="subscriptionCard">
+                                            <input type="checkbox" name="require_subscription" value="true">
+                                            <div class="type-check"><i class="bi bi-check"></i></div>
+                                            <span class="type-icon">📢</span>
+                                            <div class="type-title">Подписка на канал</div>
+                                            <div class="type-description">Требовать подписку для участия в акции</div>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -143,15 +132,36 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const typeCards = document.querySelectorAll('.type-card');
-
-        typeCards.forEach(card => {
+        // Handle radio type cards (Campaign Type - exclusive selection)
+        const radioCards = document.querySelectorAll('.type-card:has(input[type="radio"])');
+        radioCards.forEach(card => {
             card.addEventListener('click', function () {
-                // Remove selected from all
-                typeCards.forEach(c => c.classList.remove('selected'));
-                // Add selected to clicked
+                // Find cards in the same group (same parent selector)
+                const parent = this.closest('.type-selector');
+                const siblingCards = parent.querySelectorAll('.type-card:has(input[type="radio"])');
+                siblingCards.forEach(c => c.classList.remove('selected'));
                 this.classList.add('selected');
             });
+        });
+
+        // Handle checkbox toggle cards (optional features - toggle)
+        const toggleCards = document.querySelectorAll('.type-card.option-toggle');
+        toggleCards.forEach(card => {
+            const checkbox = card.querySelector('input[type="checkbox"]');
+
+            card.addEventListener('click', function (e) {
+                // Toggle selected state
+                const isSelected = this.classList.toggle('selected');
+                // Sync checkbox state
+                if (checkbox) {
+                    checkbox.checked = isSelected;
+                }
+            });
+
+            // Initialize state from checkbox
+            if (checkbox && checkbox.checked) {
+                card.classList.add('selected');
+            }
         });
     });
 </script>
