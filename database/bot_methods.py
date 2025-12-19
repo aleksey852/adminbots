@@ -202,6 +202,7 @@ async def select_random_winners_db(count: int, prize: str, exclude_user_ids: lis
     """
     Memory-efficient DB-side weighted random winner selection.
     Uses PostgreSQL random() with inverse weight for weighted selection.
+    Note: This counts CURRENT tickets, so burned tickets (=0) are excluded.
     """
     exclude_ids = exclude_user_ids or []
     async with get_current_bot_db().get_connection() as conn:
@@ -224,6 +225,36 @@ async def select_random_winners_db(count: int, prize: str, exclude_user_ids: lis
             SELECT user_id, telegram_id, full_name, username, total_tickets, $2 as prize_name
             FROM eligible
             ORDER BY -log(random()) / total_tickets  -- Weighted random using exponential distribution
+            LIMIT $1
+        """, count, prize, exclude_ids)
+
+async def select_final_raffle_winners_db(count: int, prize: str, exclude_user_ids: list = None):
+    """
+    Winner selection for FINAL raffle - counts ALL historical activations.
+    Unlike regular raffle, this counts RECORDS (activations) not current ticket values.
+    So even if tickets were burned (set to 0), users still participate based on their activation count.
+    """
+    exclude_ids = exclude_user_ids or []
+    async with get_current_bot_db().get_connection() as conn:
+        # For final raffle: count number of activations, not current ticket values
+        # Each valid receipt = 1 activation, each used promo = 1 activation
+        return await conn.fetch("""
+            WITH eligible AS (
+                SELECT u.id as user_id, u.telegram_id, u.full_name, u.username,
+                       COUNT(s.id) as total_activations
+                FROM users u
+                JOIN (
+                    SELECT id, user_id FROM receipts WHERE status='valid'
+                    UNION ALL SELECT id, user_id FROM promo_codes WHERE status='used'
+                ) s ON u.id = s.user_id
+                WHERE u.is_blocked = FALSE
+                  AND u.id != ALL($3::int[])
+                GROUP BY u.id
+                HAVING COUNT(s.id) > 0
+            )
+            SELECT user_id, telegram_id, full_name, username, total_activations as total_tickets, $2 as prize_name
+            FROM eligible
+            ORDER BY -log(random()) / total_activations  -- Weighted random
             LIMIT $1
         """, count, prize, exclude_ids)
 

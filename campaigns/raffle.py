@@ -59,8 +59,12 @@ async def execute_raffle(
             if p_count <= 0: continue
             
             # Select winners for this prize
-            # Note: select_random_winners_db uses weighted logic
-            selected = await bot_methods.select_random_winners_db(p_count, p_name, exclude_user_ids=exclude_ids)
+            # For FINAL raffle: use historical activations (includes burned tickets)
+            # For intermediate raffle: use current ticket values only
+            if is_final:
+                selected = await bot_methods.select_final_raffle_winners_db(p_count, p_name, exclude_user_ids=exclude_ids)
+            else:
+                selected = await bot_methods.select_random_winners_db(p_count, p_name, exclude_user_ids=exclude_ids)
             
             if not selected:
                 logger.warning(f"Raffle #{campaign_id}: Not enough participants for prize '{p_name}'")
