@@ -197,7 +197,7 @@ def setup_routes(
         prize_name: str = Form(None), winner_count: int = Form(None),
         # Removed win_text/win_photo
         lose_text: str = Form(None), lose_photo: UploadFile = File(None),
-        scheduled_for: str = Form(None), is_final: bool = Form(False),
+        scheduled_for: str = Form(None), raffle_type: str = Form("intermediate"),
         user: str = Depends(get_current_user)
     ):
         if not request.state.bot: return RedirectResponse("/")
@@ -260,11 +260,16 @@ def setup_routes(
         if not prizes:
              raise HTTPException(400, "At least one prize required")
 
+        # Determine raffle type flags
+        is_final = (raffle_type == "final")
+        burn_tickets = (raffle_type == "intermediate")
+
         content = {
             "prizes": prizes, # List of prizes
             "prize": prizes[0]["name"], # Backward compat
             "count": prizes[0]["count"], # Backward compat
             "is_final": is_final,
+            "burn_tickets": burn_tickets,  # New: burn tickets after intermediate raffle
             # Removed win_msg global fallback
             "lose_msg": await save_media(lose_photo, "lose", lose_text)
         }

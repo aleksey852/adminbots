@@ -197,7 +197,8 @@
                         </div>
                         <div class="col-md-3 col-6 mb-3">
                             <div class="h4 mb-0">{{ stats.valid_receipts or 0 }}</div>
-                            <small class="text-muted">Чеков</small>
+                            <small class="text-muted">{% if edit_bot.type == 'promo' %}Активаций{% else %}Чеков{% endif
+                                %}</small>
                         </div>
                         <div class="col-md-3 col-6 mb-3">
                             <div class="h4 mb-0">{{ stats.total_tickets or 0 }}</div>
@@ -305,7 +306,8 @@
                         Будут удалены ВСЕ данные:
                         <ul class="mb-0 mt-2">
                             <li>{{ stats.total_users or 0 }} пользователей</li>
-                            <li>{{ stats.valid_receipts or 0 }} чеков</li>
+                            <li>{{ stats.valid_receipts or 0 }} {% if edit_bot.type == 'promo' %}активаций{% else
+                                %}чеков{% endif %}</li>
                             <li>{{ stats.total_winners or 0 }} победителей</li>
                             <li>Все настройки и сообщения</li>
                         </ul>

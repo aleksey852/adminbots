@@ -354,6 +354,17 @@ async def get_all_tickets_for_final_raffle():
     async with get_current_bot_db().get_connection() as conn:
         return await conn.fetch("SELECT u.id as user_id, u.telegram_id, u.full_name, u.username, COALESCE(r.t, 0) + COALESCE(m.t, 0) + COALESCE(p.t, 0) as total_tickets FROM users u LEFT JOIN (SELECT user_id, SUM(tickets) as t FROM receipts WHERE status='valid' GROUP BY 1) r ON u.id = r.user_id LEFT JOIN (SELECT user_id, SUM(tickets) as t FROM manual_tickets GROUP BY 1) m ON u.id = m.user_id LEFT JOIN (SELECT user_id, SUM(tickets) as t FROM promo_codes WHERE status='used' GROUP BY 1) p ON u.id = p.user_id WHERE u.is_blocked = FALSE AND (r.t > 0 OR m.t > 0 OR p.t > 0)")
 
+async def burn_all_tickets():
+    """Burn all tickets after intermediate raffle - zeros out all ticket sources"""
+    async with get_current_bot_db().get_connection() as conn:
+        # Zero out receipt tickets
+        await conn.execute("UPDATE receipts SET tickets = 0 WHERE status = 'valid' AND tickets > 0")
+        # Zero out promo code tickets  
+        await conn.execute("UPDATE promo_codes SET tickets = 0 WHERE status = 'used' AND tickets > 0")
+        # Delete all manual tickets
+        await conn.execute("DELETE FROM manual_tickets")
+        logger.info("🔥 All tickets burned after intermediate raffle")
+
 # === Utils & Legacy ===
 
 # Whitelist of allowed fields for dynamic updates

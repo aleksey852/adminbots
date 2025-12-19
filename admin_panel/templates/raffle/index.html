@@ -173,16 +173,24 @@
                     <hr class="my-4">
 
                     <div class="mb-4 bg-surface p-3 rounded border">
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input" type="checkbox" name="is_final" id="isFinalRaffle"
-                                value="true">
-                            <label class="form-check-label fw-bold" for="isFinalRaffle">
-                                Финальный розыгрыш
+                        <label class="form-label fw-bold mb-3">🎲 Тип розыгрыша</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="raffle_type" id="raffleIntermediate"
+                                value="intermediate" checked>
+                            <label class="form-check-label" for="raffleIntermediate">
+                                🔄 <strong>Промежуточный розыгрыш</strong>
                             </label>
+                            <div class="text-muted small ms-4">Билеты участников <strong>сгорают</strong> после
+                                розыгрыша</div>
                         </div>
-                        <div class="text-muted small mt-1 ms-4 ps-1">
-                            Выбирает победителя среди <strong>ВСЕХ</strong> билетов за всё время (чеки, промокоды,
-                            ручные).
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="raffle_type" id="raffleFinal"
+                                value="final">
+                            <label class="form-check-label" for="raffleFinal">
+                                🏆 <strong>Финальный розыгрыш</strong>
+                            </label>
+                            <div class="text-muted small ms-4">Среди <strong>ВСЕХ</strong> активаций за всё время
+                                (билеты не сгорают)</div>
                         </div>
                     </div>
 

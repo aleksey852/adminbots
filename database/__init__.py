@@ -55,7 +55,7 @@ from database.bot_methods import (
     get_promo_codes_paginated, generate_unique_promo_code,
     # Manual Tickets
     add_manual_tickets, get_user_manual_tickets, get_user_total_tickets,
-    get_all_tickets_for_final_raffle,
+    get_all_tickets_for_final_raffle, burn_all_tickets,
     # Jobs
     create_job, get_active_jobs, get_job, update_job,
 )

@@ -63,8 +63,12 @@ def setup_routes(
         import re
         from database.panel_db import get_bot_by_token, register_bot, create_bot_database, get_panel_connection, set_module_settings
         
-        modules = (await request.form()).getlist('modules')
-        if 'registration' not in modules: modules.append('registration')
+        # Auto-assign modules based on bot type
+        base_modules = ['registration', 'user_profile', 'faq', 'support', 'admin', 'raffle', 'core']
+        if type == 'receipt':
+            modules = base_modules + ['receipts']
+        else:  # promo
+            modules = base_modules + ['promo']
         
         if not token or ":" not in token:
             return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Новый бот", error="Bad token", form__token=token, form__name=name))

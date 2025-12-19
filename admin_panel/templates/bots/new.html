@@ -79,22 +79,6 @@
                                     <div class="card h-100">
                                         <div class="card-body">
                                             <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="monthly_raffle"
-                                                    name="monthly_raffle" value="true">
-                                                <label class="form-check-label fw-bold" for="monthly_raffle">
-                                                    🎰 Ежемесячные розыгрыши
-                                                </label>
-                                            </div>
-                                            <p class="text-muted small mt-2 mb-0">Автоматический розыгрыш призов каждый
-                                                месяц среди активных участников</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6 mb-3">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="form-check form-switch">
                                                 <input class="form-check-input" type="checkbox"
                                                     id="require_subscription" name="require_subscription" value="true">
                                                 <label class="form-check-label fw-bold" for="require_subscription">
@@ -104,96 +88,6 @@
                                             <p class="text-muted small mt-2 mb-0">Пользователь должен подписаться на
                                                 канал для участия в акции</p>
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Step 4: Modules -->
-                        <div class="mb-4">
-                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-4-circle me-2"></i>Модули</h5>
-                            <p class="text-muted small mb-3">Выберите функции, которые будут активированы для этого
-                                бота:</p>
-
-                            <div class="row">
-                                <!-- Core modules -->
-                                <div class="col-md-6 mb-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="modules"
-                                            value="registration" id="mod_registration" checked disabled>
-                                        <label class="form-check-label" for="mod_registration">
-                                            <strong>📝 registration</strong> <span
-                                                class="badge bg-secondary">обязательный</span><br>
-                                            <small class="text-muted">Регистрация пользователей (имя, телефон)</small>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6 mb-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="modules"
-                                            value="user_profile" id="mod_user_profile" checked>
-                                        <label class="form-check-label" for="mod_user_profile">
-                                            <strong>👤 user_profile</strong><br>
-                                            <small class="text-muted">Профиль, статистика, история</small>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <!-- Type-specific modules -->
-                                <div class="col-md-6 mb-2" id="module_receipts_wrapper">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="modules" value="receipts"
-                                            id="mod_receipts" checked>
-                                        <label class="form-check-label" for="mod_receipts">
-                                            <strong>🧾 receipts</strong><br>
-                                            <small class="text-muted">Загрузка и проверка чеков</small>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6 mb-2" id="module_promo_wrapper" style="display: none;">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="modules" value="promo"
-                                            id="mod_promo">
-                                        <label class="form-check-label" for="mod_promo">
-                                            <strong>🎁 promo</strong><br>
-                                            <small class="text-muted">Ввод промо-кодов</small>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <!-- Info modules -->
-                                <div class="col-md-6 mb-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="modules" value="faq"
-                                            id="mod_faq" checked>
-                                        <label class="form-check-label" for="mod_faq">
-                                            <strong>❓ faq</strong><br>
-                                            <small class="text-muted">Часто задаваемые вопросы</small>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6 mb-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="modules" value="support"
-                                            id="mod_support" checked>
-                                        <label class="form-check-label" for="mod_support">
-                                            <strong>💬 support</strong><br>
-                                            <small class="text-muted">Контакты поддержки</small>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6 mb-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="modules" value="admin"
-                                            id="mod_admin" checked>
-                                        <label class="form-check-label" for="mod_admin">
-                                            <strong>⚙️ admin</strong><br>
-                                            <small class="text-muted">Админ-команды (рассылки, розыгрыши)</small>
-                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -221,29 +115,4 @@
         </div>
     </div>
 </div>
-
-<script>
-    function updateModules() {
-        const type = document.getElementById('type').value;
-        const receiptsWrapper = document.getElementById('module_receipts_wrapper');
-        const promoWrapper = document.getElementById('module_promo_wrapper');
-        const receiptsCheck = document.getElementById('mod_receipts');
-        const promoCheck = document.getElementById('mod_promo');
-
-        if (type === 'receipt') {
-            receiptsWrapper.style.display = 'block';
-            promoWrapper.style.display = 'none';
-            receiptsCheck.checked = true;
-            promoCheck.checked = false;
-        } else {
-            receiptsWrapper.style.display = 'none';
-            promoWrapper.style.display = 'block';
-            receiptsCheck.checked = false;
-            promoCheck.checked = true;
-        }
-    }
-
-    // Init on page load
-    document.addEventListener('DOMContentLoaded', updateModules);
-</script>
 {% endblock %}

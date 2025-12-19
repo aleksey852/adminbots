@@ -188,11 +188,20 @@ async def execute_raffle(
     if lose_msg:
         await bot_methods.delete_broadcast_progress(campaign_id)
     
+    # 5. Burn tickets for intermediate raffles
+    burn_tickets = content.get("burn_tickets", False)
+    if burn_tickets:
+        await bot_methods.burn_all_tickets()
+        logger.info(f"🔥 Raffle #{campaign_id}: Tickets burned (intermediate raffle)")
+    
     logger.info(f"✅ Raffle #{campaign_id} finished. Winners notified: {sent_win}, Losers: {sent_lose}")
     
     # Admin Report
+    raffle_type_str = "Финальный" if is_final else "Промежуточный"
+    burn_info = "\n🔥 Билеты сброшены" if burn_tickets else ""
     report = (f"🎁 Розыгрыш #{campaign_id} завершен\n"
+              f"📋 Тип: {raffle_type_str}\n"
               f"🏆 Победителей: {len(existing_winners)}\n"
-              f"📢 Уведомлено: {sent_win} (побед) + {sent_lose} (остальных)")
+              f"📢 Уведомлено: {sent_win} (побед) + {sent_lose} (остальных){burn_info}")
     
     await notify_admins(bot, bot_id, report)
