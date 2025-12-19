@@ -289,8 +289,8 @@ class ModuleLoader:
 
         # Scan directory
         for item in os.listdir(full_path):
-            # Skip hidden files, __init__, base, and workflow (utility)
-            if item.startswith('.') or item == "__init__.py" or item == "base.py" or item == "workflow.py":
+            # Skip hidden files, __init__, base
+            if item.startswith('.') or item == "__init__.py" or item == "base.py":
                 continue
 
             module_name = None

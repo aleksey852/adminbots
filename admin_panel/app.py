@@ -263,7 +263,7 @@ texts.setup_routes(
 app.include_router(texts.router)
 
 
-# Modules and Pipelines router
+# Modules router
 modules.setup_routes(
     templates,
     auth.get_current_user,
