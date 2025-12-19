@@ -75,39 +75,39 @@ def setup_routes(
             
             # Group content by category
             sections = {
-                "main": {"title": "Основные тексты", "items": {}},
-                "buttons": {"title": "Кнопки", "items": {}},
-                "promo": {"title": "Промокоды", "items": {}},
-                "raffle": {"title": "Розыгрыши", "items": {}},
-                "subscription": {"title": "Подписка", "items": {}},
-                "admin": {"title": "Админ уведомления", "items": {}},
-                "system": {"title": "Системные", "items": {}},
-                "faq": {"title": "FAQ", "items": {}},
-                "other": {"title": "Прочее", "items": {}},
+                "main": {"title": "Основные тексты", "entries": {}},
+                "buttons": {"title": "Кнопки", "entries": {}},
+                "promo": {"title": "Промокоды", "entries": {}},
+                "raffle": {"title": "Розыгрыши", "entries": {}},
+                "subscription": {"title": "Подписка", "entries": {}},
+                "admin": {"title": "Админ уведомления", "entries": {}},
+                "system": {"title": "Системные", "entries": {}},
+                "faq": {"title": "FAQ", "entries": {}},
+                "other": {"title": "Прочее", "entries": {}},
             }
             
             for key, value in content_data.items():
                 if key.startswith('BTN_'):
-                    sections["buttons"]["items"][key] = value
+                    sections["buttons"]["entries"][key] = value
                 elif key.startswith('PROMO_'):
-                    sections["promo"]["items"][key] = value
+                    sections["promo"]["entries"][key] = value
                 elif key.startswith('RAFFLE_'):
-                    sections["raffle"]["items"][key] = value
+                    sections["raffle"]["entries"][key] = value
                 elif key.startswith('SUBSCRIPTION_'):
-                    sections["subscription"]["items"][key] = value
+                    sections["subscription"]["entries"][key] = value
                 elif key.startswith('ADMIN_'):
-                    sections["admin"]["items"][key] = value
+                    sections["admin"]["entries"][key] = value
                 elif key.startswith('ERROR_') or key == 'MAINTENANCE':
-                    sections["system"]["items"][key] = value
+                    sections["system"]["entries"][key] = value
                 elif key.startswith('FAQ'):
-                    sections["faq"]["items"][key] = value
+                    sections["faq"]["entries"][key] = value
                 elif key in ('WELCOME', 'MENU', 'PROFILE'):
-                    sections["main"]["items"][key] = value
+                    sections["main"]["entries"][key] = value
                 else:
-                    sections["other"]["items"][key] = value
+                    sections["other"]["entries"][key] = value
             
             # Remove empty sections
-            sections = {k: v for k, v in sections.items() if v["items"]}
+            sections = {k: v for k, v in sections.items() if v["entries"]}
             
             return templates.TemplateResponse("content/editor.html", get_template_context(
                 request, user=user, title="Редактор контента",

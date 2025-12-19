@@ -164,12 +164,17 @@
     let activateModal;
 
     document.addEventListener('DOMContentLoaded', function () {
+        // Move modal to body to fix z-index/backdrop issues
         const modalEl = document.getElementById('activateModal');
-        activateModal = new bootstrap.Modal(modalEl, {
-            backdrop: true,
-            keyboard: true,
-            focus: true
-        });
+        if (modalEl) {
+            document.body.appendChild(modalEl);
+
+            activateModal = new bootstrap.Modal(modalEl, {
+                backdrop: true,
+                keyboard: true,
+                focus: true
+            });
+        }
     });
 
     function showActivateModal(templatePath, templateName) {

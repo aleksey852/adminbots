@@ -3,8 +3,8 @@
 {% block content %}
 <div class="page-header-premium">
     <div class="title-area">
-        <h1>⚙️ Редактирование бота</h1>
-        <p>Управление настройками, модулями и доступом</p>
+        <h1>⚙️ Настройки: {{ edit_bot.name }}</h1>
+        <p>Управление ботом, контентом и доступом</p>
     </div>
 
     <div class="action-area d-flex gap-2">
@@ -31,47 +31,80 @@
             </div>
             {% endif %}
 
-
             {% if error %}
             <div class="alert alert-danger mb-4">
                 <i class="bi bi-exclamation-circle me-2"></i> {{ error }}
             </div>
             {% endif %}
 
-            <div class="card shadow-sm mb-4">
-                <div class="card-header"><i class="bi bi-info-circle me-1"></i> Информация о боте</div>
-                <div class="card-body">
-                    <form method="POST" action="/bots/{{ edit_bot.id }}/update">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="row g-4 mb-4">
+                <!-- Info & Status -->
+                <div class="col-md-7">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header"><i class="bi bi-info-circle me-1"></i> Основная информация</div>
+                        <div class="card-body">
+                            <form method="POST" action="/bots/{{ edit_bot.id }}/update">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <div class="mb-3">
+                                    <label class="form-label">Отображаемое название</label>
+                                    <input type="text" class="form-control" name="name" value="{{ edit_bot.name }}"
+                                        required>
+                                </div>
+                                <div class="row">
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label">Token</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control font-monospace text-muted"
+                                                value="{{ edit_bot.token[:20] }}..." disabled>
+                                            <button class="btn btn-outline-secondary" type="button" disabled>
+                                                <i class="bi bi-lock"></i>
+                                            </button>
+                                        </div>
+                                        <div class="form-text">Для смены токена создайте нового бота</div>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <span class="badge badge-primary">{{ edit_bot.type|upper }}</span>
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="bi bi-save me-1"></i> Сохранить
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Название</label>
-                                <input type="text" class="form-control" name="name" value="{{ edit_bot.name }}"
-                                    required>
+                <!-- Config & Content -->
+                <div class="col-md-5">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header"><i class="bi bi-code-square me-1"></i> Конфигурация</div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <label class="form-label text-muted small text-uppercase fw-bold">Активные
+                                    модули</label>
+                                <div class="d-flex flex-wrap gap-2">
+                                    {% for module in modules %}
+                                    {% if module.enabled %}
+                                    <span class="badge badge-success border">{{ module.name }}</span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Тип</label>
-                                <select class="form-select" name="type">
-                                    <option value="receipt" {% if edit_bot.type=='receipt' %}selected{% endif %}>🧾 Чеки
-                                    </option>
-                                    <option value="promo" {% if edit_bot.type=='promo' %}selected{% endif %}>🎁 Промо
-                                    </option>
-                                </select>
+
+                            <div class="d-grid gap-2">
+                                <a href="/content" class="btn btn-outline-primary">
+                                    <i class="bi bi-file-text me-2"></i>Редактор контента
+                                </a>
+                                {% if edit_bot.manifest_path %}
+                                <div class="text-center mt-2">
+                                    <small class="text-muted d-block text-truncate">
+                                        <i class="bi bi-folder2-open me-1"></i> {{ edit_bot.manifest_path }}
+                                    </small>
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Token</label>
-                            <input type="text" class="form-control font-monospace" value="{{ edit_bot.token[:20] }}..."
-                                disabled>
-                            <div class="form-text">Токен нельзя изменить. Создайте нового бота для нового токена.</div>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save me-1"></i> Сохранить изменения
-                        </button>
-                    </form>
+                    </div>
                 </div>
             </div>
 
@@ -87,99 +120,13 @@
                             <input type="text" class="form-control" name="admin_ids"
                                 value="{{ edit_bot.admin_ids | join(', ') if edit_bot.admin_ids else '' }}"
                                 placeholder="123456789, 987654321">
-                            <div class="form-text">Через запятую. Эти пользователи получат доступ к админ-командам.
-                            </div>
+                            <div class="form-text">Через запятую. Эти пользователи получат доступ к админ-командам в
+                                боте.</div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save me-1"></i> Обновить админов
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Modules & Settings -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div><i class="bi bi-puzzle me-1"></i> Модули и Настройки</div>
-                    <div class="btn-group">
-                        <a href="/texts" class="btn btn-sm btn-light text-primary border">
-                            <i class="bi bi-chat-text me-1"></i> Тексты
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <form method="POST" action="/bots/{{ edit_bot.id }}/modules">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-                        <div class="accordion" id="modulesAccordion">
-                            {% for module in modules %}
-                            <div class="accordion-item mb-2 border rounded overflow-hidden"
-                                style="background: var(--bg-surface); border-color: var(--border-color) !important;">
-                                <h2 class="accordion-header" id="heading{{ module.name }}">
-                                    <div class="accordion-button collapsed p-3 d-flex align-items-center gap-3 w-100"
-                                        type="button" data-bs-toggle="collapse"
-                                        data-bs-target="#collapse{{ module.name }}"
-                                        style="background: transparent; color: var(--text-primary); box-shadow: none;">
-                                        <div class="form-check form-switch mb-0">
-                                            <input class="form-check-input" type="checkbox" name="modules"
-                                                value="{{ module.name }}" id="check{{ module.name }}" {% if
-                                                module.enabled %}checked{% endif %} {% if module.is_required
-                                                %}disabled{% endif %} onclick="event.stopPropagation();">
-                                        </div>
-                                        <div class="flex-grow-1">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <span class="fw-bold">{{ module.name }}</span>
-                                                {% if module.is_required %}
-                                                <span class="badge bg-secondary"
-                                                    style="font-size: 0.65em;">Обязательный</span>
-                                                {% elif module.enabled %}
-                                                <span class="badge bg-success" style="font-size: 0.65em;">Активен</span>
-                                                {% endif %}
-                                            </div>
-                                            <div class="small text-truncate"
-                                                style="color: var(--text-secondary); max-width: 300px;">{{
-                                                module.description }}</div>
-                                        </div>
-                                    </div>
-                                </h2>
-                                <div id="collapse{{ module.name }}" class="accordion-collapse collapse"
-                                    data-bs-parent="#modulesAccordion">
-                                    <div class="accordion-body" style="background: rgba(0,0,0,0.02);">
-                                        {% if module.settings %}
-                                        {% for setting in module.settings %}
-                                        <div class="mb-3">
-                                            <label class="form-label small fw-bold text-uppercase text-muted">{{
-                                                setting.label }}</label>
-
-                                            {% if setting.type == 'textarea' %}
-                                            <textarea name="{{ setting.key }}" class="form-control" rows="3" {% if
-                                                setting.required %} required{% endif %}>{{ setting.value }}</textarea>
-                                            {% elif setting.type == 'checkbox' %}
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" name="{{ setting.key }}"
-                                                    value="true" {% if setting.value=='true' %}checked{% endif %}>
-                                            </div>
-                                            {% else %}
-                                            <input type="{{ setting.type }}" name="{{ setting.key }}"
-                                                class="form-control" value="{{ setting.value }}" {% if setting.required
-                                                %} required{% endif %}>
-                                            {% endif %}
-                                        </div>
-                                        {% endfor %}
-                                        {% else %}
-                                        <p class="text-muted small mb-0">Нет дополнительных настроек для этого модуля.
-                                        </p>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-
-                        <div class="d-flex justify-content-end mt-3">
+                        <div class="d-flex justify-content-end">
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save me-1"></i> Сохранить модули и настройки
+                                <i class="bi bi-save me-1"></i> Обновить админов
                             </button>
                         </div>
                     </form>
@@ -188,7 +135,7 @@
 
             <!-- Statistics -->
             <div class="card shadow-sm mb-4">
-                <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Статистика</div>
+                <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Быстрая статистика</div>
                 <div class="card-body">
                     <div class="row text-center">
                         <div class="col-md-3 col-6 mb-3">
@@ -232,25 +179,10 @@
                                         class="btn btn-sm btn-primary flex-grow-1">
                                         <i class="bi bi-file-zip me-1"></i> ZIP Архив
                                     </a>
-                                    <a href="/bots/{{ edit_bot.id }}/export" class="btn btn-sm btn-outline-secondary">
-                                        JSON
-                                    </a>
                                 </div>
                             </div>
                         </div>
-                        <!-- Migrate -->
-                        <div class="col-md-6">
-                            <div class="danger-action-card">
-                                <div class="danger-action-title">
-                                    <i class="bi bi-arrow-left-right text-info"></i> Миграция
-                                </div>
-                                <p class="danger-action-desc">Перенос всех пользователей в другого бота на этом же
-                                    сервере.</p>
-                                <a href="/bots/{{ edit_bot.id }}/migrate" class="btn btn-sm btn-outline-info w-100">
-                                    Начать миграцию
-                                </a>
-                            </div>
-                        </div>
+
                         <!-- Archive -->
                         <div class="col-md-6">
                             <div class="danger-action-card">
@@ -268,18 +200,21 @@
                                 </form>
                             </div>
                         </div>
+
                         <!-- Delete -->
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <div class="danger-action-card" style="background: rgba(254, 226, 226, 0.3);">
                                 <div class="danger-action-title text-danger">
                                     <i class="bi bi-trash"></i> Удаление
                                 </div>
-                                <p class="danger-action-desc">Полное и безвозвратное удаление бота и всех связанных
-                                    данных.</p>
-                                <button type="button" class="btn btn-sm btn-danger w-100" data-bs-toggle="modal"
-                                    data-bs-target="#deleteModal">
-                                    Удалить навсегда
-                                </button>
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                                    <p class="danger-action-desc mb-0">Полное и безвозвратное удаление бота и всех
+                                        связанных данных.</p>
+                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal"
+                                        data-bs-target="#deleteModal">
+                                        Удалить навсегда
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -306,9 +241,6 @@
                         Будут удалены ВСЕ данные:
                         <ul class="mb-0 mt-2">
                             <li>{{ stats.total_users or 0 }} пользователей</li>
-                            <li>{{ stats.valid_receipts or 0 }} {% if edit_bot.type == 'promo' %}активаций{% else
-                                %}чеков{% endif %}</li>
-                            <li>{{ stats.total_winners or 0 }} победителей</li>
                             <li>Все настройки и сообщения</li>
                         </ul>
                     </div>

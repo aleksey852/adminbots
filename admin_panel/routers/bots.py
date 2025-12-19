@@ -168,7 +168,7 @@ def setup_routes(
 
     @router.post("/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
     async def update_bot_info(
-        request: Request, bot_id: int, name: str = Form(...), type: str = Form(...),
+        request: Request, bot_id: int, name: str = Form(...), type: str = Form(None),
         user: Dict = Depends(require_superadmin)
     ):
         """Update bot basic info (name, type)"""
@@ -178,7 +178,11 @@ def setup_routes(
         if not bot:
             raise HTTPException(404, "Bot not found")
         
-        await update_bot(bot_id, name=name.strip(), type=type)
+        kwargs = {"name": name.strip()}
+        if type:
+            kwargs["type"] = type
+            
+        await update_bot(bot_id, **kwargs)
         return RedirectResponse(f"/bots/{bot_id}/edit?msg=Bot+info+updated", 303)
 
     @router.post("/{bot_id}/admins", dependencies=[Depends(verify_csrf_token)])
@@ -251,6 +255,14 @@ def setup_routes(
         except Exception as e:
             logger.error(f"Delete failed: {e}")
             return RedirectResponse(f"/bots/{bot_id}/edit?msg=Error", 303)
+
+    @router.post("/{bot_id}/archive", dependencies=[Depends(verify_csrf_token)])
+    async def archive_bot_endpoint(request: Request, bot_id: int, user: Dict = Depends(require_superadmin)):
+        from database.panel_db import archive_bot
+        await archive_bot(bot_id, "panel")
+        if request.session.get("active_bot_id") == bot_id:
+            request.session.pop("active_bot_id", None)
+        return RedirectResponse("/?msg=Archived", 303)
 
     @router.post("/{bot_id}/restart", dependencies=[Depends(verify_csrf_token)])
     async def restart_bot_route(request: Request, bot_id: int):

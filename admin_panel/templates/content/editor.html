@@ -39,10 +39,10 @@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">{{ section.title }}</h5>
-            <span class="badge badge-primary">{{ section.items|length }} элементов</span>
+            <span class="badge badge-primary">{{ section.entries|length }} элементов</span>
         </div>
         <div class="card-body">
-            {% for key, value in section.items.items() %}
+            {% for key, value in section.entries.items() %}
             <div class="mb-4">
                 <label class="form-label d-flex justify-content-between">
                     <span class="fw-bold">{{ key }}</span>
