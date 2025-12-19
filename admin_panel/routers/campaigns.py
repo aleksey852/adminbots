@@ -203,16 +203,25 @@ def setup_routes(
         if not request.state.bot: return RedirectResponse("/")
         
         async def save_media(file, prefix, text):
-            text = (text or "").strip()  # Normalize empty/None to empty string
-            if not (file and isinstance(file, UploadFile) and file.filename): 
+            text = (text or "").strip()
+            # Duck-typing: check for filename and read method
+            if not (file and hasattr(file, 'filename') and file.filename and hasattr(file, 'read')):
                 return {"text": text} if text else {}
+            
             # Reset file stream position (may have been read during form parsing)
-            await file.seek(0)
+            try:
+                await file.seek(0)
+            except Exception as e:
+                logger.warning(f"Failed to seek file {getattr(file, 'filename', 'unknown')}: {e}")
+                
             path = UPLOADS_DIR / f"{prefix}_{uuid.uuid4().hex[:8]}{Path(file.filename).suffix}"
             async with aiofiles.open(path, 'wb') as f:
-                while chunk := await file.read(1024*1024): await f.write(chunk)
+                while chunk := await file.read(1024*1024): 
+                    await f.write(chunk)
+            
             res = {"photo_path": str(path)}
-            if text: res["caption"] = text
+            if text: 
+                res["caption"] = text
             return res
 
 
@@ -252,17 +261,14 @@ def setup_routes(
                     photo_key = f"prize_photo_{i}"
                     photo_file = form_data.get(photo_key)
                     
-                    # Debug logging
-                    logger.info(f"Prize {i} photo: key={photo_key}, file={type(photo_file).__name__}, filename={getattr(photo_file, 'filename', None)}")
-                    
-                    if isinstance(photo_file, UploadFile) and photo_file.filename:
+                    # Duck-typing: check if it has file-like attributes
+                    if photo_file and hasattr(photo_file, 'filename') and photo_file.filename:
                         try:
                             saved = await save_media(photo_file, f"prize_{i}", None)
-                            logger.info(f"Prize {i} saved media: {saved}")
                             if "photo_path" in saved:
                                 prize_data["photo_path"] = saved["photo_path"]
                         except Exception as e:
-                            logger.exception(f"Prize {i} save_media FAILED: {e}")
+                            logger.error(f"Prize {i} save_media FAILED: {e}")
 
                     prizes.append(prize_data)
         

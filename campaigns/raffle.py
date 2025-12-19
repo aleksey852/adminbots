@@ -128,7 +128,6 @@ async def execute_raffle(
                      
                      # Effective photo
                      final_path = p.get('photo_path')
-                     logger.debug(f"Raffle #{campaign_id}: Prize '{p['name']}' data: msg={bool(p.get('msg'))}, photo_path={final_path}")
                      
                      if final_path:
                          msg = {"photo_path": final_path, "caption": raw_text}
