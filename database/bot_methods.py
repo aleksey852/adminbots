@@ -441,6 +441,16 @@ async def get_all_receipts_paginated(page=1, per_page=50):
     async with get_current_bot_db().get_connection() as conn: return await conn.fetch("SELECT r.*, u.full_name, u.username FROM receipts r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC LIMIT $1 OFFSET $2", per_page, (page-1)*per_page)
 async def get_recent_raffles_with_winners(limit=5):
     async with get_current_bot_db().get_connection() as conn:
+        # Only show successful raffles (status='completed'), exclude failed ones
+        recs = [dict(r) for r in await conn.fetch("SELECT * FROM campaigns WHERE type='raffle' AND is_completed=TRUE AND status='completed' ORDER BY completed_at DESC LIMIT $1", limit)]
+        for r in recs:
+            r['content'] = json.loads(r['content']) if isinstance(r['content'], str) else r['content']
+            r['winners'] = await conn.fetch("SELECT w.*, u.full_name, u.username, u.phone FROM winners w JOIN users u ON w.user_id = u.id WHERE w.campaign_id = $1", r['id'])
+        return recs
+
+async def get_all_recent_raffles(limit=5):
+    """Get all recent raffles including failed ones (for raffle page history with error display)"""
+    async with get_current_bot_db().get_connection() as conn:
         recs = [dict(r) for r in await conn.fetch("SELECT * FROM campaigns WHERE type='raffle' AND is_completed=TRUE ORDER BY completed_at DESC LIMIT $1", limit)]
         for r in recs:
             r['content'] = json.loads(r['content']) if isinstance(r['content'], str) else r['content']

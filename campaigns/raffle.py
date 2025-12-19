@@ -37,6 +37,9 @@ async def execute_raffle(
     raffle_type = "FINAL" if is_final else "regular"
     total_count = sum(p['count'] for p in prizes)
     logger.info(f"🎁 Raffle #{campaign_id} ({raffle_type}): {total_count} winners, {len(prizes)} prize types")
+    # Debug: log prizes structure
+    for i, p in enumerate(prizes):
+        logger.info(f"  Prize {i+1}: name='{p.get('name')}', count={p.get('count')}, has_photo={bool(p.get('photo_path'))}, has_msg={bool(p.get('msg'))}")
     
     # Check cancellation start
     if await bot_methods.is_campaign_cancelled(campaign_id):
@@ -125,6 +128,7 @@ async def execute_raffle(
                      
                      # Effective photo
                      final_path = p.get('photo_path')
+                     logger.debug(f"Raffle #{campaign_id}: Prize '{p['name']}' data: msg={bool(p.get('msg'))}, photo_path={final_path}")
                      
                      if final_path:
                          msg = {"photo_path": final_path, "caption": raw_text}

@@ -14,7 +14,7 @@ import config
 from database import (
     get_total_users_count, get_recent_campaigns, add_campaign,
     get_participants_count, get_total_tickets_count, get_recent_raffles_with_winners,
-    get_all_receipts_paginated, get_total_receipts_count
+    get_all_receipts_paginated, get_total_receipts_count, get_all_recent_raffles
 )
 
 logger = logging.getLogger(__name__)
@@ -185,7 +185,7 @@ def setup_routes(
         if not request.state.bot: return RedirectResponse("/")
         return templates.TemplateResponse("raffle/index.html", get_template_context(
             request, user=user, title="Розыгрыш", participants=await get_participants_count(),
-            total_tickets=await get_total_tickets_count(), recent_raffles=await get_recent_raffles_with_winners(5), created=created
+            total_tickets=await get_total_tickets_count(), recent_raffles=await get_all_recent_raffles(5), created=created
         ))
 
     @router.post("/raffle/create", dependencies=[Depends(verify_csrf_token)])
@@ -203,7 +203,9 @@ def setup_routes(
         if not request.state.bot: return RedirectResponse("/")
         
         async def save_media(file, prefix, text):
-            if not (file and isinstance(file, UploadFile) and file.filename): return {"text": text} if text else {}
+            text = (text or "").strip()  # Normalize empty/None to empty string
+            if not (file and isinstance(file, UploadFile) and file.filename): 
+                return {"text": text} if text else {}
             path = UPLOADS_DIR / f"{prefix}_{uuid.uuid4().hex[:8]}{Path(file.filename).suffix}"
             async with aiofiles.open(path, 'wb') as f:
                 while chunk := await file.read(1024*1024): await f.write(chunk)

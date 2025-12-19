@@ -25,16 +25,28 @@ async def send_message_with_retry(
     max_retries: int = 3,
 ) -> bool:
     """Send message with exponential backoff. Supports photos by file_id or local path."""
+    import os
     for attempt in range(max_retries):
         try:
             if "photo" in content:
                 await bot.send_photo(telegram_id, content["photo"], caption=content.get("caption"))
             elif "photo_path" in content:
-                await bot.send_photo(
-                    telegram_id,
-                    FSInputFile(content["photo_path"]),
-                    caption=content.get("caption"),
-                )
+                photo_path = content["photo_path"]
+                # Check if file exists
+                if not os.path.exists(photo_path):
+                    logger.warning(f"Photo file not found: {photo_path}, falling back to text")
+                    # Fallback to text with caption
+                    text = content.get("caption") or content.get("text") or ""
+                    if text.strip():
+                        await bot.send_message(telegram_id, text)
+                    else:
+                        raise ValueError("Photo file not found and no text fallback")
+                else:
+                    await bot.send_photo(
+                        telegram_id,
+                        FSInputFile(photo_path),
+                        caption=content.get("caption"),
+                    )
             else:
                 text = str(content.get("text") or "")
                 if not text.strip():
