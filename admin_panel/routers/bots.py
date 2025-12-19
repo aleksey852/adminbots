@@ -147,6 +147,38 @@ def setup_routes(
             modules=modules_data
         ))
 
+    @router.post("/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
+    async def update_bot_info(
+        request: Request, bot_id: int, name: str = Form(...), type: str = Form(...),
+        user: Dict = Depends(require_superadmin)
+    ):
+        """Update bot basic info (name, type)"""
+        from database.panel_db import update_bot
+        
+        bot = await get_bot_by_id(bot_id)
+        if not bot:
+            raise HTTPException(404, "Bot not found")
+        
+        await update_bot(bot_id, name=name.strip(), type=type)
+        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Bot+info+updated", 303)
+
+    @router.post("/{bot_id}/admins", dependencies=[Depends(verify_csrf_token)])
+    async def update_bot_admins(
+        request: Request, bot_id: int, admin_ids: str = Form(""),
+        user: Dict = Depends(require_superadmin)
+    ):
+        """Update bot admin IDs"""
+        from database.panel_db import update_bot
+        
+        bot = await get_bot_by_id(bot_id)
+        if not bot:
+            raise HTTPException(404, "Bot not found")
+        
+        # Parse admin IDs
+        parsed_ids = [int(x.strip()) for x in admin_ids.split(',') if x.strip().isdigit()]
+        await update_bot(bot_id, admin_ids=parsed_ids)
+        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Admins+updated", 303)
+
     @router.post("/{bot_id}/modules", dependencies=[Depends(verify_csrf_token)])
     async def update_bot_modules(request: Request, bot_id: int):
         from database.panel_db import update_bot

@@ -131,12 +131,6 @@
                             href="/campaigns">
                             <i class="bi bi-list-task"></i>Кампании
                         </a></li>
-                    {% if bot %}
-                    <li><a class="nav-link {% if '/bots/' ~ bot.id ~ '/edit' in request.url.path %}active{% endif %}"
-                            href="/bots/{{ bot.id }}/edit">
-                            <i class="bi bi-sliders"></i>Настройки бота
-                        </a></li>
-                    {% endif %}
                 </ul>
             </div>
 
@@ -146,6 +140,15 @@
             <div class="nav-section">
                 <div class="nav-section-title">SuperAdmin</div>
                 <ul class="nav flex-column">
+                    {% if bot %}
+                    <li><a class="nav-link {% if '/bots/' ~ bot.id ~ '/edit' in request.url.path %}active{% endif %}"
+                            href="/bots/{{ bot.id }}/edit">
+                            <i class="bi bi-sliders"></i>Настройки бота
+                        </a></li>
+                    {% endif %}
+                    <li><a class="nav-link {% if '/texts' in request.url.path %}active{% endif %}" href="/texts">
+                            <i class="bi bi-chat-text-fill"></i>Тексты
+                        </a></li>
                     <li><a class="nav-link {% if '/settings/logs' in request.url.path %}active{% endif %}"
                             href="/settings/logs">
                             <i class="bi bi-terminal-fill"></i>Логи системы
