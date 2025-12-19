@@ -299,6 +299,11 @@ async def get_all_module_settings(bot_id: int) -> Dict[str, Dict]:
         rows = await db.fetch("SELECT module_name, settings FROM module_settings WHERE bot_id = $1", bot_id)
         return {row['module_name']: json.loads(row['settings']) for row in rows}
 
+async def notify_reload_config(bot_id: int):
+    """Send NOTIFY reload_config to wake up bot process"""
+    async with get_panel_connection() as db:
+        await db.execute("NOTIFY reload_config, $1", str(bot_id))
+
 
 # === Utility Methods ===
 

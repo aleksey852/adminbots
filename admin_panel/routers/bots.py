@@ -261,6 +261,10 @@ def setup_routes(
 
         await config_manager.set_setting("promo_start_date", start_date, bot_id)
         await config_manager.set_setting("promo_end_date", end_date, bot_id)
+        
+        from database.panel_db import notify_reload_config
+        await notify_reload_config(bot_id)
+        
         return RedirectResponse(f"/bots/{bot_id}/edit?msg=Dates+updated", 303)
 
     @router.post("/{bot_id}/delete", dependencies=[Depends(verify_csrf_token)])
