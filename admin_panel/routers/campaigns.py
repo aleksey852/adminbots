@@ -206,6 +206,8 @@ def setup_routes(
             text = (text or "").strip()  # Normalize empty/None to empty string
             if not (file and isinstance(file, UploadFile) and file.filename): 
                 return {"text": text} if text else {}
+            # Reset file stream position (may have been read during form parsing)
+            await file.seek(0)
             path = UPLOADS_DIR / f"{prefix}_{uuid.uuid4().hex[:8]}{Path(file.filename).suffix}"
             async with aiofiles.open(path, 'wb') as f:
                 while chunk := await file.read(1024*1024): await f.write(chunk)
