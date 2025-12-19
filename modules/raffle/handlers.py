@@ -35,38 +35,19 @@ class RaffleModule(BotModule):
             "label": "Промежуточные розыгрыши",
             "default": "false",
             "required": False,
-            "group": "Настройки розыгрышей",
             "help": "Включить периодические розыгрыши помимо финального"
         },
         "intermediate_period": {
             "type": "select",
-            "label": "Периодичность промежуточных",
+            "label": "Периодичность",
             "default": "weekly",
             "required": False,
-            "group": "Настройки розыгрышей",
             "options": [
-                {"value": "daily", "label": "Ежедневно"},
                 {"value": "weekly", "label": "Еженедельно"},
                 {"value": "monthly", "label": "Ежемесячно"},
             ],
             "help": "Как часто проводить промежуточные розыгрыши"
-        },
-        "reset_tickets_after_intermediate": {
-            "type": "checkbox",
-            "label": "Сбрасывать билеты после промежуточного",
-            "default": "false",
-            "required": False,
-            "group": "Настройки розыгрышей",
-            "help": "Обнулять билеты участников после каждого промежуточного розыгрыша"
-        },
-        "exclude_previous_winners": {
-            "type": "checkbox",
-            "label": "Исключать прошлых победителей",
-            "default": "true",
-            "required": False,
-            "group": "Настройки розыгрышей",
-            "help": "Победители промежуточных розыгрышей не участвуют в финальном"
-        },
+        }
     }
     
     default_messages = {
@@ -113,13 +94,11 @@ class RaffleModule(BotModule):
         return settings.get("intermediate_enabled", "false") == "true"
     
     async def get_raffle_config(self, bot_id: int) -> Dict[str, Any]:
-        """Get full raffle configuration for this bot"""
+        """Get raffle configuration for this bot"""
         settings = await self.get_settings(bot_id)
         return {
             "intermediate_enabled": settings.get("intermediate_enabled", "false") == "true",
             "intermediate_period": settings.get("intermediate_period", "weekly"),
-            "reset_tickets": settings.get("reset_tickets_after_intermediate", "false") == "true",
-            "exclude_winners": settings.get("exclude_previous_winners", "true") == "true",
         }
 
 

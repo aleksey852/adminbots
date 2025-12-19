@@ -28,11 +28,24 @@ class ReceiptsModule(BotModule):
     default_enabled = True
     dependencies = ["registration"]
     
-    default_settings = {
-        "TARGET_KEYWORDS": "чипсы,buster,vibe",
-        "EXCLUDED_KEYWORDS": "mosk",
-        "MAX_FILE_SIZE_MB": 5,
+    settings_schema = {
+        "target_keywords": {
+            "type": "textarea",
+            "label": "Ключевые слова товаров",
+            "default": "чипсы,buster,vibe",
+            "required": False,
+            "help": "Через запятую. Товары с этими словами дают билеты."
+        },
+        "excluded_keywords": {
+            "type": "textarea",
+            "label": "Исключения",
+            "default": "",
+            "required": False,
+            "help": "Через запятую. Эти слова исключают товар."
+        }
     }
+    
+    MAX_FILE_SIZE_MB = 5  # Constant, not configurable
     
     default_messages = {
         "upload_instruction": "📸 Отправьте фото QR-кода с чека\n\nВаших билетов: {count}\n\n💡 QR-код должен быть чётким и полностью в кадре",
@@ -51,8 +64,10 @@ class ReceiptsModule(BotModule):
         "promo_ended": "🏁 Акция завершена",
     }
     
-    def _get_keywords(self, bot_id: int, key: str) -> list:
-        keywords_str = config_manager.get_setting(key, self.default_settings.get(key, ""), bot_id=bot_id)
+    async def _get_keywords(self, bot_id: int, key: str) -> list:
+        """Get keywords from module settings"""
+        settings = await self.get_settings(bot_id)
+        keywords_str = settings.get(key, self.settings_schema.get(key, {}).get("default", ""))
         return [kw.strip().lower() for kw in keywords_str.split(',') if kw.strip()]
     
     def _setup_handlers(self):
@@ -116,7 +131,7 @@ class ReceiptsModule(BotModule):
             processing_msg = await message.answer(scanning_msg)
             
             photo = message.photo[-1]
-            max_size = int(self.default_settings.get('MAX_FILE_SIZE_MB', 5)) * 1024 * 1024
+            max_size = self.MAX_FILE_SIZE_MB * 1024 * 1024
             
             if photo.file_size and photo.file_size > max_size:
                 await processing_msg.edit_text(config_manager.get_message('file_too_big', self.default_messages['file_too_big'], bot_id=bot_id))
@@ -181,8 +196,8 @@ class ReceiptsModule(BotModule):
         receipt_data = result.get("data", {}).get("json", {})
         items = receipt_data.get("items", [])
         
-        target_keywords = self._get_keywords(bot_id, 'TARGET_KEYWORDS')
-        excluded_keywords = self._get_keywords(bot_id, 'EXCLUDED_KEYWORDS')
+        target_keywords = await self._get_keywords(bot_id, 'target_keywords')
+        excluded_keywords = await self._get_keywords(bot_id, 'excluded_keywords')
         
         found_items = []
         total_tickets = 0

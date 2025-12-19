@@ -30,27 +30,15 @@ class CoreModule(BotModule):
     default_enabled = True
     
     settings_schema = {
-        "PROMO_NAME": {
-            "type": "text", 
-            "label": "Название акции", 
-            "default": config.PROMO_NAME,
-            "required": True
-        },
-        "PROMO_PRIZES": {
-            "type": "textarea",
-            "label": "Список призов",
-            "default": config.PROMO_PRIZES,
-            "required": True
-        },
-        "PROMO_START_DATE": {
-            "type": "text",
-            "label": "Дата начала (YYYY-MM-DD)",
+        "promo_start_date": {
+            "type": "date",
+            "label": "Дата начала акции",
             "default": str(config.PROMO_START_DATE),
             "required": True
         },
-        "PROMO_END_DATE": {
-            "type": "text",
-            "label": "Дата окончания (YYYY-MM-DD)",
+        "promo_end_date": {
+            "type": "date",
+            "label": "Дата окончания акции",
             "default": str(config.PROMO_END_DATE),
             "required": True
         }
@@ -61,7 +49,7 @@ class CoreModule(BotModule):
     default_messages = {
         "cancel_msg": "Выберите действие 👇\nВаших билетов: {count}",
         "welcome_back": "С возвращением, {name}! 👋\n\n🎫 Ваших билетов: {count}{days_text}\n\nВыберите действие 👇",
-        "welcome_new": "🎉 Добро пожаловать в {promo_name}!\n\nПризы: {prizes}\n\nДля участия введите ваше имя:",
+        "welcome_new": "🎉 Добро пожаловать!\n\nДля участия в акции введите ваше имя:",
         "not_registered": "Сначала /start",
         "status": "📊 {name}\n\n🎫 Билетов: {tickets}\nДо конца: {days} дн.",
         "no_receipts_promo": "📋 У вас пока нет активаций\n\n💡 Введите промокод, чтобы получить билеты!\n1 промокод = 1 билет",
@@ -155,14 +143,12 @@ class CoreModule(BotModule):
             else:
                 # Delegate to registration if not registered
                 from utils.states import Registration
-                promo_name = config_manager.get_setting('PROMO_NAME', config.PROMO_NAME, bot_id=bot_id)
-                prizes = config_manager.get_setting('PROMO_PRIZES', config.PROMO_PRIZES, bot_id=bot_id)
                 
                 welcome_new_msg = config_manager.get_message(
                     'welcome_new',
                     self.default_messages['welcome_new'],
                     bot_id=bot_id
-                ).format(promo_name=promo_name, prizes=prizes)
+                )
                 
                 await message.answer(welcome_new_msg, reply_markup=get_cancel_keyboard())
                 await state.set_state(Registration.name)
@@ -201,14 +187,12 @@ class CoreModule(BotModule):
                     )
                 else:
                     from utils.states import Registration
-                    promo_name = config_manager.get_setting('PROMO_NAME', config.PROMO_NAME, bot_id=bot_id)
-                    prizes = config_manager.get_setting('PROMO_PRIZES', config.PROMO_PRIZES, bot_id=bot_id)
                     
                     welcome_new_msg = config_manager.get_message(
                         'welcome_new',
                         self.default_messages['welcome_new'],
                         bot_id=bot_id
-                    ).format(promo_name=promo_name, prizes=prizes)
+                    )
                     
                     await callback.message.answer(welcome_new_msg, reply_markup=get_cancel_keyboard())
                     await state.set_state(Registration.name)
