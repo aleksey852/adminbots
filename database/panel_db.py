@@ -302,7 +302,7 @@ async def get_all_module_settings(bot_id: int) -> Dict[str, Dict]:
 async def notify_reload_config(bot_id: int):
     """Send NOTIFY reload_config to wake up bot process"""
     async with get_panel_connection() as db:
-        await db.execute("NOTIFY reload_config, $1", str(bot_id))
+        await db.execute("SELECT pg_notify('reload_config', $1)", str(bot_id))
 
 
 # === Utility Methods ===
