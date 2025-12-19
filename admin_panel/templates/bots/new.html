@@ -76,21 +76,29 @@
 </div>
 
 <!-- Activation Modal -->
-<div class="modal fade" id="activateModal" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade" id="activateModal" tabindex="-1" aria-labelledby="activateModalLabel" aria-hidden="true"
+    style="z-index: 9999;">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <form method="POST" action="/bots/create">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="template_path" id="templatePath" value="">
 
                 <div class="modal-header">
-                    <h5 class="modal-title">🚀 Активация бота</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title" id="activateModalLabel">🚀 Активация бота</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <p class="mb-3">
                         Шаблон: <strong id="templateName"></strong>
                     </p>
+
+                    <div class="mb-3">
+                        <label for="bot_name" class="form-label">Название бота (для панели)</label>
+                        <input type="text" class="form-control" id="bot_name" name="bot_name" required
+                            placeholder="Например: Летняя акция 2025">
+                        <div class="form-text">Это название будет отображаться в панели</div>
+                    </div>
 
                     <div class="mb-3">
                         <label for="token" class="form-label">Bot Token (из @BotFather)</label>
@@ -116,6 +124,9 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Backdrop Fix -->
+<div class="modal-backdrop-custom" id="modalBackdrop" style="display: none;"></div>
 {% endblock %}
 
 {% block extra_css %}
@@ -132,6 +143,19 @@
     .template-card.border-success {
         border-color: var(--success) !important;
     }
+
+    /* Modal z-index fix */
+    .modal {
+        z-index: 10050 !important;
+    }
+
+    .modal-backdrop {
+        z-index: 10040 !important;
+    }
+
+    .modal-dialog {
+        z-index: 10060 !important;
+    }
 </style>
 {% endblock %}
 
@@ -140,12 +164,18 @@
     let activateModal;
 
     document.addEventListener('DOMContentLoaded', function () {
-        activateModal = new bootstrap.Modal(document.getElementById('activateModal'));
+        const modalEl = document.getElementById('activateModal');
+        activateModal = new bootstrap.Modal(modalEl, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
     });
 
     function showActivateModal(templatePath, templateName) {
         document.getElementById('templatePath').value = templatePath;
         document.getElementById('templateName').textContent = templateName;
+        document.getElementById('bot_name').value = '';
         document.getElementById('token').value = '';
         document.getElementById('admin_ids').value = '';
         activateModal.show();

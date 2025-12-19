@@ -116,7 +116,8 @@ async def get_templates_with_status() -> List[BotTemplate]:
 async def activate_bot_template(
     template_path: str,
     token: str,
-    admin_ids: List[int] = None
+    admin_ids: List[int] = None,
+    custom_name: str = None
 ) -> Dict:
     """
     Activate a bot template with the given token.
@@ -127,6 +128,7 @@ async def activate_bot_template(
         template_path: Absolute path to bot folder
         token: Telegram bot token
         admin_ids: List of admin telegram IDs
+        custom_name: Custom name for the bot (displayed in panel)
     
     Returns:
         Dict with bot_id and status
@@ -186,10 +188,13 @@ async def activate_bot_template(
     else:
         bot_type = 'custom'
     
+    # Use custom_name if provided, otherwise manifest display_name
+    display_name = custom_name or manifest.get('display_name', me.first_name)
+    
     # Register bot
     bot_id = await register_bot(
         token=token,
-        name=manifest.get('display_name', me.first_name),
+        name=display_name,
         bot_type=bot_type,
         database_url=db_url,
         admin_ids=admin_ids or []

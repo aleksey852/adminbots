@@ -65,6 +65,7 @@ def setup_routes(
     async def create_bot(
         request: Request, 
         template_path: str = Form(...),
+        bot_name: str = Form(...),
         token: str = Form(...), 
         admin_ids: str = Form(""),
         user: Dict = Depends(require_superadmin)
@@ -88,7 +89,8 @@ def setup_routes(
             result = await activate_bot_template(
                 template_path=template_path,
                 token=token,
-                admin_ids=admin_id_list
+                admin_ids=admin_id_list,
+                custom_name=bot_name
             )
             
             request.session["active_bot_id"] = result['bot_id']
