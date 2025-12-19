@@ -50,37 +50,46 @@ async def execute_raffle(
     existing_winners = await bot_methods.get_campaign_winners(campaign_id)
     
     if not existing_winners:
-        # Selection phase
-        logger.info(f"Raffle #{campaign_id}: Selecting winners via DB...")
+        # Selection phase - NEW: select by TICKETS, not by users
+        logger.info(f"Raffle #{campaign_id}: Selecting winners by TICKETS via DB...")
         
         all_winners_data = []
-        exclude_ids = []
+        # Track excluded tickets by type: {'receipt': [1,2], 'promo': [3,4], ...}
+        exclude_tickets = {'receipt': [], 'promo': [], 'manual': []}
         
         for p in prizes:
             p_name = p['name']
             p_count = int(p['count'])
             if p_count <= 0: continue
             
-            # Select winners for this prize
-            # For FINAL raffle: use historical activations (includes burned tickets)
-            # For intermediate raffle: use current ticket values only
-            if is_final:
-                selected = await bot_methods.select_final_raffle_winners_db(p_count, p_name, exclude_user_ids=exclude_ids)
-            else:
-                selected = await bot_methods.select_random_winners_db(p_count, p_name, exclude_user_ids=exclude_ids)
+            # NEW: Select by tickets (each ticket = 1 chance, user can win multiple times)
+            selected = await bot_methods.select_ticket_winners_db(
+                p_count, p_name, 
+                exclude_tickets=exclude_tickets,
+                is_final=is_final
+            )
             
             if not selected:
-                logger.warning(f"Raffle #{campaign_id}: Not enough participants for prize '{p_name}'")
+                logger.warning(f"Raffle #{campaign_id}: Not enough tickets for prize '{p_name}'")
                 continue
                 
             for w in selected:
-                exclude_ids.append(w['user_id'])
+                # Add to exclusion list (by ticket, not by user)
+                ticket_type = w.get('ticket_type')
+                ticket_id = w.get('ticket_id')
+                if ticket_type and ticket_id:
+                    exclude_tickets[ticket_type].append(ticket_id)
+                
                 all_winners_data.append({
                     "user_id": w['user_id'],
                     "telegram_id": w['telegram_id'],
                     "prize_name": p_name,
                     "full_name": w.get('full_name'),
-                    "username": w.get('username')
+                    "username": w.get('username'),
+                    # NEW: ticket data
+                    "ticket_type": ticket_type,
+                    "ticket_id": ticket_id,
+                    "ticket_value": w.get('ticket_value'),
                 })
         
         if not all_winners_data:
@@ -115,16 +124,23 @@ async def execute_raffle(
         if w['notified']:
             sent_win += 1
             continue
-            
+        
+        # Get ticket value for message substitution
+        ticket_value = w.get('ticket_value', '')
+        
         msg = None
         # 1. Get prize-specific message
         if prizes:
              for p in prizes:
                  if p['name'] == w.get('prize_name'):
-                     # Effective text (fallback to hardcoded default)
+                     # Effective text (fallback to hardcoded default with ticket)
                      raw_text = p.get('msg') 
                      if not raw_text:
-                         raw_text = f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"
+                         # NEW: Default message mentions the winning ticket
+                         raw_text = f"🎉 Ваш промокод/чек {ticket_value} выиграл!\n🏆 Приз: {w.get('prize_name', 'Приз')}!"
+                     else:
+                         # NEW: Substitute {ticket} placeholder
+                         raw_text = raw_text.replace('{ticket}', ticket_value)
                      
                      # Effective photo
                      final_path = p.get('photo_path')
@@ -137,7 +153,8 @@ async def execute_raffle(
         
         # 2. Fallback (should not be reached if prize found, but for safety)
         if not msg:
-             msg = {"text": f"🎉 Поздравляем! Вы выиграли: {w.get('prize_name', 'Приз')}!"}
+             fallback_text = f"🎉 Ваш промокод/чек {ticket_value} выиграл!\n🏆 Приз: {w.get('prize_name', 'Приз')}!"
+             msg = {"text": fallback_text}
         
         if await send_message_with_retry(
             bot,

@@ -132,7 +132,7 @@ class BotDatabase:
             except Exception as e:
                 logger.warning(f"Migration warning (error_message): {e}")
             
-            # Winners
+            # Winners - ticket-based (one ticket = one chance, user can win multiple times)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS winners (
                     id SERIAL PRIMARY KEY,
@@ -140,12 +140,33 @@ class BotDatabase:
                     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                     telegram_id BIGINT NOT NULL,
                     prize_name TEXT,
+                    ticket_type TEXT,  -- 'receipt', 'promo', 'manual'
+                    ticket_id INTEGER,  -- ID of the winning ticket record
+                    ticket_value TEXT,  -- Display value (promo code or receipt identifier)
                     notified BOOLEAN DEFAULT FALSE,
                     notified_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT NOW(),
-                    UNIQUE(campaign_id, user_id)
+                    UNIQUE(campaign_id, ticket_type, ticket_id)
                 );
             """)
+            
+            # Migration: Add ticket columns to existing winners table
+            for col in ['ticket_type TEXT', 'ticket_id INTEGER', 'ticket_value TEXT']:
+                try:
+                    await db.execute(f"ALTER TABLE winners ADD COLUMN IF NOT EXISTS {col}")
+                except Exception as e:
+                    logger.warning(f"Migration warning (winners.{col.split()[0]}): {e}")
+            
+            # Migration: Drop old unique constraint and create new one
+            try:
+                await db.execute("ALTER TABLE winners DROP CONSTRAINT IF EXISTS winners_campaign_id_user_id_key")
+            except Exception as e:
+                logger.warning(f"Migration warning (drop old constraint): {e}")
+            
+            try:
+                await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_winners_campaign_ticket ON winners(campaign_id, ticket_type, ticket_id) WHERE ticket_type IS NOT NULL")
+            except Exception as e:
+                logger.warning(f"Migration warning (create new index): {e}")
             
             # Broadcast Progress
             await db.execute("""

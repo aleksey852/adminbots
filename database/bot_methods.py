@@ -200,6 +200,7 @@ async def get_participants_with_tickets():
 
 async def select_random_winners_db(count: int, prize: str, exclude_user_ids: list = None):
     """
+    DEPRECATED: Use select_ticket_winners_db instead.
     Memory-efficient DB-side weighted random winner selection.
     Uses PostgreSQL random() with inverse weight for weighted selection.
     Note: This counts CURRENT tickets, so burned tickets (=0) are excluded.
@@ -230,6 +231,7 @@ async def select_random_winners_db(count: int, prize: str, exclude_user_ids: lis
 
 async def select_final_raffle_winners_db(count: int, prize: str, exclude_user_ids: list = None):
     """
+    DEPRECATED: Use select_ticket_winners_db instead.
     Winner selection for FINAL raffle - counts ALL historical activations.
     Unlike regular raffle, this counts RECORDS (activations) not current ticket values.
     So even if tickets were burned (set to 0), users still participate based on their activation count.
@@ -257,6 +259,105 @@ async def select_final_raffle_winners_db(count: int, prize: str, exclude_user_id
             ORDER BY -log(random()) / total_activations  -- Weighted random
             LIMIT $1
         """, count, prize, exclude_ids)
+
+async def select_ticket_winners_db(count: int, prize: str, exclude_tickets: dict = None, is_final: bool = False):
+    """
+    NEW: Select winners by TICKETS (not by users). 
+    Each ticket = 1 chance. One user can win multiple times with different tickets.
+    
+    Args:
+        count: Number of winners to select
+        prize: Prize name
+        exclude_tickets: Dict like {'receipt': [1,2], 'promo': [3,4]} - already winning ticket IDs
+        is_final: If True, include tickets with 0 value (burned)
+    
+    Returns:
+        List of dicts with: user_id, telegram_id, full_name, username, prize_name, 
+                           ticket_type, ticket_id, ticket_value
+    """
+    exclude = exclude_tickets or {}
+    exclude_receipt_ids = exclude.get('receipt', [])
+    exclude_promo_ids = exclude.get('promo', [])
+    exclude_manual_ids = exclude.get('manual', [])
+    
+    async with get_current_bot_db().get_connection() as conn:
+        # Build ticket pool: each row = 1 ticket
+        # For receipts: ticket_value = first 8 chars of raw_qr or "ЧЕК#" + id
+        # For promo: ticket_value = code itself
+        # For manual: ticket_value = reason or "Начисление"
+        
+        if is_final:
+            # Final raffle: all historical activations count (even burned tickets)
+            ticket_condition = "1=1"  # Include all
+        else:
+            # Regular raffle: only tickets with value > 0
+            ticket_condition = "tickets > 0"
+        
+        return await conn.fetch(f"""
+            WITH all_tickets AS (
+                -- Receipts
+                SELECT 
+                    r.id as ticket_id,
+                    'receipt' as ticket_type,
+                    COALESCE(LEFT(r.raw_qr, 12), 'ЧЕК#' || r.id::text) as ticket_value,
+                    r.user_id,
+                    u.telegram_id,
+                    u.full_name,
+                    u.username
+                FROM receipts r
+                JOIN users u ON r.user_id = u.id
+                WHERE r.status = 'valid' 
+                  AND ({ticket_condition.replace('tickets', 'r.tickets')})
+                  AND u.is_blocked = FALSE
+                  AND r.id != ALL($4::int[])
+                
+                UNION ALL
+                
+                -- Promo codes
+                SELECT 
+                    p.id as ticket_id,
+                    'promo' as ticket_type,
+                    p.code as ticket_value,
+                    p.user_id,
+                    u.telegram_id,
+                    u.full_name,
+                    u.username
+                FROM promo_codes p
+                JOIN users u ON p.user_id = u.id
+                WHERE p.status = 'used'
+                  AND ({ticket_condition.replace('tickets', 'p.tickets')})
+                  AND u.is_blocked = FALSE
+                  AND p.id != ALL($5::int[])
+                
+                UNION ALL
+                
+                -- Manual tickets
+                SELECT 
+                    m.id as ticket_id,
+                    'manual' as ticket_type,
+                    COALESCE(m.reason, 'Начисление') as ticket_value,
+                    m.user_id,
+                    u.telegram_id,
+                    u.full_name,
+                    u.username
+                FROM manual_tickets m
+                JOIN users u ON m.user_id = u.id
+                WHERE u.is_blocked = FALSE
+                  AND m.id != ALL($6::int[])
+            )
+            SELECT 
+                ticket_id, ticket_type, ticket_value,
+                user_id, telegram_id, full_name, username,
+                $2 as prize_name
+            FROM all_tickets
+            ORDER BY random()
+            LIMIT $1
+        """, count, prize, 
+            [], # unused $3 placeholder
+            exclude_receipt_ids or [],
+            exclude_promo_ids or [],
+            exclude_manual_ids or []
+        )
 
 async def get_raffle_losers(cid: int):
     async with get_current_bot_db().get_connection() as conn:
@@ -475,10 +576,19 @@ async def get_all_settings():
 async def get_all_messages():
     async with get_current_bot_db().get_connection() as conn: return await conn.fetch("SELECT * FROM messages ORDER BY key")
 async def save_winners_atomic(cid, winners):
+    """Save winners with ticket data for ticket-based raffle"""
     if not winners: return 0
-    recs = [(cid, w['user_id'], w['telegram_id'], w['prize_name']) for w in winners]
+    recs = [
+        (cid, w['user_id'], w['telegram_id'], w['prize_name'],
+         w.get('ticket_type'), w.get('ticket_id'), w.get('ticket_value'))
+        for w in winners
+    ]
     async with get_current_bot_db().get_connection() as conn:
-        await conn.executemany("INSERT INTO winners (campaign_id, user_id, telegram_id, prize_name) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING", recs)
+        await conn.executemany(
+            """INSERT INTO winners (campaign_id, user_id, telegram_id, prize_name, ticket_type, ticket_id, ticket_value) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING""", 
+            recs
+        )
     return len(winners)
 async def get_campaign_winners(cid):
     async with get_current_bot_db().get_connection() as conn: return await conn.fetch("SELECT * FROM winners WHERE campaign_id = $1", cid)
