@@ -1,0 +1,30 @@
+{
+    "name": "_template",
+    "display_name": "Bot Template",
+    "version": "1.0.0",
+    "description": "Base template for creating new bots",
+    "modules": [
+        "core",
+        "registration",
+        "admin"
+    ],
+    "module_config": {
+        "registration": {
+            "subscription_required": false,
+            "subscription_channel_id": null,
+            "subscription_channel_url": null
+        }
+    },
+    "panel_features": {
+        "users": true,
+        "broadcasts": true,
+        "content_editor": true,
+        "promo_codes": false,
+        "receipts": false,
+        "raffle": false
+    },
+    "database": {
+        "type": "postgresql",
+        "auto_create": true
+    }
+}
