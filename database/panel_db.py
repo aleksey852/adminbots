@@ -70,6 +70,7 @@ async def _create_panel_schema():
                 name TEXT NOT NULL,
                 type TEXT DEFAULT 'receipt',
                 database_url TEXT NOT NULL,
+                manifest_path TEXT,
                 is_active BOOLEAN DEFAULT TRUE,
                 admin_ids BIGINT[] DEFAULT '{}',
                 enabled_modules TEXT[] DEFAULT '{"registration", "user_profile", "faq", "support"}',
@@ -77,6 +78,17 @@ async def _create_panel_schema():
                 archived_at TIMESTAMP,
                 archived_by TEXT
             );
+        """)
+        
+        # Add manifest_path column if not exists (migration)
+        await db.execute("""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='bot_registry' AND column_name='manifest_path') THEN
+                    ALTER TABLE bot_registry ADD COLUMN manifest_path TEXT;
+                END IF;
+            END $$;
         """)
         
         # Panel Users - admin panel access control
@@ -142,7 +154,7 @@ async def register_bot(token: str, name: str, bot_type: str, database_url: str, 
         return await db.fetchval("INSERT INTO bot_registry (token, name, type, database_url, admin_ids) VALUES ($1, $2, $3, $4, $5) RETURNING id", token, name, bot_type, database_url, admin_ids or [])
 
 # Whitelist of allowed fields for dynamic updates
-ALLOWED_BOT_FIELDS = {'token', 'name', 'type', 'database_url', 'is_active', 'admin_ids', 'enabled_modules', 'archived_at', 'archived_by'}
+ALLOWED_BOT_FIELDS = {'token', 'name', 'type', 'database_url', 'manifest_path', 'is_active', 'admin_ids', 'enabled_modules', 'archived_at', 'archived_by'}
 
 async def update_bot(bot_id: int, **kwargs):
     """Update bot registry record"""

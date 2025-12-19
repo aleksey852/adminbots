@@ -1,0 +1,36 @@
+# Admin Bots Platform
+
+## Project Structure
+
+This is a modular Telegram bot platform with Admin Panel.
+
+## Bot Development Rules
+
+When creating a new bot in `bots/` folder:
+
+1. **Bot = Configuration, NOT code**
+   - No Python logic in bot folders
+   - Use modules from `modules/` library
+
+2. **Required files**:
+   - `__init__.py` — just `from bots._base import BotBase; bot = BotBase(__file__)`
+   - `manifest.json` — modules and configuration
+   - `content.py` — all text strings
+
+3. **Available modules**: `core`, `registration`, `promo`, `receipts`, `raffle`, `admin`
+
+4. **See full documentation**: `.ai/BOT_DEVELOPMENT.md`
+
+## Key Directories
+
+- `bots/` — Bot templates (config-only)
+- `modules/` — Reusable module library
+- `admin_panel/` — FastAPI admin panel
+- `utils/` — Shared utilities
+
+## When asked to create a bot
+
+1. Read `.ai/BOT_DEVELOPMENT.md` first
+2. Copy structure from `bots/_template/`
+3. Modify `manifest.json` and `content.py`
+4. Never write Python handlers — use existing modules

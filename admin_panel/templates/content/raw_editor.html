@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="content-header mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1 class="h3 mb-1">🖥️ Raw Editor</h1>
+            <p class="text-muted mb-0">Прямое редактирование content.py</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/content" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-layout-text-window me-1"></i>Visual Editor
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if request.query_params.get('msg') %}
+<div class="alert alert-success d-flex align-items-center">
+    <i class="bi bi-check-circle-fill me-2"></i>
+    <div>{{ request.query_params.get('msg') }}</div>
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-danger d-flex align-items-center">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div>{{ request.query_params.get('error') }}</div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <i class="bi bi-file-code me-2"></i>
+            <code>{{ content_path }}</code>
+        </div>
+        <span class="badge badge-warning">
+            <i class="bi bi-exclamation-triangle me-1"></i>Advanced
+        </span>
+    </div>
+    <div class="card-body p-0">
+        <form action="/content/raw/save" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <textarea name="raw_content" class="code-editor" spellcheck="false">{{ raw_content }}</textarea>
+
+            <div class="d-flex justify-content-between align-items-center p-3 border-top">
+                <div class="text-muted small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Изменения применяются сразу после сохранения
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="/content" class="btn btn-outline-secondary">Отмена</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1"></i>Сохранить
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .code-editor {
+        width: 100%;
+        min-height: 600px;
+        border: none;
+        padding: 1rem;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        resize: vertical;
+        tab-size: 4;
+    }
+
+    .code-editor:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 2px var(--primary);
+    }
+
+    [data-theme="dark"] .code-editor {
+        background: #1a1a2e;
+        color: #e0e0e0;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tab support in textarea
+    document.querySelector('.code-editor').addEventListener('keydown', function (e) {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = this.selectionStart;
+            const end = this.selectionEnd;
+            this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = start + 4;
+        }
+    });
+</script>
+{% endblock %}

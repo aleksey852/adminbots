@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="content-header mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1 class="h3 mb-1">📝 Редактор контента</h1>
+            <p class="text-muted mb-0">Редактирование текстов бота</p>
+        </div>
+        {% if content_path %}
+        <div class="d-flex gap-2">
+            <a href="/content/raw" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-code-square me-1"></i>Raw Editor
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger d-flex align-items-center">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div>{{ error }}</div>
+</div>
+{% endif %}
+
+{% if request.query_params.get('msg') %}
+<div class="alert alert-success d-flex align-items-center">
+    <i class="bi bi-check-circle-fill me-2"></i>
+    <div>{{ request.query_params.get('msg') }}</div>
+</div>
+{% endif %}
+
+{% if sections %}
+<form action="/content/save" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    {% for section_key, section in sections.items() %}
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{{ section.title }}</h5>
+            <span class="badge badge-primary">{{ section.items|length }} элементов</span>
+        </div>
+        <div class="card-body">
+            {% for key, value in section.items.items() %}
+            <div class="mb-4">
+                <label class="form-label d-flex justify-content-between">
+                    <span class="fw-bold">{{ key }}</span>
+                    <code class="text-muted small">{{ key }}</code>
+                </label>
+
+                {% if value is mapping %}
+                {# FAQ items as JSON #}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Вопрос</th>
+                                <th>Ответ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for q, a in value.items() %}
+                            <tr>
+                                <td class="text-wrap" style="max-width: 300px;">{{ q }}</td>
+                                <td class="text-wrap">{{ a }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <textarea name="faq_items" class="d-none">{{ value | tojson }}</textarea>
+                <small class="text-muted">FAQ редактируется в Raw Editor</small>
+                {% elif '\n' in value or value|length > 100 %}
+                {# Multiline textarea #}
+                <textarea name="content_{{ key }}" class="form-control font-monospace"
+                    rows="{{ [value.count('\n') + 2, 10] | min }}" style="white-space: pre-wrap;">{{ value }}</textarea>
+                {% else %}
+                {# Single line input #}
+                <input type="text" name="content_{{ key }}" class="form-control" value="{{ value }}">
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="d-flex justify-content-end gap-2 mb-4">
+        <a href="/" class="btn btn-outline-secondary">Отмена</a>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Сохранить
+        </button>
+    </div>
+</form>
+
+{% elif not error %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-file-earmark-text display-1 text-muted mb-3"></i>
+        <h4>Контент не найден</h4>
+        <p class="text-muted">
+            Этот бот не использует файл content.py или он ещё не создан.
+        </p>
+        {% if is_superadmin %}
+        <a href="/bots/{{ bot.id }}/edit" class="btn btn-outline-primary">
+            <i class="bi bi-gear me-1"></i>Настройки бота
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .font-monospace {
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-size: 0.875rem;
+    }
+
+    textarea.form-control {
+        resize: vertical;
+        min-height: 80px;
+    }
+
+    .form-label code {
+        background: var(--bg-tertiary);
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock %}

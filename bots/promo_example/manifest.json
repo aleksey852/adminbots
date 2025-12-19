@@ -1,0 +1,45 @@
+{
+    "name": "promo_example",
+    "display_name": "Промо-бот с промокодами",
+    "version": "1.0.0",
+    "description": "Шаблон бота для промо-акций с активацией промокодов и розыгрышами",
+    "author": "Admin Bots Platform",
+    "modules": [
+        "core",
+        "registration",
+        "promo",
+        "raffle",
+        "admin"
+    ],
+    "module_config": {
+        "registration": {
+            "subscription_required": false,
+            "subscription_channel_id": null,
+            "subscription_channel_url": null
+        },
+        "promo": {
+            "max_codes_per_user": 10,
+            "allow_multiple_activations": true,
+            "notify_admin_on_activation": true,
+            "show_remaining_codes": false,
+            "success_message_template": null
+        },
+        "raffle": {
+            "intermediate_enabled": false,
+            "intermediate_period": "monthly",
+            "tickets_per_code": 1
+        }
+    },
+    "panel_features": {
+        "users": true,
+        "broadcasts": true,
+        "content_editor": true,
+        "promo_codes": true,
+        "receipts": false,
+        "raffle": true
+    },
+    "database": {
+        "type": "postgresql",
+        "auto_create": true
+    }
+}

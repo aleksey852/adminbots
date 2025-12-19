@@ -1,33 +1,26 @@
 """
-Bot Template — Base template for creating new bots.
+Bot Template — Минимальный бот на основе BotBase.
 
-Этот шаблон предоставляет базовую структуру для создания ботов.
-Скопируйте папку _template и переименуйте для создания нового бота.
+Бот = manifest.json + content.py. Никакого кода!
+Вся логика через модули из библиотеки modules/
 """
-from typing import Optional
-import os
-import json
+from bots._base import BotBase
 
-# Load manifest
-_manifest_path = os.path.join(os.path.dirname(__file__), 'manifest.json')
-with open(_manifest_path, 'r', encoding='utf-8') as f:
-    manifest = json.load(f)
+# Инициализация бота из текущей папки
+bot = BotBase(__file__)
 
-# Expose manifest data
-BOT_NAME = manifest.get('name', '_template')
-BOT_VERSION = manifest.get('version', '1.0.0')
-BOT_MODULES = manifest.get('modules', [])
-
+# Экспорты для совместимости
+manifest = bot.manifest
+BOT_NAME = bot.name
+BOT_VERSION = bot.version
+BOT_MODULES = bot.modules
 
 def get_content():
     """Get content module for this bot"""
-    from . import content
-    return content
-
+    return bot.content
 
 def get_manifest() -> dict:
     """Get full manifest data"""
-    return manifest
+    return bot.manifest
 
-
-__all__ = ['manifest', 'BOT_NAME', 'BOT_VERSION', 'BOT_MODULES', 'get_content', 'get_manifest']
+__all__ = ['bot', 'manifest', 'BOT_NAME', 'BOT_VERSION', 'BOT_MODULES', 'get_content', 'get_manifest']

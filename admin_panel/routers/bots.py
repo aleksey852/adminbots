@@ -51,51 +51,64 @@ def setup_routes(
 
     @router.get("/new", response_class=HTMLResponse)
     async def new_bot_page(request: Request, user: Dict = Depends(require_superadmin)):
-        return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Добавить бота"))
+        """Show available bot templates from bots/ folder"""
+        from utils.bot_discovery import get_templates_with_status
+        
+        templates_list = await get_templates_with_status()
+        
+        return templates.TemplateResponse("bots/new.html", get_template_context(
+            request, user=user, title="Добавить бота",
+            bot_templates=templates_list
+        ))
 
     @router.post("/create", dependencies=[Depends(verify_csrf_token)])
     async def create_bot(
-        request: Request, token: str = Form(...), name: str = Form(...),
-        type: str = Form(...), admin_ids: str = Form(""),
-        monthly_raffle: str = Form(None), require_subscription: str = Form(None),
+        request: Request, 
+        template_path: str = Form(...),
+        token: str = Form(...), 
+        admin_ids: str = Form(""),
         user: Dict = Depends(require_superadmin)
     ):
-        import re
-        from database.panel_db import get_bot_by_token, register_bot, create_bot_database, get_panel_connection, set_module_settings
-        
-        # Auto-assign modules based on bot type
-        base_modules = ['registration', 'user_profile', 'faq', 'support', 'admin', 'raffle', 'core']
-        if type == 'receipt':
-            modules = base_modules + ['receipts']
-        else:  # promo
-            modules = base_modules + ['promo']
+        """Activate a bot template with the given token"""
+        from utils.bot_discovery import activate_bot_template, get_templates_with_status
         
         if not token or ":" not in token:
-            return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Новый бот", error="Bad token", form__token=token, form__name=name))
+            templates_list = await get_templates_with_status()
+            return templates.TemplateResponse("bots/new.html", get_template_context(
+                request, user=user, title="Добавить бота", 
+                error="Неверный формат токена",
+                bot_templates=templates_list
+            ))
         
         try:
-            if await get_bot_by_token(token):
-                return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Новый бот", error="Exists", form__token=token))
+            # Parse admin IDs
+            admin_id_list = [int(x.strip()) for x in admin_ids.split(',') if x.strip().isdigit()]
             
-            p_ids = [int(x.strip()) for x in admin_ids.split(',') if x.strip().isdigit()]
-            db_url = await create_bot_database(f"bot_{re.sub(r'[^a-z0-9_]', '', name.lower())[:20]}_{uuid.uuid4().hex[:6]}", config.DATABASE_URL)
+            # Activate template
+            result = await activate_bot_template(
+                template_path=template_path,
+                token=token,
+                admin_ids=admin_id_list
+            )
             
-            bid = await register_bot(token=token, name=name, bot_type=type, database_url=db_url, admin_ids=p_ids)
-            bot_db_manager.register(bid, db_url)
-            await bot_db_manager.connect(bid)
+            request.session["active_bot_id"] = result['bot_id']
+            return RedirectResponse(f"/?msg=Бот+{result['name']}+активирован", 303)
             
-            # Save bot options as module settings
-            if monthly_raffle == 'true':
-                await set_module_settings(bid, 'admin', {'monthly_raffle': True})
-            if require_subscription == 'true':
-                await set_module_settings(bid, 'subscription', {'required': True})
-            
-            async with get_panel_connection() as db: await db.execute("NOTIFY new_bot")
-            request.session["active_bot_id"] = bid
-            return RedirectResponse("/", 303)
+        except ValueError as e:
+            templates_list = await get_templates_with_status()
+            return templates.TemplateResponse("bots/new.html", get_template_context(
+                request, user=user, title="Добавить бота",
+                error=str(e),
+                bot_templates=templates_list
+            ))
         except Exception as e:
-            logger.error(f"Bot creation failed: {e}")
-            return templates.TemplateResponse("bots/new.html", get_template_context(request, user=user, title="Новый бот", error=str(e)))
+            logger.error(f"Bot activation failed: {e}")
+            templates_list = await get_templates_with_status()
+            return templates.TemplateResponse("bots/new.html", get_template_context(
+                request, user=user, title="Добавить бота",
+                error=f"Ошибка активации: {e}",
+                bot_templates=templates_list
+            ))
 
     @router.get("/{bot_id}/edit", response_class=HTMLResponse)
     async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):

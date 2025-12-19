@@ -1,98 +1,111 @@
-# Кастомные Боты
+# Боты — Модульная Архитектура v3.0
 
-Эта директория предназначена для размещения кастомных ботов, которые требуют логику, выходящую за рамки стандартных модулей (receipts, promo).
+**Бот = Конфигурация, НЕ код!**
 
-## Требования к Боту
+## 🎯 Быстрый старт
 
-Чтобы кастомный бот мог управляться через Admin Panel, он должен соответствовать следующим требованиям:
-
-### 1. Структура директории
-
-```
-bots/
-└── my_custom_bot/
-    ├── __init__.py          # Экспортирует custom_bot инстанс
-    ├── manifest.json        # Метаданные бота
-    └── handlers.py          # Логика бота
+### 1. Создайте шаблон
+```bash
+cp -r bots/_template bots/my_bot
 ```
 
-### 2. manifest.json
-
+### 2. Настройте manifest.json
 ```json
 {
-  "name": "my_custom_bot",
-  "version": "1.0.0",
-  "description": "Описание функционала",
-  "author": "Ваше имя",
-  
-  "required_modules": ["registration"],
-  
-  "panel_capabilities": {
-    "users": true,
-    "campaigns": true,
-    "texts": true,
-    "receipts": false,
-    "codes": true,
-    "custom_settings": [
-      {"key": "special_mode", "type": "checkbox", "label": "Особый режим"}
-    ]
+  "display_name": "Мой Бот",
+  "modules": ["core", "promo", "raffle"],
+  "module_config": {
+    "promo": { "max_codes_per_user": 5 }
   }
 }
 ```
 
-### 3. Наследование от BotModule
-
+### 3. Настройте content.py
 ```python
-# handlers.py
-from modules.base import BotModule
-from aiogram import Router, F
-from aiogram.types import Message
-
-class CustomBotModule(BotModule):
-    name = "my_custom_bot"
-    version = "1.0.0"
-    description = "Мой кастомный бот"
-    default_enabled = True
-    
-    # Настройки для Admin Panel
-    settings_schema = {
-        "special_mode": {
-            "type": "checkbox",
-            "label": "Особый режим",
-            "default": False
-        }
-    }
-    
-    def _setup_handlers(self):
-        @self.router.message(F.text == "/custom")
-        async def custom_command(message: Message):
-            await message.answer("Кастомная команда!")
-
-# __init__.py
-from .handlers import CustomBotModule
-custom_bot = CustomBotModule()
+WELCOME = "🎉 Добро пожаловать!"
+BTN_PROMO = "🎁 Ввести код"
 ```
 
-### 4. Автодискавери
+### 4. Активируйте через панель
+1. Панель → "Добавить бота"
+2. Выберите шаблон из списка
+3. Введите токен от @BotFather
+4. Готово!
 
-Модуль автоматически обнаружится при запуске бота, если:
-- Папка содержит `__init__.py`
-- Экспортируется инстанс класса, наследуемого от `BotModule`
+---
 
-## Возможности Panel
+## 📁 Структура
 
-Panel сможет:
-- ✅ Включать/выключать кастомный модуль
-- ✅ Редактировать настройки через `settings_schema`
-- ✅ Показывать пользователей и их статистику
-- ✅ Отправлять рассылки
-- ✅ Управлять текстами (если используется `config_manager`)
+```
+bots/
+├── _base.py             # BotBase class
+├── _template/           # Шаблон
+├── promo_example/       # Промо-бот  
+└── receipt_example/     # Чековый бот
+    ├── __init__.py      # bot = BotBase(__file__)
+    ├── manifest.json    # Модули + настройки
+    └── content.py       # Тексты
+```
 
-## Пример использования config_manager
+---
+
+## � module_config
+
+Кастомизация модулей без написания кода:
+
+```json
+{
+  "modules": ["core", "promo", "raffle"],
+  "module_config": {
+    "promo": {
+      "max_codes_per_user": 5,
+      "notify_admin_on_activation": true
+    },
+    "registration": {
+      "subscription_required": true,
+      "subscription_channel_id": -1001234567890
+    }
+  }
+}
+```
+
+Модуль читает:
+```python
+max_codes = self.get_config(bot_id, 'max_codes_per_user', 1)
+```
+
+---
+
+## 📚 Модули
+
+| Модуль | Опции |
+|--------|-------|
+| `core` | - |
+| `registration` | `subscription_required`, `subscription_channel_id` |
+| `promo` | `max_codes_per_user`, `notify_admin_on_activation` |
+| `receipts` | `auto_approve`, `require_photo` |
+| `raffle` | `intermediate_enabled`, `tickets_per_code` |
+
+---
+
+## ➕ Новый модуль
+
+Если нужна уникальная логика:
 
 ```python
-from utils.config_manager import config_manager
+# modules/promo_lottery/__init__.py
+from modules.promo.handlers import PromoModule
 
-async def get_welcome_text(bot_id: int) -> str:
-    return config_manager.get_setting("welcome_text", "Добро пожаловать!", bot_id)
+class PromoLotteryModule(PromoModule):
+    name = "promo_lottery"
+    
+    default_settings = {
+        **PromoModule.default_settings,
+        'lottery_chance': 0.1
+    }
+```
+
+Использование:
+```json
+{"modules": ["core", "promo_lottery"]}
 ```

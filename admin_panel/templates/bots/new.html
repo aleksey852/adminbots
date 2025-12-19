@@ -3,8 +3,8 @@
 {% block content %}
 <div class="page-header-premium">
     <div class="title-area">
-        <h1>🤖 Конструктор бота</h1>
-        <p>Создайте нового бота для управления кампаниями</p>
+        <h1>🤖 Активация бота</h1>
+        <p>Выберите шаблон из библиотеки и активируйте его токеном</p>
     </div>
     <div class="action-area">
         <a href="/" class="btn btn-outline-light text-body border-0 btn-sm d-flex align-items-center">
@@ -14,156 +14,141 @@
 </div>
 
 <div class="container-fluid p-0">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    {% if error %}
-                    <div class="alert alert-danger mb-4">
-                        <i class="bi bi-exclamation-circle me-2"></i> {{ error }}
-                    </div>
+    {% if error %}
+    <div class="alert alert-danger mb-4">
+        <i class="bi bi-exclamation-circle me-2"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    {% if not bot_templates %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-folder-x display-1 text-muted mb-3"></i>
+            <h4>Шаблонов не найдено</h4>
+            <p class="text-muted">
+                Папка <code>bots/</code> пуста или шаблоны не содержат <code>manifest.json</code>
+            </p>
+        </div>
+    </div>
+    {% else %}
+    <div class="row g-4">
+        {% for template in bot_templates %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 template-card {{ 'border-success' if template.is_active else '' }}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ template.display_name }}</h5>
+                    {% if template.is_active %}
+                    <span class="badge badge-success">
+                        <i class="bi bi-check-circle me-1"></i>Активен
+                    </span>
+                    {% else %}
+                    <span class="badge badge-secondary">v{{ template.version }}</span>
                     {% endif %}
-
-                    <form method="POST" action="/bots/create">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-                        <!-- Step 1: Basic Info -->
-                        <div class="mb-4">
-                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-1-circle me-2"></i>Основная информация
-                            </h5>
-
-                            <div class="mb-3">
-                                <label for="name" class="form-label">Название бота (для админки)</label>
-                                <input type="text" class="form-control" id="name" name="name" required
-                                    placeholder="Например: Promo Bot 2025"
-                                    value="{{ form__name if form__name else '' }}">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="token" class="form-label">Bot Token (из @BotFather)</label>
-                                <input type="text" class="form-control font-monospace" id="token" name="token" required
-                                    placeholder="123456789:ABCdefGHIjklMNOpqrs..."
-                                    value="{{ form__token if form__token else '' }}">
-                                <div class="form-text">Токен можно получить или отозвать в @BotFather</div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="admin_ids" class="form-label">Telegram ID администраторов</label>
-                                <input type="text" class="form-control" id="admin_ids" name="admin_ids"
-                                    placeholder="123456789, 987654321"
-                                    value="{{ form__admin_ids if form__admin_ids else '' }}">
-                                <div class="form-text">
-                                    Через запятую. Узнать свой ID: <code>@userinfobot</code>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Step 2: Bot Configuration -->
-                        <div class="mb-4">
-                            <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-2-circle me-2"></i>Настройки бота</h5>
-                            <p class="text-muted small mb-3">Выберите тип кампании и дополнительные опции:</p>
-
-                            <div class="option-cards">
-                                <!-- Campaign Type -->
-                                <div class="option-group mb-3">
-                                    <label class="option-group-label">Тип кампании</label>
-                                    <div class="type-selector">
-                                        <label class="type-card {% if form__type != 'promo' %}selected{% endif %}">
-                                            <input type="radio" name="type" value="receipt" {% if form__type !='promo'
-                                                %}checked{% endif %}>
-                                            <div class="type-check"><i class="bi bi-check"></i></div>
-                                            <span class="type-icon">🧾</span>
-                                            <div class="type-title">Регистрация чеков</div>
-                                            <div class="type-description">Пользователи загружают фото чеков для участия
-                                            </div>
-                                        </label>
-                                        <label class="type-card {% if form__type == 'promo' %}selected{% endif %}">
-                                            <input type="radio" name="type" value="promo" {% if form__type=='promo'
-                                                %}checked{% endif %}>
-                                            <div class="type-check"><i class="bi bi-check"></i></div>
-                                            <span class="type-icon">🎁</span>
-                                            <div class="type-title">Промо-коды</div>
-                                            <div class="type-description">Пользователи вводят промокоды для участия
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <!-- Additional Options -->
-                                <div class="option-group">
-                                    <label class="option-group-label">Дополнительно</label>
-                                    <div class="type-selector">
-                                        <label class="type-card option-toggle" id="subscriptionCard">
-                                            <input type="checkbox" name="require_subscription" value="true">
-                                            <div class="type-check"><i class="bi bi-check"></i></div>
-                                            <span class="type-icon">📢</span>
-                                            <div class="type-title">Подписка на канал</div>
-                                            <div class="type-description">Требовать подписку для участия в акции</div>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="bi bi-plus-circle me-2"></i> Создать бота
-                            </button>
-                        </div>
-                    </form>
                 </div>
-            </div>
-
-            <div class="card mt-4">
-                <div class="card-header"><i class="bi bi-info-circle me-1"></i> Что дальше?</div>
                 <div class="card-body">
-                    <ol class="mb-0">
-                        <li>После создания бот появится в списке слева</li>
-                        <li>Перейдите в <strong>Настройки</strong> чтобы настроить тексты и параметры</li>
-                        <li>Перезапустите сервис бота для применения изменений</li>
-                    </ol>
+                    <p class="text-muted small">{{ template.description or 'Без описания' }}</p>
+
+                    <div class="mb-3">
+                        <span class="text-muted small">Модули:</span>
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                            {% for module in template.modules %}
+                            <span class="badge badge-primary border">{{ module }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    {% if template.is_active %}
+                    <a href="/bots/{{ template.active_bot_id }}/edit" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="bi bi-gear me-1"></i>Настройки
+                    </a>
+                    {% else %}
+                    <button class="btn btn-primary btn-sm w-100"
+                        onclick="showActivateModal('{{ template.path }}', '{{ template.display_name }}')">
+                        <i class="bi bi-play-circle me-1"></i>Активировать
+                    </button>
+                    {% endif %}
                 </div>
             </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Activation Modal -->
+<div class="modal fade" id="activateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/bots/create">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="template_path" id="templatePath" value="">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">🚀 Активация бота</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">
+                        Шаблон: <strong id="templateName"></strong>
+                    </p>
+
+                    <div class="mb-3">
+                        <label for="token" class="form-label">Bot Token (из @BotFather)</label>
+                        <input type="text" class="form-control font-monospace" id="token" name="token" required
+                            placeholder="123456789:ABCdefGHIjklMNOpqrs...">
+                        <div class="form-text">Токен можно получить у @BotFather</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="admin_ids" class="form-label">ID администраторов (опционально)</label>
+                        <input type="text" class="form-control" id="admin_ids" name="admin_ids"
+                            placeholder="123456789, 987654321">
+                        <div class="form-text">Через запятую. Узнать ID: <code>@userinfobot</code></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-rocket me-1"></i>Активировать
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+    .template-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .template-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .template-card.border-success {
+        border-color: var(--success) !important;
+    }
+</style>
+{% endblock %}
+
 {% block extra_js %}
 <script>
+    let activateModal;
+
     document.addEventListener('DOMContentLoaded', function () {
-        // Get all type cards
-        const allCards = document.querySelectorAll('.type-card');
-
-        allCards.forEach(card => {
-            const radioInput = card.querySelector('input[type="radio"]');
-            const checkboxInput = card.querySelector('input[type="checkbox"]');
-
-            if (radioInput) {
-                // Radio card - exclusive selection within group
-                card.addEventListener('click', function () {
-                    const parent = this.closest('.type-selector');
-                    parent.querySelectorAll('.type-card').forEach(c => {
-                        if (c.querySelector('input[type="radio"]')) {
-                            c.classList.remove('selected');
-                        }
-                    });
-                    this.classList.add('selected');
-                });
-            } else if (checkboxInput) {
-                // Checkbox card - toggle selection
-                card.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const isSelected = this.classList.toggle('selected');
-                    checkboxInput.checked = isSelected;
-                });
-
-                // Initialize from checkbox state
-                if (checkboxInput.checked) {
-                    card.classList.add('selected');
-                }
-            }
-        });
+        activateModal = new bootstrap.Modal(document.getElementById('activateModal'));
     });
+
+    function showActivateModal(templatePath, templateName) {
+        document.getElementById('templatePath').value = templatePath;
+        document.getElementById('templateName').textContent = templateName;
+        document.getElementById('token').value = '';
+        document.getElementById('admin_ids').value = '';
+        activateModal.show();
+    }
 </script>
 {% endblock %}

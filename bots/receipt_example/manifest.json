@@ -1,0 +1,45 @@
+{
+    "name": "receipt_example",
+    "display_name": "Чековый промо-бот",
+    "version": "1.0.0",
+    "description": "Шаблон бота для чековых промо-акций с загрузкой чеков и розыгрышами",
+    "author": "Admin Bots Platform",
+    "modules": [
+        "core",
+        "registration",
+        "receipts",
+        "raffle",
+        "admin"
+    ],
+    "module_config": {
+        "registration": {
+            "subscription_required": false,
+            "subscription_channel_id": null,
+            "subscription_channel_url": null
+        },
+        "receipts": {
+            "auto_approve": false,
+            "require_photo": true
+        },
+        "raffle": {
+            "intermediate_enabled": false,
+            "intermediate_period": "monthly"
+        }
+    },
+    "panel_features": {
+        "users": true,
+        "broadcasts": true,
+        "content_editor": true,
+        "promo_codes": false,
+        "receipts": true,
+        "raffle": true
+    },
+    "database": {
+        "type": "postgresql",
+        "auto_create": true,
+        "extra_tables": [
+            "receipts",
+            "winners"
+        ]
+    }
+}

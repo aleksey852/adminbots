@@ -272,6 +272,21 @@ modules.setup_routes(
 )
 app.include_router(modules.router)
 
+# Bot API router (for deploy.py and external connections)
+from admin_panel.routers import bot_api
+bot_api.setup_routes()
+app.include_router(bot_api.router)
+
+# Content editor router
+from admin_panel.routers import content
+content.setup_routes(
+    templates,
+    auth.get_current_user,
+    auth.verify_csrf_token,
+    get_template_context
+)
+app.include_router(content.router)
+
 
 # === Dashboard (main page) ===
 
