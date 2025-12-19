@@ -145,9 +145,17 @@ async def get_pending_campaigns():
     async with get_current_bot_db().get_connection() as conn:
         return await conn.fetch("SELECT * FROM campaigns WHERE is_completed = FALSE AND (scheduled_for IS NULL OR scheduled_for <= NOW()) ORDER BY id")
 
-async def mark_campaign_completed(cid: int, s: int = 0, f: int = 0):
+async def mark_campaign_completed(cid: int, s: int = 0, f: int = 0, error: str = None):
     async with get_current_bot_db().get_connection() as conn:
-        await conn.execute("UPDATE campaigns SET is_completed=TRUE, status='completed', completed_at=NOW(), sent_count=$2, failed_count=$3 WHERE id=$1", cid, s, f)
+        if error:
+            await conn.execute("UPDATE campaigns SET is_completed=TRUE, status='failed', completed_at=NOW(), sent_count=$2, failed_count=$3, error_message=$4 WHERE id=$1", cid, s, f, error)
+        else:
+            await conn.execute("UPDATE campaigns SET is_completed=TRUE, status='completed', completed_at=NOW(), sent_count=$2, failed_count=$3 WHERE id=$1", cid, s, f)
+
+async def mark_campaign_failed(cid: int, error: str):
+    """Mark campaign as failed with an error message"""
+    async with get_current_bot_db().get_connection() as conn:
+        await conn.execute("UPDATE campaigns SET is_completed=TRUE, status='failed', completed_at=NOW(), error_message=$2 WHERE id=$1", cid, error)
 
 async def cancel_campaign(cid: int):
     async with get_current_bot_db().get_connection() as conn:

@@ -218,10 +218,21 @@
                 {% for raffle in recent_raffles %}
                 <div class="border-bottom p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
-                        <strong>{{ raffle.prize_name or 'Розыгрыш' }}</strong>
+                        <div>
+                            <strong>{{ raffle.content.prizes[0].name if raffle.content and raffle.content.prizes else
+                                'Розыгрыш' }}</strong>
+                            {% if raffle.status == 'failed' %}
+                            <span class="badge bg-danger ms-2">Ошибка</span>
+                            {% endif %}
+                        </div>
                         <small class="text-muted">{{ raffle.completed_at.strftime('%d.%m.%Y') if raffle.completed_at
                             else raffle.created_at.strftime('%d.%m.%Y') }}</small>
                     </div>
+                    {% if raffle.status == 'failed' and raffle.error_message %}
+                    <div class="alert alert-danger py-2 px-3 mb-2 small">
+                        <i class="bi bi-exclamation-triangle me-1"></i>{{ raffle.error_message }}
+                    </div>
+                    {% else %}
                     <div class="text-muted small mb-2">
                         Победителей: {{ raffle.winners | length }}
                     </div>
@@ -234,6 +245,7 @@
                     {% endfor %}
                     {% if raffle.winners | length > 3 %}
                     <div class="small text-muted">... и ещё {{ raffle.winners | length - 3 }}</div>
+                    {% endif %}
                     {% endif %}
                 </div>
                 {% endfor %}

@@ -77,8 +77,16 @@ async def execute_raffle(
                 })
         
         if not all_winners_data:
+            error_msg = "Нет участников с билетами для розыгрыша"
             logger.warning(f"Raffle #{campaign_id}: No winners selected at all")
-            await bot_methods.mark_campaign_completed(campaign_id)
+            await bot_methods.mark_campaign_failed(campaign_id, error_msg)
+            
+            # Notify admins about the failed raffle
+            raffle_type_str = "Финальный" if is_final else "Промежуточный"
+            report = (f"⚠️ Розыгрыш #{campaign_id} завершён с ошибкой\n"
+                      f"📋 Тип: {raffle_type_str}\n"
+                      f"❌ Причина: {error_msg}")
+            await notify_admins(bot, bot_id, report)
             return
         
         await bot_methods.save_winners_atomic(campaign_id, all_winners_data)

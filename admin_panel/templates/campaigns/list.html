@@ -49,6 +49,8 @@
                         <td>
                             {% if c.status == 'cancelled' %}
                             <span class="badge badge-danger">🚫 Отменена</span>
+                            {% elif c.status == 'failed' %}
+                            <span class="badge badge-danger">❌ Ошибка</span>
                             {% elif c.is_completed %}
                             <span class="badge badge-completed">✓ Завершена</span>
                             {% elif c.status == 'running' %}
@@ -62,7 +64,11 @@
                         <td>{{ c.scheduled_for.strftime('%d.%m.%Y %H:%M') if c.scheduled_for else '-' }}</td>
                         <td>{{ c.completed_at.strftime('%d.%m.%Y %H:%M') if c.completed_at else '-' }}</td>
                         <td>
-                            {% if c.sent_count or c.failed_count %}
+                            {% if c.status == 'failed' and c.error_message %}
+                            <span class="text-danger small" title="{{ c.error_message }}"><i
+                                    class="bi bi-exclamation-triangle me-1"></i>{{ c.error_message[:30] }}{% if
+                                c.error_message|length > 30 %}...{% endif %}</span>
+                            {% elif c.sent_count or c.failed_count %}
                             <span class="text-success">{{ c.sent_count }} ок</span> /
                             <span class="text-danger">{{ c.failed_count }} err</span>
                             {% else %}
