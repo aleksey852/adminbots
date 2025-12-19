@@ -54,7 +54,10 @@
                 </select>
             </div>
 
-            <div class="col-lg-3 col-md-12 d-flex gap-2">
+            <div class="col-lg-3 col-md-12 d-flex gap-2 align-items-center">
+                <div class="form-check form-switch" title="Авто-обновление каждые 3 сек">
+                    <input class="form-check-input" type="checkbox" id="autoUpdate" checked>
+                </div>
                 <button type="submit" class="btn btn-primary flex-grow-1">
                     <i class="bi bi-arrow-clockwise me-2"></i>Обновить
                 </button>
@@ -110,11 +113,52 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Auto-scroll to bottom if not searching
         const terminal = document.getElementById('terminalOutput');
+        const autoUpdateCheck = document.getElementById('autoUpdate');
+
+        // Auto-scroll on initial load
         if (terminal && !window.location.search.includes('q=')) {
             terminal.scrollTop = terminal.scrollHeight;
         }
+
+        // Auto-update logic
+        setInterval(() => {
+            if (!autoUpdateCheck.checked) return;
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const params = {
+                service: urlParams.get('service') || 'admin_bots',
+                q: urlParams.get('q') || '',
+                level: urlParams.get('level') || '',
+                lines: urlParams.get('lines') || '100'
+            };
+
+            fetch(`/settings/logs/json?${new URLSearchParams(params)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok' && data.logs) {
+                        const wasAtBottom = terminal.scrollHeight - terminal.scrollTop <= terminal.clientHeight + 50;
+
+                        // Parse and render lines
+                        const lines = data.logs.split('\n');
+                        const html = lines.map(line => {
+                            if (!line.trim()) return '';
+                            const lower = line.toLowerCase();
+                            let cls = 'info';
+                            if (lower.includes('error') || lower.includes('exception') || lower.includes('traceback')) cls = 'error';
+                            else if (lower.includes('warning')) cls = 'warning';
+                            return `<div class="log-line ${cls}">${line}</div>`;
+                        }).join('');
+
+                        // Only update if changes (simple length check optimization possible, but replace is safer)
+                        if (terminal.innerHTML !== html) {
+                            terminal.innerHTML = html || '<div class="log-line text-muted fst-italic p-4 text-center">Нет данных</div>';
+                            if (wasAtBottom) terminal.scrollTop = terminal.scrollHeight;
+                        }
+                    }
+                })
+                .catch(e => console.error("Auto-update failed", e));
+        }, 3000); // 3 seconds interval
     });
 </script>
 {% endblock %}

@@ -161,9 +161,13 @@ def setup_routes(
                     'settings': settings
                 })
 
+        promo_start = config_manager.get_setting('promo_start_date', config.PROMO_START_DATE, bot_id)
+        promo_end = config_manager.get_setting('promo_end_date', config.PROMO_END_DATE, bot_id)
+
         return templates.TemplateResponse("bots/edit.html", get_template_context(
             request, user=user, title=f"Бот: {bot['name']}", edit_bot=bot, stats=stats, message=msg,
-            modules=modules_data
+            modules=modules_data,
+            promo_dates={"start": promo_start, "end": promo_end}
         ))
 
     @router.post("/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
@@ -226,6 +230,27 @@ def setup_routes(
                         await config_manager.set_setting(key, value, bot_id)
         
         return RedirectResponse(f"/bots/{bot_id}/edit?msg=Modules+updated", 303)
+
+    @router.post("/{bot_id}/campaign", dependencies=[Depends(verify_csrf_token)])
+    async def update_campaign_dates(
+        request: Request, bot_id: int, 
+        start_date: str = Form(...), 
+        end_date: str = Form(...),
+        user: Dict = Depends(require_superadmin)
+    ):
+        """Update campaign start/end dates"""
+        from utils.config_manager import config_manager
+        
+        # Simple validation
+        try:
+            datetime.strptime(start_date, "%Y-%m-%d")
+            datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+             return RedirectResponse(f"/bots/{bot_id}/edit?error=Invalid+date+format", 303)
+
+        await config_manager.set_setting("promo_start_date", start_date, bot_id)
+        await config_manager.set_setting("promo_end_date", end_date, bot_id)
+        return RedirectResponse(f"/bots/{bot_id}/edit?msg=Dates+updated", 303)
 
     @router.post("/{bot_id}/delete", dependencies=[Depends(verify_csrf_token)])
     async def delete_bot_permanently(request: Request, bot_id: int, confirm: str = Form(...), user: Dict = Depends(require_superadmin)):

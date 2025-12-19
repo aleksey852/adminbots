@@ -140,7 +140,7 @@ class PromoModule(BotModule):
                 return
             
             # Check if active
-            if not config.is_promo_active():
+            if not config.is_promo_active(bot_id):
                 msg = config_manager.get_message(
                     'promo_ended', 
                     self.default_messages['promo_ended'], 

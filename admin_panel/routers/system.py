@@ -184,6 +184,18 @@ def setup_routes(
                    f"sudo systemctl restart admin_panel"
         return templates.TemplateResponse("settings/logs.html", get_template_context(request, user=user, title="Логи", logs=logs, active_service=service, q=q, active_level=level, lines=lines))
 
+    @router.get("/settings/logs/json")
+    async def logs_json(request: Request, service: str = "admin_bots", q: str = None, level: str = None, lines: int = 100, user: Dict = Depends(require_superadmin)):
+        """JSON endpoint for logs auto-update"""
+        cmd = ["journalctl", "-n", str(max(50, min(500, lines))), "-u", service if service in ["admin_bots", "admin_panel"] else "admin_bots", "--no-pager"]
+        if q: cmd += ["-g", q]
+        if level in {"error": "3", "warning": "4", "info": "6"}: cmd += ["-p", {"error": "3", "warning": "4", "info": "6"}[level]]
+        try:
+            logs = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+            return {"status": "ok", "logs": logs}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     @router.get("/migration", response_class=HTMLResponse)
     async def migration_page(request: Request, user: Dict = Depends(require_superadmin)):
         f = BASE_DIR / ".domain"

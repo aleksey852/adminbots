@@ -84,21 +84,34 @@ def is_admin(telegram_id: int) -> bool:
     return telegram_id in ADMIN_IDS
 
 
-def is_promo_active() -> bool:
+def is_promo_active(bot_id: int = None) -> bool:
     try:
+        start_date = PROMO_START_DATE
+        end_date = PROMO_END_DATE
+        
+        if bot_id:
+            from utils.config_manager import config_manager
+            start_date = config_manager.get_setting("promo_start_date", PROMO_START_DATE, bot_id=bot_id)
+            end_date = config_manager.get_setting("promo_end_date", PROMO_END_DATE, bot_id=bot_id)
+            
         now = get_now().replace(tzinfo=None) # Compare naive
-        start = datetime.strptime(PROMO_START_DATE, "%Y-%m-%d")
-        end = datetime.strptime(PROMO_END_DATE, "%Y-%m-%d")
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
         return start <= now <= end
     except Exception as e:
         logger.error(f"Error checking promo status: {e}")
         return True
 
 
-def days_until_end() -> int:
+def days_until_end(bot_id: int = None) -> int:
     try:
+        end_date = PROMO_END_DATE
+        if bot_id:
+            from utils.config_manager import config_manager
+            end_date = config_manager.get_setting("promo_end_date", PROMO_END_DATE, bot_id=bot_id)
+            
         now = get_now().replace(tzinfo=None)
-        end = datetime.strptime(PROMO_END_DATE, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
         return max(0, (end - now).days)
     except Exception as e:
         logger.error(f"Error calculating days until end: {e}")
