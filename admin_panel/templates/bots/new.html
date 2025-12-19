@@ -1,14 +1,21 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-md-10 col-lg-8">
-            <div class="d-flex align-items-center mb-4">
-                <a href="/" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i> Назад</a>
-                <h1 class="page-title mb-0">🤖 Конструктор бота</h1>
-            </div>
+<div class="page-header-premium">
+    <div class="title-area">
+        <h1>🤖 Конструктор бота</h1>
+        <p>Создайте нового бота для управления кампаниями</p>
+    </div>
+    <div class="action-area">
+        <a href="/" class="btn btn-outline-light text-body border-0 btn-sm d-flex align-items-center">
+            <i class="bi bi-arrow-left me-1"></i> Назад
+        </a>
+    </div>
+</div>
 
+<div class="container-fluid p-0">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
             <div class="card shadow-sm">
                 <div class="card-body p-4">
                     {% if error %}
@@ -41,13 +48,29 @@
                             </div>
 
                             <div class="mb-3">
-                                <label for="type" class="form-label">Тип кампании</label>
-                                <select class="form-select" id="type" name="type" required onchange="updateModules()">
-                                    <option value="receipt" {% if form__type=='receipt' %}selected{% endif %}>🧾
-                                        Регистрация чеков</option>
-                                    <option value="promo" {% if form__type=='promo' %}selected{% endif %}>🎁 Промо-коды
-                                    </option>
-                                </select>
+                                <label class="form-label">Тип кампании</label>
+                                <div class="type-selector">
+                                    <label class="type-card {% if form__type != 'promo' %}selected{% endif %}"
+                                        data-type="receipt">
+                                        <input type="radio" name="type" value="receipt" {% if form__type !='promo'
+                                            %}checked{% endif %}>
+                                        <div class="type-check"><i class="bi bi-check"></i></div>
+                                        <span class="type-icon">🧾</span>
+                                        <div class="type-title">Регистрация чеков</div>
+                                        <div class="type-description">Пользователи загружают фото чеков для участия в
+                                            акции</div>
+                                    </label>
+                                    <label class="type-card {% if form__type == 'promo' %}selected{% endif %}"
+                                        data-type="promo">
+                                        <input type="radio" name="type" value="promo" {% if form__type=='promo'
+                                            %}checked{% endif %}>
+                                        <div class="type-check"><i class="bi bi-check"></i></div>
+                                        <span class="type-icon">🎁</span>
+                                        <div class="type-title">Промо-коды</div>
+                                        <div class="type-description">Пользователи вводят промокоды для получения
+                                            билетов</div>
+                                    </label>
+                                </div>
                                 <div class="form-text">Определяет основную логику работы бота</div>
                             </div>
                         </div>
@@ -115,4 +138,21 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const typeCards = document.querySelectorAll('.type-card');
+
+        typeCards.forEach(card => {
+            card.addEventListener('click', function () {
+                // Remove selected from all
+                typeCards.forEach(c => c.classList.remove('selected'));
+                // Add selected to clicked
+                this.classList.add('selected');
+            });
+        });
+    });
+</script>
 {% endblock %}
