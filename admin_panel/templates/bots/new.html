@@ -132,35 +132,36 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Handle radio type cards (Campaign Type - exclusive selection)
-        const radioCards = document.querySelectorAll('.type-card:has(input[type="radio"])');
-        radioCards.forEach(card => {
-            card.addEventListener('click', function () {
-                // Find cards in the same group (same parent selector)
-                const parent = this.closest('.type-selector');
-                const siblingCards = parent.querySelectorAll('.type-card:has(input[type="radio"])');
-                siblingCards.forEach(c => c.classList.remove('selected'));
-                this.classList.add('selected');
-            });
-        });
+        // Get all type cards
+        const allCards = document.querySelectorAll('.type-card');
 
-        // Handle checkbox toggle cards (optional features - toggle)
-        const toggleCards = document.querySelectorAll('.type-card.option-toggle');
-        toggleCards.forEach(card => {
-            const checkbox = card.querySelector('input[type="checkbox"]');
+        allCards.forEach(card => {
+            const radioInput = card.querySelector('input[type="radio"]');
+            const checkboxInput = card.querySelector('input[type="checkbox"]');
 
-            card.addEventListener('click', function (e) {
-                // Toggle selected state
-                const isSelected = this.classList.toggle('selected');
-                // Sync checkbox state
-                if (checkbox) {
-                    checkbox.checked = isSelected;
+            if (radioInput) {
+                // Radio card - exclusive selection within group
+                card.addEventListener('click', function () {
+                    const parent = this.closest('.type-selector');
+                    parent.querySelectorAll('.type-card').forEach(c => {
+                        if (c.querySelector('input[type="radio"]')) {
+                            c.classList.remove('selected');
+                        }
+                    });
+                    this.classList.add('selected');
+                });
+            } else if (checkboxInput) {
+                // Checkbox card - toggle selection
+                card.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const isSelected = this.classList.toggle('selected');
+                    checkboxInput.checked = isSelected;
+                });
+
+                // Initialize from checkbox state
+                if (checkboxInput.checked) {
+                    card.classList.add('selected');
                 }
-            });
-
-            // Initialize state from checkbox
-            if (checkbox && checkbox.checked) {
-                card.classList.add('selected');
             }
         });
     });
