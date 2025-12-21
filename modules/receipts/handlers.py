@@ -80,7 +80,7 @@ class ReceiptsModule(BotModule):
                 await message.answer("Ошибка инициализации. Попробуйте /start")
                 return
             
-            if not config.is_promo_active(bot_id):
+            if not await config.is_promo_active_async(bot_id):
                 msg = config_manager.get_message('promo_ended', self.default_messages['promo_ended'], bot_id=bot_id)
                 from bot_manager import bot_manager
                 await message.answer(msg, reply_markup=get_main_keyboard(config.is_admin(message.from_user.id), bot_manager.bot_types.get(bot_id, 'receipt')))

@@ -69,11 +69,19 @@ log "Fixing permissions..."
 chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_DIR"
 chmod +x "$PROJECT_DIR/scripts/"*.sh
 
-# 3. Dependencies
-log "Updating Python dependencies..."
+# 3. Dependencies (skip if requirements.txt hasn't changed)
+log "Checking Python dependencies..."
 if [ -f "$PROJECT_DIR/requirements.txt" ]; then
-    # Use the venv pip
-    sudo -u "$SERVICE_USER" "$PROJECT_DIR/venv/bin/pip" install -r "$PROJECT_DIR/requirements.txt" | grep -v "Requirement already satisfied" || true
+    REQ_HASH=$(md5sum "$PROJECT_DIR/requirements.txt" | cut -d' ' -f1)
+    OLD_HASH=$(cat "$PROJECT_DIR/.req_hash" 2>/dev/null || echo "")
+    
+    if [ "$REQ_HASH" != "$OLD_HASH" ]; then
+        log "Updating Python dependencies..."
+        sudo -u "$SERVICE_USER" "$PROJECT_DIR/venv/bin/pip" install -r "$PROJECT_DIR/requirements.txt" | grep -v "Requirement already satisfied" || true
+        echo "$REQ_HASH" > "$PROJECT_DIR/.req_hash"
+    else
+        log "Dependencies unchanged, skipping pip install"
+    fi
 else
     warn "requirements.txt not found!"
 fi

@@ -8,8 +8,8 @@ User=adminbots
 WorkingDirectory=/opt/admin-bots-platform
 EnvironmentFile=/opt/admin-bots-platform/.env
 Environment="PYTHONPATH=/opt/admin-bots-platform"
-# Multi-bot: 4 workers for handling multiple bot contexts
-ExecStart=/opt/admin-bots-platform/venv/bin/uvicorn admin_panel.app:app --host 127.0.0.1 --port 8000 --workers 4 --timeout-keep-alive 120
+# Single-worker for faster startup (scales fine for small deployments)
+ExecStart=/opt/admin-bots-platform/venv/bin/uvicorn admin_panel.app:app --host 127.0.0.1 --port 8000 --workers 1 --timeout-keep-alive 120
 Restart=always
 RestartSec=5
 StandardOutput=journal

@@ -156,16 +156,55 @@ def setup_routes(
         request: Request, user_id: int, tickets: int = Form(...),
         reason: str = Form(None), user: Dict = Depends(get_current_user)
     ):
+        """Award tickets by generating a promo code and sending it to user"""
         if not (bot := request.state.bot): return RedirectResponse("/")
         user_data = await get_user_detail(user_id)
         if not user_data or user_data['bot_id'] != bot['id']:
             raise HTTPException(404, "User not found")
         
-        from database.bot_methods import add_manual_tickets, bot_db_context
+        from database.bot_methods import generate_unique_promo_code, bot_db_context
+        
+        tickets_count = max(1, min(tickets, 10000))
         created_by = user.get('username', 'admin') if isinstance(user, dict) else str(user)
+        
         async with bot_db_context(bot['id']):
-            await add_manual_tickets(user_id, max(1, min(tickets, 10000)), reason, created_by)
-        return RedirectResponse(f"/users/{user_id}?msg=tickets_added", 303)
+            # Generate real promo code instead of manual_tickets
+            promo_code = await generate_unique_promo_code(tickets=tickets_count)
+            if not promo_code:
+                return RedirectResponse(f"/users/{user_id}?msg=error", 303)
+        
+        # Send message to user with inline button
+        from aiogram import Bot as AiogramBot
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        
+        code = promo_code['code']
+        reason_text = f"\n📝 Причина: {reason}" if reason else ""
+        message_text = (
+            f"🎁 <b>Вам начислены билеты!</b>\n\n"
+            f"🔑 Код: <code>{code}</code>\n"
+            f"🎟 Билетов: {tickets_count}{reason_text}\n\n"
+            f"Нажмите кнопку для активации:"
+        )
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Активировать", callback_data=f"activate_code:{code}")]
+        ])
+        
+        bot_instance = AiogramBot(token=bot['token'])
+        try:
+            await bot_instance.send_message(
+                user_data['telegram_id'], 
+                message_text, 
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
+            logger.info(f"Awarded {tickets_count} tickets to user {user_id} via promo {code} by {created_by}")
+            return RedirectResponse(f"/users/{user_id}?msg=tickets_added", 303)
+        except Exception as e:
+            logger.error(f"Failed to send award message: {e}")
+            return RedirectResponse(f"/users/{user_id}?msg=error", 303)
+        finally:
+            await bot_instance.session.close()
 
     @router.post("/{user_id}/update", dependencies=[Depends(verify_csrf_token)])
     async def update_user_profile(

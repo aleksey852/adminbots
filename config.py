@@ -85,6 +85,7 @@ def is_admin(telegram_id: int) -> bool:
 
 
 def is_promo_active(bot_id: int = None) -> bool:
+    """Sync version - uses cached settings (may be stale)"""
     try:
         start_date = PROMO_START_DATE
         end_date = PROMO_END_DATE
@@ -101,6 +102,40 @@ def is_promo_active(bot_id: int = None) -> bool:
     except Exception as e:
         logger.error(f"Error checking promo status: {e}")
         return True
+
+
+async def is_promo_active_async(bot_id: int) -> bool:
+    """Async version - fetches promo dates directly from bot's database"""
+    try:
+        from database.bot_db import bot_db_manager
+        
+        start_date = PROMO_START_DATE
+        end_date = PROMO_END_DATE
+        
+        db = bot_db_manager.get(bot_id)
+        if db:
+            async with db.get_connection() as conn:
+                row = await conn.fetchrow(
+                    "SELECT value FROM settings WHERE key = $1", 
+                    "promo_start_date"
+                )
+                if row:
+                    start_date = row['value']
+                    
+                row = await conn.fetchrow(
+                    "SELECT value FROM settings WHERE key = $1", 
+                    "promo_end_date"
+                )
+                if row:
+                    end_date = row['value']
+        
+        now = get_now().replace(tzinfo=None)
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        return start <= now <= end
+    except Exception as e:
+        logger.error(f"Error checking promo status async: {e}")
+        return True  # Default to active on error
 
 
 def days_until_end(bot_id: int = None) -> int:

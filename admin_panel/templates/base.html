@@ -335,6 +335,19 @@
             updateGlobalJobs();
             // Poll every 3 seconds for efficiency
             globalJobsInterval = setInterval(updateGlobalJobs, 3000);
+
+            // Fix for stuck modal backdrops
+            // Listen for modal hidden events and cleanup orphaned backdrops
+            document.addEventListener('hidden.bs.modal', function () {
+                const openModals = document.querySelectorAll('.modal.show');
+                if (openModals.length === 0) {
+                    // No modals open, remove all backdrops
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                }
+            });
         });
     </script>
     {% block extra_js %}{% endblock %}
