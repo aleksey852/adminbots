@@ -1,6 +1,6 @@
 # Боты — Модульная Архитектура v3.0
 
-**Бот = Конфигурация, НЕ код!**
+**Бот = Конфигурация + Контент, НЕ код!**
 
 ## 🎯 Быстрый старт
 
@@ -13,17 +13,18 @@ cp -r bots/_template bots/my_bot
 ```json
 {
   "display_name": "Мой Бот",
-  "modules": ["core", "promo", "raffle"],
+  "modules": ["core", "profile", "promo", "raffle"],
   "module_config": {
-    "promo": { "max_codes_per_user": 5 }
+    "profile": { "required_fields": ["phone"] },
+    "promo": { "tickets_per_code": 3 }
   }
 }
 ```
 
-### 3. Настройте content.py
+### 3. Отредактируйте content.py
 ```python
-WELCOME = "🎉 Добро пожаловать!"
-BTN_PROMO = "🎁 Ввести код"
+WELCOME = "🎉 Добро пожаловать в нашу акцию!"
+PROMO_ACTIVATED = "✅ Код активирован! +{tickets} билетов"
 ```
 
 ### 4. Активируйте через панель
@@ -38,13 +39,12 @@ BTN_PROMO = "🎁 Ввести код"
 
 ```
 bots/
-├── _base.py             # BotBase class
-├── _template/           # Шаблон
-├── promo_example/       # Промо-бот  
-└── receipt_example/     # Чековый бот
-    ├── __init__.py      # bot = BotBase(__file__)
-    ├── manifest.json    # Модули + настройки
-    └── content.py       # Тексты
+├── _template/           # Шаблон для копирования
+│   ├── __init__.py
+│   ├── manifest.json    # Модули + настройки
+│   └── content.py       # ВСЕ тексты бота
+├── promo_example/
+└── receipt_example/
 ```
 
 ---

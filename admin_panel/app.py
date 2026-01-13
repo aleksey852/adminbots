@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
         await init_panel_db(config.PANEL_DATABASE_URL)
         
         # Register modules so they appear in settings
-        from modules.base import module_loader
+        from core.module_loader import module_loader
         
         # Auto-discover modules
         module_loader.discover_modules()
@@ -324,16 +324,16 @@ async def dashboard(request: Request, user: Dict = Depends(auth.get_current_user
 
 # === Statistics API ===
 
-from fastapi.responses import JSONResponse
+from admin_panel.utils.responses import success, error
 
 @app.get("/api/stats/daily")
 async def api_daily_stats(request: Request, days: int = 14, user: Dict = Depends(auth.get_current_user)):
     bot = request.state.bot
     if not bot:
-        return JSONResponse({})
+        return error("No active bot")
     
     data = await get_stats_by_days(days=days)
-    return JSONResponse({
+    return success(data={
         "labels": [str(d['day']) for d in data],
         "users": [d['users'] for d in data],
         "receipts": [d['receipts'] for d in data]

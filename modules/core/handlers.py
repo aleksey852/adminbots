@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 import math
 import logging
 
-from modules.base import BotModule
+from core.module_base import BotModule
 from database.bot_methods import get_user_with_stats, get_user_receipts, update_username, get_user_wins
 from utils.config_manager import config_manager
 from bot_manager import bot_manager
@@ -25,9 +25,13 @@ class CoreModule(BotModule):
     """Base bot functionality: start, menu, profile, FAQ, support"""
     
     name = "core"
-    version = "1.0.0"
+    version = "2.0.0"
     description = "Базовый функционал: меню, профиль, FAQ"
     default_enabled = True
+    
+    # State protection
+    states = []  # Core has no waiting states
+    state_timeout = 600
     
     settings_schema = {
         "promo_start_date": {

@@ -13,7 +13,7 @@ import tempfile
 import time
 import uuid
 
-from modules.base import BotModule
+from core.module_base import BotModule
 from utils.states import AdminBroadcast, AdminRaffle, AdminManualReceipt
 from .keyboards import (
     get_confirm_keyboard, get_schedule_keyboard, get_admin_broadcast_preview_keyboard
@@ -35,9 +35,19 @@ class AdminModule(BotModule):
     """Admin functionality for bot management"""
     
     name = "admin"
-    version = "1.0.0"
+    version = "2.0.0"
     description = "Инструменты администратора: рассылки, розыгрыши, статистика"
     default_enabled = True
+    dependencies = ["core"]
+    
+    # State protection
+    states = [
+        "AdminBroadcast:content", "AdminBroadcast:preview", "AdminBroadcast:schedule",
+        "AdminRaffle:prize_name", "AdminRaffle:winner_count", "AdminRaffle:winner_message",
+        "AdminRaffle:loser_message", "AdminRaffle:schedule", "AdminRaffle:confirm",
+        "AdminManualReceipt:user_id", "AdminManualReceipt:tickets", "AdminManualReceipt:confirm"
+    ]
+    state_timeout = 1800  # 30 min for admin operations
     
     def _setup_handlers(self):
         """Setup admin handlers"""

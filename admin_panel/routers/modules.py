@@ -10,7 +10,7 @@ from database.panel_db import (
     get_module_settings,
     set_module_settings
 )
-from modules.base import module_loader
+from core.module_loader import module_loader
 
 router = APIRouter(prefix="/bots/{bot_id}", tags=["modules"])
 

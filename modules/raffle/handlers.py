@@ -7,7 +7,7 @@ from aiogram import F
 from aiogram.types import Message
 import logging
 
-from modules.base import BotModule
+from core.module_base import BotModule
 import config
 
 logger = logging.getLogger(__name__)
@@ -22,9 +22,19 @@ class RaffleModule(BotModule):
     """
     
     name = "raffle"
-    version = "1.0.0"
+    version = "2.0.0"
     description = "Модуль розыгрышей призов"
     default_enabled = True
+    dependencies = ["core"]
+    
+    # Menu button
+    menu_buttons = [
+        {"text": "🎟 Мои билеты", "order": 30}
+    ]
+    
+    # State protection
+    states = []
+    state_timeout = 600
     
     # No settings - admin creates raffles manually
     settings_schema = {}

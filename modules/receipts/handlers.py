@@ -7,7 +7,8 @@ from aiogram.fsm.context import FSMContext
 import io
 import logging
 
-from modules.base import BotModule
+from core.module_base import BotModule
+from core.event_bus import event_bus
 from utils.states import ReceiptSubmission
 from utils.config_manager import config_manager
 from .keyboards import get_receipt_continue_keyboard, get_cancel_keyboard
@@ -23,10 +24,19 @@ class ReceiptsModule(BotModule):
     """Receipt upload and validation module"""
     
     name = "receipts"
-    version = "1.0.0"
+    version = "2.0.0"
     description = "Модуль загрузки и проверки чеков"
     default_enabled = True
-    dependencies = ["registration"]
+    dependencies = ["core", "registration", "profile"]
+    
+    # Menu button
+    menu_buttons = [
+        {"text": "🧾 Загрузить чек", "order": 20}
+    ]
+    
+    # State protection
+    states = ["ReceiptSubmission:upload_qr"]
+    state_timeout = 600
     
     settings_schema = {
         "target_keywords": {
@@ -93,6 +103,15 @@ class ReceiptsModule(BotModule):
             
             if message.from_user.username != user.get('username'):
                 await update_username(message.from_user.id, message.from_user.username or "")
+            
+            # Check profile required fields
+            try:
+                from modules.profile import profile_module
+                if not await profile_module.check_required(message.from_user.id, bot_id):
+                    await profile_module.request_required_fields(message, bot_id)
+                    return
+            except ImportError:
+                pass  # Profile module not enabled
             
             # Check rate limit
             allowed, limit_msg = await check_rate_limit(message.from_user.id, bot_id=bot_id)
@@ -255,6 +274,13 @@ class ReceiptsModule(BotModule):
         
         # Success!
         await increment_rate_limit(message.from_user.id, bot_id=bot_id)
+        
+        # Emit event
+        await event_bus.emit("receipts.receipt_approved", {
+            "user_id": user_db_id,
+            "tickets": total_tickets,
+            "product": found_items[0]["name"] if found_items else None
+        }, bot_id=bot_id)
         
         # Get total stats
         user_total_tickets = await get_user_tickets_count(user_db_id)

@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 import re
 import logging
 
-from modules.base import BotModule
+from core.module_base import BotModule
 from utils.states import Registration
 from .keyboards import get_contact_keyboard, get_start_keyboard
 from modules.core.keyboards import get_main_keyboard
@@ -23,9 +23,14 @@ class RegistrationModule(BotModule):
     """User registration module with optional subscription requirement"""
     
     name = "registration"
-    version = "2.0.0"
+    version = "2.1.0"
     description = "Модуль регистрации пользователей"
     default_enabled = True
+    dependencies = ["core"]
+    
+    # State protection
+    states = ["Registration:name", "Registration:phone"]
+    state_timeout = 600
     
     # Subscription settings integrated into registration
     settings_schema = {

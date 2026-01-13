@@ -523,6 +523,10 @@ async def update_user_fields(uid: int, **kwargs):
         if fields: 
             await conn.execute(f"UPDATE users SET {', '.join(fields)} WHERE id=${len(vals)+1}", *vals, uid)
 
+async def update_user_field(uid: int, field: str, value: Any):
+    """Update a single user field. Wrapper for update_user_fields."""
+    await update_user_fields(uid, **{field: value})
+
 async def get_user_receipts_detailed(uid, limit=50): return await get_user_receipts(uid, limit)
 async def get_total_users_count():
     async with get_current_bot_db().get_connection() as conn: return await conn.fetchval("SELECT COUNT(*) FROM users") or 0

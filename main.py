@@ -17,7 +17,7 @@ import config
 from database.panel_db import init_panel_db, close_panel_db
 from database.bot_db import bot_db_manager
 from bot_manager import bot_manager, PollingManager
-from modules.base import module_loader
+from core.module_loader import module_loader
 from utils.bot_middleware import BotMiddleware, get_enabled_modules
 from utils.rate_limiter import init_rate_limiter, close_rate_limiter
 from scheduler import scheduler

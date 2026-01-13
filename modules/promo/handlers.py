@@ -6,7 +6,7 @@ from aiogram.types import Message, CallbackQuery
 import re
 import logging
 
-from modules.base import BotModule
+from core.module_base import BotModule
 from bot_manager import bot_manager
 from utils.config_manager import config_manager
 from database import bot_methods
@@ -18,9 +18,19 @@ class PromoModule(BotModule):
     """Promo code activation module"""
     
     name = "promo"
-    version = "1.0.0"
+    version = "2.0.0"
     description = "Модуль активации промокодов"
     default_enabled = True
+    dependencies = ["core", "profile"]
+    
+    # Menu button for dynamic menu
+    menu_buttons = [
+        {"text": "🔑 Ввести промокод", "order": 20}
+    ]
+    
+    # State protection
+    states = []  # No FSM states, just processes text
+    state_timeout = 600
     
     PROMO_CODE_LENGTH = 12
     # Allows generic alphanumeric, will be normalized

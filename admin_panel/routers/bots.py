@@ -116,7 +116,7 @@ def setup_routes(
     async def edit_bot_page(request: Request, bot_id: int, user: Dict = Depends(require_superadmin), msg: str = None):
         from database.bot_methods import get_stats, bot_db_context
         from utils.config_manager import config_manager
-        from modules.base import module_loader
+        from core.module_loader import module_loader
         
         bot = await get_bot_by_id(bot_id)
         if not bot: raise HTTPException(404, "Bot not found")
@@ -211,7 +211,7 @@ def setup_routes(
     async def update_bot_modules(request: Request, bot_id: int):
         from database.panel_db import update_bot
         from utils.config_manager import config_manager
-        from modules.base import module_loader
+        from core.module_loader import module_loader
         
         form = await request.form()
         
