@@ -1,0 +1,43 @@
+{
+    "name": "love_is",
+    "display_name": "Love is — Магнит + МК",
+    "version": "1.0.0",
+    "description": "Промо-акция Love is от Магнит и Московский картофель. Главный приз 250 тыс. руб., еженедельные сертификаты Золотое яблоко.",
+    "author": "Admin Bots Platform",
+    "modules": [
+        "core",
+        "registration",
+        "promo",
+        "raffle",
+        "admin"
+    ],
+    "module_config": {
+        "registration": {
+            "subscription_required": false,
+            "subscription_channel_id": null,
+            "subscription_channel_url": null
+        },
+        "promo": {
+            "max_codes_per_user": 100,
+            "allow_multiple_activations": true,
+            "notify_admin_on_activation": false,
+            "show_remaining_codes": false
+        },
+        "raffle": {
+            "intermediate_enabled": false,
+            "tickets_per_code": 1
+        }
+    },
+    "panel_features": {
+        "users": true,
+        "broadcasts": true,
+        "content_editor": true,
+        "promo_codes": true,
+        "receipts": false,
+        "raffle": true
+    },
+    "database": {
+        "type": "postgresql",
+        "auto_create": true
+    }
+}

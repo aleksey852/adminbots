@@ -68,6 +68,9 @@ def setup_routes(
         bot_name: str = Form(...),
         token: str = Form(...), 
         admin_ids: str = Form(""),
+        require_subscription: str = Form(None),
+        channel_id: str = Form(""),
+        channel_url: str = Form(""),
         user: Dict = Depends(require_superadmin)
     ):
         """Activate a bot template with the given token"""
@@ -85,12 +88,22 @@ def setup_routes(
             # Parse admin IDs
             admin_id_list = [int(x.strip()) for x in admin_ids.split(',') if x.strip().isdigit()]
             
+            # Parse subscription settings - use registration module's key names
+            subscription_settings = None
+            if require_subscription and channel_id.strip():
+                subscription_settings = {
+                    "subscription_required": "true",
+                    "subscription_channel_id": channel_id.strip(),
+                    "subscription_channel_url": channel_url.strip() if channel_url else ""
+                }
+            
             # Activate template
             result = await activate_bot_template(
                 template_path=template_path,
                 token=token,
                 admin_ids=admin_id_list,
-                custom_name=bot_name
+                custom_name=bot_name,
+                initial_settings=subscription_settings
             )
             
             request.session["active_bot_id"] = result['bot_id']

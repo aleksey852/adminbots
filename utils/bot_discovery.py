@@ -117,7 +117,8 @@ async def activate_bot_template(
     template_path: str,
     token: str,
     admin_ids: List[int] = None,
-    custom_name: str = None
+    custom_name: str = None,
+    initial_settings: Dict = None
 ) -> Dict:
     """
     Activate a bot template with the given token.
@@ -129,6 +130,7 @@ async def activate_bot_template(
         token: Telegram bot token
         admin_ids: List of admin telegram IDs
         custom_name: Custom name for the bot (displayed in panel)
+        initial_settings: Initial settings to apply (e.g. subscription settings)
     
     Returns:
         Dict with bot_id and status
@@ -279,6 +281,16 @@ async def activate_bot_template(
         
         # Create indexes
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)")
+        
+        # Apply initial settings if provided
+        if initial_settings:
+            for key, value in initial_settings.items():
+                str_value = str(value) if not isinstance(value, str) else value
+                await conn.execute(
+                    "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
+                    key, str_value
+                )
+            logger.info(f"Applied initial settings: {list(initial_settings.keys())}")
     
     # Notify main process to reload bots
     async with get_panel_connection() as conn:

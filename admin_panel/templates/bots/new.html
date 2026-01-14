@@ -113,6 +113,31 @@
                             placeholder="123456789, 987654321">
                         <div class="form-text">Через запятую. Узнать ID: <code>@userinfobot</code></div>
                     </div>
+
+                    <hr class="my-3">
+                    <h6 class="mb-3"><i class="bi bi-megaphone me-1"></i>Подписка на канал</h6>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="require_subscription"
+                            name="require_subscription" onchange="toggleChannelInput(this)">
+                        <label class="form-check-label" for="require_subscription">
+                            Требовать подписку на канал
+                        </label>
+                    </div>
+
+                    <div class="mb-3" id="channelInputBlock" style="display: none;">
+                        <label for="channel_id" class="form-label">ID канала (для проверки)</label>
+                        <input type="text" class="form-control" id="channel_id" name="channel_id"
+                            placeholder="-1001234567890">
+                        <div class="form-text">Бот должен быть администратором канала. Получить ID: @userinfobot</div>
+                    </div>
+
+                    <div class="mb-3" id="channelUrlBlock" style="display: none;">
+                        <label for="channel_url" class="form-label">Ссылка на канал (для кнопки)</label>
+                        <input type="text" class="form-control" id="channel_url" name="channel_url"
+                            placeholder="https://t.me/my_channel">
+                        <div class="form-text">Публичная ссылка или invite-link</div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
@@ -183,7 +208,18 @@
         document.getElementById('bot_name').value = '';
         document.getElementById('token').value = '';
         document.getElementById('admin_ids').value = '';
+        document.getElementById('require_subscription').checked = false;
+        document.getElementById('channel_id').value = '';
+        document.getElementById('channel_url').value = '';
+        document.getElementById('channelInputBlock').style.display = 'none';
+        document.getElementById('channelUrlBlock').style.display = 'none';
         activateModal.show();
+    }
+
+    function toggleChannelInput(checkbox) {
+        const show = checkbox.checked ? 'block' : 'none';
+        document.getElementById('channelInputBlock').style.display = show;
+        document.getElementById('channelUrlBlock').style.display = show;
     }
 </script>
 {% endblock %}
