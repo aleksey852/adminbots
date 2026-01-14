@@ -249,3 +249,20 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+    // Clean up modal backdrop on close
+    const deleteModal = document.getElementById('deleteModal');
+    if (deleteModal) {
+        deleteModal.addEventListener('hidden.bs.modal', function () {
+            // Remove any leftover backdrops
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            // Reset body styles
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        });
+    }
+</script>
+{% endblock %}

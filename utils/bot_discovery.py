@@ -86,6 +86,45 @@ def scan_bot_templates() -> List[BotTemplate]:
     return sorted(templates, key=lambda t: t.display_name)
 
 
+def load_content_from_template(template_path: str) -> Dict[str, str]:
+    """
+    Load content.py from a bot template and extract message texts.
+    
+    Scans for string constants (UPPERCASE names) and returns them as a dict
+    with keys like 'msg_WELCOME', 'msg_PROMO_SUCCESS' etc.
+    """
+    content_path = Path(template_path) / "content.py"
+    if not content_path.exists():
+        logger.debug(f"No content.py in {template_path}")
+        return {}
+    
+    messages = {}
+    try:
+        # Read and execute content.py to get variables
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("content", content_path)
+        content_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(content_module)
+        
+        # Extract string constants (UPPERCASE variable names)
+        for name in dir(content_module):
+            if name.startswith('_'):
+                continue
+            if not name.isupper():
+                continue
+            value = getattr(content_module, name)
+            if isinstance(value, str):
+                # Store as msg_<name> for config_manager
+                messages[f"msg_{name.lower()}"] = value.strip()
+        
+        logger.info(f"Loaded {len(messages)} messages from content.py")
+        
+    except Exception as e:
+        logger.error(f"Failed to load content.py: {e}")
+    
+    return messages
+
+
 async def get_templates_with_status() -> List[BotTemplate]:
     """
     Get templates with their activation status.
@@ -291,6 +330,16 @@ async def activate_bot_template(
                     key, str_value
                 )
             logger.info(f"Applied initial settings: {list(initial_settings.keys())}")
+        
+        # Load and apply content.py messages
+        content_messages = load_content_from_template(template_path)
+        if content_messages:
+            for key, value in content_messages.items():
+                await conn.execute(
+                    "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
+                    key, value
+                )
+            logger.info(f"Applied {len(content_messages)} messages from content.py")
     
     # Notify main process to reload bots
     async with get_panel_connection() as conn:

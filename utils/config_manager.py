@@ -29,11 +29,17 @@ class ConfigManager:
         return default
 
     def get_message(self, key: str, default: str = "", bot_id: int = None) -> str:
-        """Get message text from cache"""
+        """Get message text from cache (checks messages, then settings with msg_ prefix)"""
         if not self._initialized:
             return default
-        if bot_id and bot_id in self._messages:
-            return self._messages[bot_id].get(key, default)
+        if bot_id:
+            # First check messages table cache
+            if bot_id in self._messages and key in self._messages[bot_id]:
+                return self._messages[bot_id][key]
+            # Then check settings with msg_ prefix (loaded from content.py)
+            msg_key = f"msg_{key}"
+            if bot_id in self._settings and msg_key in self._settings[bot_id]:
+                return self._settings[bot_id][msg_key]
         return default
 
     async def set_setting(self, key: str, value: str, bot_id: int):

@@ -39,20 +39,14 @@ def setup_routes(
     
     @router.get("/", response_class=HTMLResponse)
     async def content_editor_page(request: Request, user: Dict = Depends(get_current_user)):
-        """Content editor main page"""
-        from database.panel_db import get_bot_by_id
-        from utils.content_loader import list_content_keys, get_bot_content
-        
+        """Content editor - direct content.py editing"""
         bot = request.state.bot
         if not bot:
             return templates.TemplateResponse("content/editor.html", get_template_context(
                 request, user=user, title="Контент", error="Нет активного бота"
             ))
         
-        bot_id = bot['id']
         manifest_path = bot.get('manifest_path')
-        
-        # Check if bot has manifest path
         if not manifest_path:
             return templates.TemplateResponse("content/editor.html", get_template_context(
                 request, user=user, title="Контент",
@@ -60,69 +54,35 @@ def setup_routes(
                 bot=bot
             ))
         
-        # Check if content.py exists
         content_path = os.path.join(manifest_path, 'content.py')
-        if not os.path.exists(content_path):
-            return templates.TemplateResponse("content/editor.html", get_template_context(
-                request, user=user, title="Контент",
-                error=f"Файл content.py не найден: {content_path}",
-                bot=bot
-            ))
         
-        # Load content
-        try:
-            content_data = list_content_keys(bot_id)
-            
-            # Group content by category
-            sections = {
-                "main": {"title": "Основные тексты", "entries": {}},
-                "buttons": {"title": "Кнопки", "entries": {}},
-                "promo": {"title": "Промокоды", "entries": {}},
-                "raffle": {"title": "Розыгрыши", "entries": {}},
-                "subscription": {"title": "Подписка", "entries": {}},
-                "admin": {"title": "Админ уведомления", "entries": {}},
-                "system": {"title": "Системные", "entries": {}},
-                "faq": {"title": "FAQ", "entries": {}},
-                "other": {"title": "Прочее", "entries": {}},
-            }
-            
-            for key, value in content_data.items():
-                if key.startswith('BTN_'):
-                    sections["buttons"]["entries"][key] = value
-                elif key.startswith('PROMO_'):
-                    sections["promo"]["entries"][key] = value
-                elif key.startswith('RAFFLE_'):
-                    sections["raffle"]["entries"][key] = value
-                elif key.startswith('SUBSCRIPTION_'):
-                    sections["subscription"]["entries"][key] = value
-                elif key.startswith('ADMIN_'):
-                    sections["admin"]["entries"][key] = value
-                elif key.startswith('ERROR_') or key == 'MAINTENANCE':
-                    sections["system"]["entries"][key] = value
-                elif key.startswith('FAQ'):
-                    sections["faq"]["entries"][key] = value
-                elif key in ('WELCOME', 'MENU', 'PROFILE'):
-                    sections["main"]["entries"][key] = value
-                else:
-                    sections["other"]["entries"][key] = value
-            
-            # Remove empty sections
-            sections = {k: v for k, v in sections.items() if v["entries"]}
-            
-            return templates.TemplateResponse("content/editor.html", get_template_context(
-                request, user=user, title="Редактор контента",
-                sections=sections, content_path=content_path, bot=bot
-            ))
-            
-        except Exception as e:
-            logger.error(f"Failed to load content for bot {bot_id}: {e}")
-            return templates.TemplateResponse("content/editor.html", get_template_context(
-                request, user=user, title="Контент", error=str(e), bot=bot
-            ))
+        if not os.path.exists(content_path):
+            raw_content = '''"""
+Bot Content — Все тексты бота.
+
+Создайте переменные UPPERCASE и они автоматически загрузятся.
+"""
+
+WELCOME = """
+🎉 Добро пожаловать!
+"""
+
+MENU = """
+📋 Главное меню
+"""
+'''
+        else:
+            with open(content_path, 'r', encoding='utf-8') as f:
+                raw_content = f.read()
+        
+        return templates.TemplateResponse("content/editor.html", get_template_context(
+            request, user=user, title="Редактор контента",
+            raw_content=raw_content, content_path=content_path, bot=bot
+        ))
     
     @router.post("/save", dependencies=[Depends(verify_csrf_token)])
     async def save_content(request: Request, user: Dict = Depends(get_current_user)):
-        """Save updated content to content.py"""
+        """Save content.py directly"""
         from utils.content_loader import reload_content
         
         bot = request.state.bot
@@ -135,55 +95,21 @@ def setup_routes(
         
         content_path = os.path.join(manifest_path, 'content.py')
         
-        # Get form data
         form = await request.form()
-        content_data = {}
+        raw_content = form.get('raw_content', '')
         
-        for key in form.keys():
-            if key.startswith('content_'):
-                real_key = key.replace('content_', '')
-                content_data[real_key] = form[key]
-        
-        # Also handle FAQ as JSON if present
-        faq_json = form.get('faq_items')
-        if faq_json:
-            try:
-                content_data['FAQ_ITEMS'] = json.loads(faq_json)
-            except json.JSONDecodeError:
-                pass
-        
-        # Generate Python file
-        lines = [
-            '"""',
-            'Bot Content — Тексты бота.',
-            '',
-            'Файл сгенерирован через Admin Panel.',
-            '"""',
-            ''
-        ]
-        
-        for key, value in content_data.items():
-            if isinstance(value, str):
-                if '\n' in value or len(value) > 80:
-                    # Multiline string
-                    escaped = value.replace('"""', '\\"\\"\\"')
-                    lines.append(f'{key} = """')
-                    lines.append(escaped)
-                    lines.append('"""')
-                else:
-                    # Single line string
-                    escaped = value.replace('\\', '\\\\').replace('"', '\\"')
-                    lines.append(f'{key} = "{escaped}"')
-            elif isinstance(value, dict):
-                lines.append(f'{key} = {json.dumps(value, ensure_ascii=False, indent=4)}')
-            lines.append('')
+        # Validate Python syntax
+        try:
+            compile(raw_content, content_path, 'exec')
+        except SyntaxError as e:
+            return RedirectResponse(f"/content?error=Синтаксическая+ошибка:+строка+{e.lineno}:+{e.msg}", status_code=303)
         
         # Write file
         try:
             with open(content_path, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(lines))
+                f.write(raw_content)
             
-            # Reload content
+            # Reload content into bot's database
             reload_content(bot['id'])
             
             logger.info(f"Saved content for bot {bot['id']}")
