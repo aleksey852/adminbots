@@ -90,6 +90,10 @@ class RegistrationModule(BotModule):
                 await message.answer(msg, reply_markup=get_start_keyboard())
                 return
             
+            # Prevent commands from being captured as names
+            if message.text.startswith('/'):
+                return
+            
             if not message.text or len(message.text) < 2 or len(message.text) > 100:
                 msg = config_manager.get_message('reg_name_error', self.default_messages['reg_name_error'], bot_id=bot_id)
                 await message.answer(msg)
@@ -111,39 +115,39 @@ class RegistrationModule(BotModule):
                 await message.answer("Ошибка: бот не идентифицирован")
                 return
 
+            import phonenumbers
+            from phonenumbers import NumberParseException
+
             if message.text == "❌ Отмена":
                 await state.clear()
                 msg = config_manager.get_message('reg_cancel', self.default_messages['reg_cancel'], bot_id=bot_id)
                 await message.answer(msg, reply_markup=get_start_keyboard())
                 return
             
-            phone = None
+            input_phone = ""
             if message.contact:
-                phone = message.contact.phone_number
-                # Contact might come without +, but usually it's clean
-                if not phone.startswith('+'):
-                     phone = '+' + phone
+                input_phone = message.contact.phone_number
             elif message.text:
-                # 1. Strip whitespace and separators
-                text = message.text.strip()
-                clean = re.sub(r'[\s\-\(\)]', '', text)
+                input_phone = message.text.strip()
+            else:
+                msg = config_manager.get_message('reg_phone_request', self.default_messages['reg_phone_request'], bot_id=bot_id)
+                await message.answer(msg)
+                return
+
+            try:
+                # Parse number (Default region RU handles "8..." correctly -> "+7...")
+                parsed_number = phonenumbers.parse(input_phone, "RU")
                 
-                # 2. Handle Russian 8 prefix logic
-                # Only if starts with 8 and is 11 digits total (e.g., 89991234567)
-                if len(clean) == 11 and clean.startswith('8'):
-                     clean = '7' + clean[1:]
-                
-                # 3. Final Validation: must be digits (after stripping +)
-                digits_only = clean[1:] if clean.startswith('+') else clean
-                
-                if not digits_only.isdigit() or len(digits_only) < 10 or len(digits_only) > 15:
+                if not phonenumbers.is_valid_number(parsed_number):
                     msg = config_manager.get_message('reg_phone_error', self.default_messages['reg_phone_error'], bot_id=bot_id)
                     await message.answer(msg)
                     return
 
-                phone = clean if clean.startswith('+') else '+' + clean
-            else:
-                msg = config_manager.get_message('reg_phone_request', self.default_messages['reg_phone_request'], bot_id=bot_id)
+                # Format to E.164 (+79991234567)
+                phone = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.E164)
+                
+            except NumberParseException:
+                msg = config_manager.get_message('reg_phone_error', self.default_messages['reg_phone_error'], bot_id=bot_id)
                 await message.answer(msg)
                 return
             

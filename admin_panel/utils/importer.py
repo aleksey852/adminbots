@@ -20,13 +20,14 @@ logger = logging.getLogger(__name__)
 
 async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
     """
-    Background task to process promo code import with job tracking.
+    Background task to process promo code import with job tracking and WS updates.
     """
     logger.info(f"Starting background import for Bot {bot_id} from {file_path}")
     
     # We need to get bot info to connect to DB if not connected
     from database.bot_db import bot_db_manager
     from database.panel_db import get_bot_by_id
+    from admin_panel.websockets import manager
     
     # Ensure database connection exists
     if not bot_db_manager.get(bot_id):
@@ -42,6 +43,10 @@ async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
             job_id = await create_job('import_promo', {"file": os.path.basename(file_path)})
         
         await update_job(job_id, status='processing', progress=0)
+        # Notify start
+        await manager.broadcast({
+            "type": "job_update", "job": {"id": job_id, "type": "import_promo", "status": "processing", "progress": 0}
+        }, bot_id)
         
         count = 0
         total_lines = 0
@@ -80,11 +85,29 @@ async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
                 # Update progress
                 progress = int((processed_lines / total_lines) * 100) if total_lines else 0
                 await update_job(job_id, progress=progress, details={"processed": processed_lines, "added": count})
-                # Sleep briefly to yield event loop if needed
+                
+                # Notify progress via WebSocket
+                await manager.broadcast({
+                    "type": "job_update", 
+                    "job": {
+                        "id": job_id, "type": "import_promo", "status": "processing", 
+                        "progress": progress, "details": {"processed": processed_lines, "added": count}
+                    }
+                }, bot_id)
+                
+                # Sleep briefly to yield event loop
                 await asyncio.sleep(0.01)
 
             # Success
             await update_job(job_id, status='completed', progress=100, details={"processed": processed_lines, "added": count})
+            await manager.broadcast({
+                "type": "job_update", 
+                "job": {
+                    "id": job_id, "type": "import_promo", "status": "completed", 
+                    "progress": 100, "details": {"processed": processed_lines, "added": count}
+                }
+            }, bot_id)
+            
             logger.info(f"Import finished. Added {count} codes.")
             
             # Notify Admins
@@ -100,6 +123,10 @@ async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
         except Exception as e:
             logger.error(f"Import failed: {e}")
             await update_job(job_id, status='failed', details={"error": str(e)})
+            await manager.broadcast({
+                "type": "job_update", 
+                "job": {"id": job_id, "type": "import_promo", "status": "failed", "details": {"error": str(e)}}
+            }, bot_id)
             
             # Notify failure
             bot_instance = bot_manager.bots.get(bot_id)
@@ -116,3 +143,4 @@ async def process_promo_import(file_path: str, bot_id: int, job_id: int = None):
                 os.remove(file_path)
             except Exception as e:
                 logger.error(f"Failed to delete temp file: {e}")
+

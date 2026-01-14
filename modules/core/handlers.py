@@ -66,9 +66,16 @@ class CoreModule(BotModule):
         "profile_receipt": "👤 Ваш профиль\n\nИмя: {name}\nТелефон: {phone}\n\n📊 Чеков загружено: {total}\n🎫 Билетов: {tickets}{wins_text}{days_text}",
         "help_promo": "🤖 Что умеет бот:\n\n🔑 Ввести промокод — получить билет\n🎫 Мои билеты — ваши билеты и инфо\n📋 Мои активации — история\n👤 Мой профиль — статистика\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь",
         "help_receipt": "🤖 Что умеет бот:\n\n🧾 Загрузить чек — получить билеты\n🎫 Мои билеты — ваши билеты и инфо\n📋 Мои чеки — история\n👤 Мой профиль — статистика\nℹ️ FAQ — частые вопросы\n🆘 Поддержка — связь",
+        "error_init": "⚠️ Ошибка инициализации. Попробуйте /start",
+        "error_auth": "⚠️ Вы не зарегистрированы. Нажмите /start",
+        "tickets_info":  "🎫 ВАШИ БИЛЕТЫ\n═══════════════════\n\n{content}",
+        "tickets_empty_promo": "📭 У вас пока нет билетов\n\n💡 Активируйте промокод,\nчтобы получить билеты!\n\nℹ️ 1 промокод = 1 билет",
+        "tickets_empty_receipt": "📭 У вас пока нет билетов\n\n💡 Загрузите чек с QR-кодом,\nчтобы получить билеты!",
+        "tickets_mechanics_promo": "\n─────────────────────\nℹ️ КАК РАБОТАЮТ БИЛЕТЫ\n\n🔑 1 промокод = 1 билет\n\n🏆 РОЗЫГРЫШ\n  • Все билеты участвуют\n  • Чем больше — тем выше шанс!",
+        "tickets_mechanics_receipt": "\n─────────────────────\nℹ️ КАК РАБОТАЮТ БИЛЕТЫ\n\n🧾 1 чек = 1 билет\n\n🏆 РОЗЫГРЫШ\n  • Все билеты участвуют\n  • Чем больше — тем выше шанс!",
         
         # FAQ Defaults
-        "faq_how_promo": "🎯 Как участвовать?\n\n1️⃣ Получите промокод\n2️⃣ Отправьте его в этот бот\n3️⃣ Получите билет (1 код = 1 билет)\n4️⃣ Ждите розыгрыш!\n\n💡 Чем больше билетов — тем выше шанс!",
+        "faq_how_promo": "🎯 Как участвовать?\n\n1️⃣ Получите промокод\n2️⃣ Отправьте его в этот бот\n3️⃣ Получите билет (1 код = 1 билет)\n4️⃣ Ждите розыгрыш!\n\n💡 Чем больше билеты — тем выше шанс!",
         "faq_how_receipt": "🎯 Как участвовать?\n\n1️⃣ Купите акционный товар\n2️⃣ Сохраните чек\n3️⃣ Сфотографируйте QR-код\n4️⃣ Отправьте фото в бот\n5️⃣ Получите билеты!\n\n💡 Чем больше билетов — тем выше шанс!",
         "faq_limit_promo": "🔢 Сколько промокодов?\n\nОграничений нет!\n\n• 1 промокод = 1 билет\n• Копите билеты для розыгрыша\n• Бонусные билеты тоже считаются",
         "faq_limit_receipt": "🧾 Сколько чеков?\n\nОграничений нет!\n\n• 1 чек = 1+ билетов\n• Копите билеты для розыгрыша\n• Бонусные билеты тоже считаются",
@@ -116,7 +123,7 @@ class CoreModule(BotModule):
         @self.router.message(CommandStart())
         async def command_start(message: Message, state: FSMContext, bot_id: int = None):
             if not bot_id:
-                await message.answer("Ошибка инициализации")
+                await message.answer(config_manager.get_message('error_init', self.default_messages['error_init'], bot_id=bot_id))
                 return
             
             # Check subscription
@@ -285,7 +292,7 @@ class CoreModule(BotModule):
             if not bot_id: return
             user = await get_user_with_stats(message.from_user.id)
             if not user:
-                await message.answer("Вы не зарегистрированы. Нажмите /start")
+                await message.answer(config_manager.get_message('error_auth', self.default_messages['error_auth'], bot_id=bot_id))
                 return
             
             from database.bot_methods import get_user_tickets_breakdown, get_user_manual_tickets
@@ -293,49 +300,38 @@ class CoreModule(BotModule):
             manual_list = await get_user_manual_tickets(user['id'])
             bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
             
-            text = "🎫 ВАШИ БИЛЕТЫ\n"
-            text += "═══════════════════\n\n"
+            # Content construction
+            content = ""
             
             if breakdown['total'] == 0:
-                text += "📭 У вас пока нет билетов\n\n"
-                if bot_type == 'promo':
-                    text += "💡 Активируйте промокод,\nчтобы получить билеты!\n\n"
-                    text += "ℹ️ 1 промокод = 1 билет"
-                else:
-                    text += "💡 Загрузите чек с QR-кодом,\nчтобы получить билеты!"
+                empty_key = f'tickets_empty_{bot_type}'
+                content = config_manager.get_message(empty_key, self.default_messages.get(empty_key, ""), bot_id=bot_id)
             else:
-                text += f"🎟 Всего билетов: {breakdown['total']}\n\n"
+                content += f"🎟 Всего билетов: {breakdown['total']}\n\n"
                 
-                text += "📊 Откуда:\n"
+                content += "📊 Откуда:\n"
                 if bot_type == 'promo' and breakdown['from_promo'] > 0:
-                    text += f"  🔑 Промокоды: {breakdown['from_promo']}\n"
+                    content += f"  🔑 Промокоды: {breakdown['from_promo']}\n"
                 elif bot_type == 'receipt' and breakdown['from_receipts'] > 0:
-                    text += f"  🧾 Чеки: {breakdown['from_receipts']}\n"
+                    content += f"  🧾 Чеки: {breakdown['from_receipts']}\n"
                 
                 if breakdown['from_manual'] > 0:
-                    text += f"  🎁 Бонусы: {breakdown['from_manual']}\n"
+                    content += f"  🎁 Бонусы: {breakdown['from_manual']}\n"
                 
-                # Show last manual tickets if any
                 if manual_list:
-                    text += "\n📋 Бонусные начисления:\n"
+                    content += "\n📋 Бонусные начисления:\n"
                     for t in manual_list[:3]:
                         reason = t.get('reason') or 'Бонус'
-                        text += f"  • +{t['tickets']} — {reason}\n"
+                        content += f"  • +{t['tickets']} — {reason}\n"
             
-            # Explain raffle mechanics
-            text += "\n─────────────────────\n"
-            text += "ℹ️ КАК РАБОТАЮТ БИЛЕТЫ\n\n"
+            # Mechanics footer
+            mech_key = f'tickets_mechanics_{bot_type}'
+            content += config_manager.get_message(mech_key, self.default_messages.get(mech_key, ""), bot_id=bot_id)
             
-            if bot_type == 'promo':
-                text += "🔑 1 промокод = 1 билет\n\n"
-            else:
-                text += "🧾 1 чек = 1 билет\n\n"
+            # Main Frame
+            full_msg = config_manager.get_message('tickets_info', self.default_messages['tickets_info'], bot_id=bot_id).format(content=content)
             
-            text += "🏆 РОЗЫГРЫШ\n"
-            text += "  • Все билеты участвуют\n"
-            text += "  • Чем больше — тем выше шанс!\n"
-            
-            await message.answer(text)
+            await message.answer(full_msg)
 
         @self.router.message(F.text == "📋 Мои чеки")
         @self.router.message(F.text == "📋 Мои активации")

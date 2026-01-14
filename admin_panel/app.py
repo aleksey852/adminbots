@@ -349,3 +349,30 @@ async def switch_bot(request: Request, bot_id: int, user: Dict = Depends(auth.ge
         request.session["active_bot_id"] = bot_id
     referer = request.headers.get("referer", "/")
     return RedirectResponse(url=referer, status_code=303)
+
+
+# === WebSockets ===
+
+from admin_panel.websockets import manager
+from fastapi import WebSocket, WebSocketDisconnect
+
+@app.websocket("/ws/{bot_id}")
+async def websocket_endpoint(websocket: WebSocket, bot_id: int):
+    await manager.connect(websocket, bot_id)
+    try:
+        while True:
+            # Keep connection alive and wait for messages (ping/pong)
+            # We don't expect much upstream data from client, but we need to listen
+            data = await websocket.receive_text()
+            # Optional: handle simple ping/pong or commands
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, bot_id)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        # Try to disconnect safely
+        try:
+            manager.disconnect(websocket, bot_id)
+        except:
+            pass

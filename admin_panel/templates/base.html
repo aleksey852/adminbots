@@ -168,18 +168,8 @@
             </div>
             {% endif %}
 
-            <!-- Sidebar Active Jobs Tracking -->
-            <div id="globalActiveJobs" class="mt-4 px-3 d-none">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <small class="text-uppercase fw-bold"
-                        style="font-size: 0.65rem; color: #64748b; letter-spacing: 0.05em;">Активные задачи</small>
-                    <div class="spinner-border spinner-border-sm text-primary" role="status"
-                        style="width: 0.7rem; height: 0.7rem; border-width: 0.15em;"></div>
-                </div>
-                <div id="sidebarJobsList" class="d-flex flex-column gap-2 mb-3">
-                    <!-- Jobs will be injected here via JS -->
-                </div>
-            </div>
+            <!-- Sidebar Active Jobs Tracking (Vue Mount Point) -->
+            <div id="vue-jobs-widget"></div>
         </div>
 
         <div class="sidebar-footer">
@@ -213,8 +203,20 @@
 
     {% block modals %}{% endblock %}
 
+    <!-- Pass Bot ID to Global Scope for JS -->
+    <script>
+        window.botId = {{ bot.id if bot else 'null' }};
+    </script>
+
+    <!-- Vue 3 (CDN) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Vue App -->
+    <script src="/static/js/jobs_widget.js"></script>
+
     <script>
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme');
@@ -260,99 +262,24 @@
             }
         });
 
-        // Global Jobs Tracking Implementation
-        let globalJobsInterval = null;
-        function updateGlobalJobs() {
-            // Only poll if we have a bot selected
-            {% if bot %}
-            fetch('/api/jobs/active')
-                .then(r => r.json())
-                .then(jobs => {
-                    const container = document.getElementById('globalActiveJobs');
-                    const list = document.getElementById('sidebarJobsList');
-                    if (!container || !list) return;
+        // Global polling removed - replaced by Vue + WebSocket
 
-                    if (jobs.length === 0) {
-                        container.classList.add('d-none');
-                        return;
+
+        // Fix for stuck modal backdrops
+        // Listen for ALL modal hidden events (with capture for reliability)
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('hidden.bs.modal', function () {
+                setTimeout(() => {
+                    const openModals = document.querySelectorAll('.modal.show');
+                    if (openModals.length === 0) {
+                        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                        document.body.classList.remove('modal-open');
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
                     }
-
-                    container.classList.remove('d-none');
-                    list.innerHTML = jobs.map(job => {
-                        const typeLabel = job.type === 'import_promo' ? 'Импорт' : (job.type === 'broadcast' ? 'Рассылка' : job.type);
-                        return `
-                            <div class="job-item p-2 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
-                                <div class="d-flex justify-content-between mb-1" style="font-size: 0.7rem;">
-                                    <span class="text-white opacity-75 text-truncate" style="max-width: 100px;">${typeLabel}</span>
-                                    <span class="text-primary fw-bold">${job.progress}%</span>
-                                </div>
-                                <div class="progress" style="height: 3px; background: rgba(255,255,255,0.1);">
-                                    <div class="progress-bar bg-primary" style="width: ${job.progress}%"></div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-
-                    // Update Dashboard if present
-                    const dashContainer = document.getElementById('activeJobsDashboard');
-                    const dashList = document.getElementById('dashboardJobsList');
-                    const dashCount = document.getElementById('activeJobsCount');
-
-                    if (dashContainer && dashList) {
-                        dashContainer.classList.remove('d-none');
-                        dashCount.innerText = jobs.length;
-                        dashList.innerHTML = jobs.map(job => {
-                            const details = job.details || {};
-                            const typeLabel = job.type === 'import_promo' ? 'Импорт кодов' : (job.type === 'broadcast' ? 'Рассылка' : job.type);
-                            let detStr = '';
-                            if (details.processed !== undefined) {
-                                detStr = `<div class="mt-2 small text-muted">${parseInt(details.processed).toLocaleString()} / ${parseInt(details.total_lines || 0).toLocaleString()}</div>`;
-                            }
-
-                            return `
-                                <div class="col-md-6 col-lg-4">
-                                    <div class="p-3 border rounded shadow-sm bg-card">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="fw-bold text-primary">${typeLabel}</span>
-                                            <span class="badge badge-secondary border">${job.status}</span>
-                                        </div>
-                                        <div class="progress mb-2" style="height: 10px; border-radius: 5px;">
-                                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: ${job.progress}%">${job.progress}%</div>
-                                        </div>
-                                        ${detStr}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('');
-                    }
-                })
-                .catch(e => {
-                    console.error("Global jobs error:", e);
-                    // Silently fail, panel might be sleeping or unauthorized
-                });
-            {% endif %}
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            updateGlobalJobs();
-            // Poll every 3 seconds for efficiency
-            globalJobsInterval = setInterval(updateGlobalJobs, 3000);
-
-            // Fix for stuck modal backdrops
-            // Listen for ALL modal hidden events (with capture for reliability)
-            document.querySelectorAll('.modal').forEach(modal => {
-                modal.addEventListener('hidden.bs.modal', function () {
-                    setTimeout(() => {
-                        const openModals = document.querySelectorAll('.modal.show');
-                        if (openModals.length === 0) {
-                            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-                            document.body.classList.remove('modal-open');
-                            document.body.style.overflow = '';
-                            document.body.style.paddingRight = '';
-                        }
-                    }, 100);
-                });
+                }, 100);
             });
+        });
         });
     </script>
     {% block extra_js %}{% endblock %}

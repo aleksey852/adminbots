@@ -29,17 +29,34 @@ class ConfigManager:
         return default
 
     def get_message(self, key: str, default: str = "", bot_id: int = None) -> str:
-        """Get message text from cache (checks messages, then settings with msg_ prefix)"""
+        """Get message text from cache (checks messages, then settings msg_, then content.py)"""
         if not self._initialized:
             return default
+            
         if bot_id:
-            # First check messages table cache
+            # 1. DB: messages table
             if bot_id in self._messages and key in self._messages[bot_id]:
                 return self._messages[bot_id][key]
-            # Then check settings with msg_ prefix (loaded from content.py)
+                
+            # 2. DB: settings table (msg_ prefix)
             msg_key = f"msg_{key}"
             if bot_id in self._settings and msg_key in self._settings[bot_id]:
                 return self._settings[bot_id][msg_key]
+                
+            # 3. FILE: content.py (via content_loader)
+            try:
+                from utils.content_loader import get_bot_content
+                content = get_bot_content(bot_id)
+                # Try exact key or UPPERCASE key
+                val = getattr(content, key, None)
+                if val is None:
+                    val = getattr(content, key.upper(), None)
+                
+                if val is not None:
+                    return str(val)
+            except Exception as e:
+                logger.error(f"Error reading content.py for {key}: {e}")
+                
         return default
 
     async def set_setting(self, key: str, value: str, bot_id: int):

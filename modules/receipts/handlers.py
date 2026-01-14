@@ -72,6 +72,9 @@ class ReceiptsModule(BotModule):
         "receipt_valid": "✅ Чек принят!\n\nВсего билетов: {count} 🎯",
         "receipt_valid_tickets": "✅ Чек принят! +{new_tickets} билетов!\n\nВсего билетов: {count} 🎯",
         "promo_ended": "🏁 Акция завершена",
+        "error_init": "⚠️ Ошибка инициализации. Попробуйте /start",
+        "error_auth": "⚠️ Вы не зарегистрированы. Нажмите /start",
+        "rate_limit": "⏳ Пожалуйста, подождите. Слишком часто!"
     }
     
     async def _get_keywords(self, bot_id: int, key: str) -> list:
@@ -87,7 +90,7 @@ class ReceiptsModule(BotModule):
         @self.router.message(F.text == "🧾 Ещё чек")
         async def start_receipt_upload(message: Message, state: FSMContext, bot_id: int = None):
             if not bot_id:
-                await message.answer("Ошибка инициализации. Попробуйте /start")
+                await message.answer(config_manager.get_message('error_init', self.default_messages['error_init'], bot_id=bot_id))
                 return
             
             if not await config.is_promo_active_async(bot_id):
@@ -98,7 +101,7 @@ class ReceiptsModule(BotModule):
             
             user = await get_user_with_stats(message.from_user.id)
             if not user:
-                await message.answer("Сначала зарегистрируйтесь: /start")
+                await message.answer(config_manager.get_message('error_auth', self.default_messages['error_auth'], bot_id=bot_id))
                 return
             
             if message.from_user.username != user.get('username'):
@@ -146,6 +149,9 @@ class ReceiptsModule(BotModule):
                 await state.clear()
                 return
             
+            # UX: Show "typing" or "finding" action
+            await bot.send_chat_action(chat_id=message.chat.id, action="upload_photo")
+            
             scanning_msg = config_manager.get_message('scanning', self.default_messages['scanning'], bot_id=bot_id)
             processing_msg = await message.answer(scanning_msg)
             
@@ -153,8 +159,12 @@ class ReceiptsModule(BotModule):
             max_size = self.MAX_FILE_SIZE_MB * 1024 * 1024
             
             if photo.file_size and photo.file_size > max_size:
-                await processing_msg.edit_text(config_manager.get_message('file_too_big', self.default_messages['file_too_big'], bot_id=bot_id))
-                return # Don't clear state, let user try another file
+                await processing_msg.edit_text(
+                    config_manager.get_message('file_too_big', self.default_messages['file_too_big'], bot_id=bot_id)
+                )
+                # Re-send cancel keyboard just in case
+                await message.answer("📸 Попробуйте загрузить сжатое фото", reply_markup=get_cancel_keyboard())
+                return 
             
             try:
                 file_io = io.BytesIO()
@@ -164,14 +174,20 @@ class ReceiptsModule(BotModule):
                 file_io.close()
             except Exception as e:
                 logger.error(f"Photo processing error: {e}")
-                await processing_msg.edit_text(config_manager.get_message('processing_error', self.default_messages['processing_error'], bot_id=bot_id))
+                await processing_msg.edit_text(
+                    config_manager.get_message('processing_error', self.default_messages['processing_error'], bot_id=bot_id)
+                )
+                await message.answer("📸 Попробуйте ещё раз", reply_markup=get_cancel_keyboard())
                 return
             
             try: await processing_msg.delete()
             except: pass
             
             if not result:
-                await message.answer(config_manager.get_message('check_failed', self.default_messages['check_failed'], bot_id=bot_id))
+                await message.answer(
+                    config_manager.get_message('check_failed', self.default_messages['check_failed'], bot_id=bot_id),
+                    reply_markup=get_cancel_keyboard() # Ensure they can still cancel or try again
+                )
                 return
             
             code = result.get("code")
@@ -183,10 +199,19 @@ class ReceiptsModule(BotModule):
                 await self._handle_valid_receipt(message, state, result, user_db_id, bot_id)
             elif code in (0, 3, 4, 5):
                 # Scan failed
-                await message.answer(config_manager.get_message('scan_failed', self.default_messages['scan_failed'], bot_id=bot_id), reply_markup=get_support_keyboard())
+                await message.answer(
+                    config_manager.get_message('scan_failed', self.default_messages['scan_failed'], bot_id=bot_id),
+                    reply_markup=get_cancel_keyboard() # Keep cancel keyboard visible
+                )
             else:
                 # API error
-                await message.answer(config_manager.get_message('service_unavailable', self.default_messages['service_unavailable'], bot_id=bot_id), reply_markup=get_support_keyboard())
+                await message.answer(
+                    config_manager.get_message('service_unavailable', self.default_messages['service_unavailable'], bot_id=bot_id),
+                    reply_markup=get_support_keyboard()
+                )
+                # If service unavailable, maybe better to exit state?
+                # For now let's keep them in interaction
+                await message.answer("Попробуйте позже или нажмите Отмена", reply_markup=get_cancel_keyboard())
 
         @self.router.message(ReceiptSubmission.upload_qr)
         async def process_receipt_invalid_type(message: Message, state: FSMContext, bot_id: int = None):
