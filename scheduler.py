@@ -78,13 +78,10 @@ async def pg_listener(
                                         # It gets db from bot_methods.get_current_bot_db()
                                         
                                         # We need to set context manually here
-                                        from database.bot_methods import bot_context
-                                        token = bot_context.set(bot_id)
-                                        try:
+                                        from database.bot_methods import bot_db_context
+                                        async with bot_db_context(bot_id):
                                             await config_manager.load_for_bot(bot_id)
                                             logger.info(f"✅ Config reloaded for bot {bot_id}")
-                                        finally:
-                                            bot_context.reset(token)
                                             
                                     except Exception as e:
                                         logger.error(f"Failed to reload config for bot {bot_id}: {e}")

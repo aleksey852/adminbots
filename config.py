@@ -36,8 +36,9 @@ PROVERKA_CHEKA_URL = "https://proverkacheka.com/api/v1/check/get"
 TARGET_KEYWORDS = [x.strip().lower() for x in os.getenv("TARGET_KEYWORDS", "чипсы,buster,vibe").split(",")]
 EXCLUDED_KEYWORDS = [x.strip().lower() for x in os.getenv("EXCLUDED_KEYWORDS", "mosk").split(",")]
 PROMO_NAME = os.getenv("PROMO_NAME", "Admin Bots")
-PROMO_START_DATE = os.getenv("PROMO_START_DATE", "2025-01-15")
-PROMO_END_DATE = os.getenv("PROMO_END_DATE", "2025-03-15")
+# Default to very wide date range so promo is active until configured
+PROMO_START_DATE = os.getenv("PROMO_START_DATE", "2020-01-01")
+PROMO_END_DATE = os.getenv("PROMO_END_DATE", "2030-12-31")
 PROMO_PRIZES = os.getenv("PROMO_PRIZES", "iPhone 16, PlayStation 5, сертификаты")
 
 # === Support ===
