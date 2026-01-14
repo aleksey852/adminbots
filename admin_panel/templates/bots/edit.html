@@ -252,17 +252,37 @@
 
 {% block extra_js %}
 <script>
-    // Clean up modal backdrop on close
+    // Robust modal backdrop cleanup
     const deleteModal = document.getElementById('deleteModal');
+
     if (deleteModal) {
-        deleteModal.addEventListener('hidden.bs.modal', function () {
-            // Remove any leftover backdrops
-            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-            // Reset body styles
-            document.body.classList.remove('modal-open');
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
+        // Primary cleanup on modal hide
+        deleteModal.addEventListener('hidden.bs.modal', cleanupBackdrop);
+
+        // Also listen for dismiss button click as backup
+        deleteModal.querySelectorAll('[data-bs-dismiss="modal"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setTimeout(cleanupBackdrop, 200);
+            });
         });
     }
+
+    function cleanupBackdrop() {
+        // Remove any leftover backdrops
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        // Reset body styles
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }
+
+    // Fallback: check every second if backdrop is stuck (only when no modals are open)
+    setInterval(() => {
+        const hasOpenModal = document.querySelector('.modal.show');
+        const hasBackdrop = document.querySelector('.modal-backdrop');
+        if (!hasOpenModal && hasBackdrop) {
+            cleanupBackdrop();
+        }
+    }, 1000);
 </script>
 {% endblock %}

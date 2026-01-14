@@ -687,7 +687,13 @@ h6 {
     min-height: 100vh;
     transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
-    z-index: 10;
+    z-index: 1060;
+    /* Higher than modal-backdrop (1055) when modal not shown */
+}
+
+/* When modal is open, lower z-index so backdrop covers content */
+body.modal-open .main-content {
+    z-index: 1;
 }
 
 .mobile-header {
@@ -2160,17 +2166,21 @@ input[type="file"]::file-selector-button:hover {
 /* =========================================
    Bootstrap Modal Z-Index Fixes
    ========================================= */
-/* Ensure modals appear above sidebar (z-index: 1040) */
+/* Ensure modals appear above everything including main-content (1060) */
 .modal {
-    z-index: 1060 !important;
+    z-index: 1070 !important;
 }
 
 .modal-backdrop {
-    z-index: 1055 !important;
+    z-index: 1065 !important;
 }
 
 .modal-dialog {
-    z-index: 1065 !important;
+    z-index: 1075 !important;
+}
+
+.modal-content {
+    z-index: 1075 !important;
 }
 
 /* Fix for stuck backdrop - hide when no modal is shown */
@@ -2178,4 +2188,20 @@ body:not(.modal-open) .modal-backdrop {
     display: none !important;
     opacity: 0 !important;
     pointer-events: none !important;
+}
+
+/* Aggressive fix: if backdrop exists but no visible modal, hide it via animation */
+.modal-backdrop:not(.showing) {
+    transition: opacity 0.15s;
+}
+
+/* Force backdrop behind main content */
+.main-content {
+    position: relative;
+    z-index: 1;
+}
+
+/* Ensure sidebar is below backdrop when modal is shown */
+body.modal-open .sidebar {
+    z-index: 1040 !important;
 }
