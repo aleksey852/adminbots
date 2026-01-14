@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class ConfigManager:
     _settings: Dict[int, Dict[str, str]] = {}  # bot_id -> {key: value}
-    _messages: Dict[int, Dict[str, str]] = {}  # bot_id -> {key: text}
+    _settings: Dict[int, Dict[str, str]] = {}  # bot_id -> {key: value}
     _initialized = False
 
     async def load(self):
@@ -29,21 +29,12 @@ class ConfigManager:
         return default
 
     def get_message(self, key: str, default: str = "", bot_id: int = None) -> str:
-        """Get message text from cache (checks messages, then settings msg_, then content.py)"""
+        """Get message text directly from content.py"""
         if not self._initialized:
             return default
             
         if bot_id:
-            # 1. DB: messages table
-            if bot_id in self._messages and key in self._messages[bot_id]:
-                return self._messages[bot_id][key]
-                
-            # 2. DB: settings table (msg_ prefix)
-            msg_key = f"msg_{key}"
-            if bot_id in self._settings and msg_key in self._settings[bot_id]:
-                return self._settings[bot_id][msg_key]
-                
-            # 3. FILE: content.py (via content_loader)
+            # FILE: content.py (via content_loader)
             try:
                 from utils.content_loader import get_bot_content
                 content = get_bot_content(bot_id)
@@ -81,25 +72,7 @@ class ConfigManager:
             self._settings[bot_id] = {}
         self._settings[bot_id][key] = str(value)
 
-    async def set_message(self, key: str, text: str, bot_id: int):
-        """Update message in DB and cache"""
-        from database.bot_db import bot_db_manager
-        
-        db = bot_db_manager.get(bot_id)
-        if not db:
-             db = bot_methods.get_current_bot_db()
-             
-        if db:
-            async with db.get_connection() as conn:
-                await conn.execute("""
-                    INSERT INTO messages (key, text, updated_at)
-                    VALUES ($1, $2, NOW())
-                    ON CONFLICT (key) DO UPDATE SET text = $2, updated_at = NOW()
-                """, key, text)
-        
-        if bot_id not in self._messages:
-            self._messages[bot_id] = {}
-        self._messages[bot_id][key] = text
+
 
     async def get_all_settings(self, bot_id: int) -> List[Dict]:
         """Get all settings for admin panel (uses current bot context)"""
@@ -107,11 +80,7 @@ class ConfigManager:
         async with db.get_connection() as conn:
             return await conn.fetch("SELECT * FROM settings ORDER BY key")
 
-    async def get_all_messages(self, bot_id: int) -> List[Dict]:
-        """Get all messages for admin panel (uses current bot context)"""
-        db = bot_methods.get_current_bot_db()
-        async with db.get_connection() as conn:
-            return await conn.fetch("SELECT * FROM messages ORDER BY key")
+
 
     async def load_for_bot(self, bot_id: int):
         """Load settings and messages for a specific bot into cache"""
@@ -129,11 +98,8 @@ class ConfigManager:
                     for row in rows:
                         self._settings[bot_id][row['key']] = row['value']
                     
-                    # Load messages
-                    rows = await conn.fetch("SELECT key, text FROM messages")
-                    if bot_id not in self._messages: self._messages[bot_id] = {}
                     for row in rows:
-                        self._messages[bot_id][row['key']] = row['text']
+                        self._settings[bot_id][row['key']] = row['value']
                 
                 logger.debug(f"Loaded {len(self._settings.get(bot_id, {}))} settings for bot {bot_id}")
         except Exception as e:
