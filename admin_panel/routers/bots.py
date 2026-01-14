@@ -186,13 +186,10 @@ def setup_routes(
 
     @router.post("/{bot_id}/update", dependencies=[Depends(verify_csrf_token)])
     async def update_bot_info(
-        request: Request, bot_id: int, 
-        name: str = Form(...), 
-        type: str = Form(None),
-        manifest_path: str = Form(None),
+        request: Request, bot_id: int, name: str = Form(...), type: str = Form(None),
         user: Dict = Depends(require_superadmin)
     ):
-        """Update bot basic info (name, type, manifest_path)"""
+        """Update bot basic info (name, type)"""
         from database.panel_db import update_bot
         
         bot = await get_bot_by_id(bot_id)
@@ -202,16 +199,8 @@ def setup_routes(
         kwargs = {"name": name.strip()}
         if type:
             kwargs["type"] = type
-        if manifest_path is not None:
-             kwargs["manifest_path"] = manifest_path.strip()
             
         await update_bot(bot_id, **kwargs)
-        
-        # Trigger content reload if path changed
-        if manifest_path and manifest_path.strip() != bot.get('manifest_path'):
-             from database.panel_db import notify_reload_config
-             await notify_reload_config(bot_id)
-             
         return RedirectResponse(f"/bots/{bot_id}/edit?msg=Bot+info+updated", 303)
 
     @router.post("/{bot_id}/admins", dependencies=[Depends(verify_csrf_token)])

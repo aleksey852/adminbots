@@ -106,11 +106,6 @@ class BotMiddleware(BaseMiddleware):
             _enabled_modules_cache[bot_id] = enabled_modules
             data["enabled_modules"] = enabled_modules
             
-            # Ensure content path is registered
-            if bot_info and bot_info.get('manifest_path'):
-                from utils.content_loader import register_bot_path
-                register_bot_path(bot_id, bot_info.get('manifest_path'))
-            
             # 2. Load settings/messages into cache if not already loaded
             from utils.config_manager import config_manager
             if bot_id not in config_manager._settings:

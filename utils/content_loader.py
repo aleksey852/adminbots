@@ -46,7 +46,7 @@ def _get_default_content():
 def register_bot_path(bot_id: int, manifest_path: str):
     """Register bot's manifest path for content loading"""
     _path_cache[bot_id] = manifest_path
-    logger.info(f"✅ Registered content path for bot {bot_id}: {manifest_path}")
+    logger.debug(f"Registered content path for bot {bot_id}: {manifest_path}")
 
 
 def get_bot_content(bot_id: int) -> Any:
@@ -64,7 +64,6 @@ def get_bot_content(bot_id: int) -> Any:
     manifest_path = _path_cache.get(bot_id)
     
     if not manifest_path:
-        logger.warning(f"⚠️ Cache miss for bot {bot_id} manifest_path. Cache keys: {list(_path_cache.keys())}")
         # Try to get from database
         try:
             import asyncio
