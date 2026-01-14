@@ -106,13 +106,21 @@
                                 <a href="/content" class="btn btn-outline-primary">
                                     <i class="bi bi-file-text me-2"></i>Редактор контента
                                 </a>
-                                {% if edit_bot.manifest_path %}
-                                <div class="text-center mt-2">
-                                    <small class="text-muted d-block text-truncate">
-                                        <i class="bi bi-folder2-open me-1"></i> {{ edit_bot.manifest_path }}
-                                    </small>
-                                </div>
-                                {% endif %}
+                                <form method="POST" action="/bots/{{ edit_bot.id }}/update" class="mb-3">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="name" value="{{ edit_bot.name }}"> <!-- Preserve name -->
+                                    <label class="form-label small text-muted">Путь к файлам (Manifest Path)</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control font-monospace" name="manifest_path"
+                                            value="{{ edit_bot.manifest_path or '' }}"
+                                            placeholder="/path/to/bot/folder">
+                                        <button class="btn btn-outline-secondary" type="submit" title="Сохранить путь">
+                                            <i class="bi bi-save"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text small">Измените, если бот не видит свои файлы (content.py).
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>
