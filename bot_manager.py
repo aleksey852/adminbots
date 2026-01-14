@@ -37,6 +37,8 @@ class BotManager:
             token = row['token']
             bot_type = row.get('type', 'receipt')
             database_url = row['database_url']
+            manifest_path = row.get('manifest_path')
+            
             new_ids.add(bot_id)
             
             if bot_id in self.bots:
@@ -45,20 +47,29 @@ class BotManager:
                     logger.info(f"Token changed for bot {bot_id}, reloading...")
                     await self.stop_bot(bot_id)
                 else:
-                    # Update type just in case
+                    # Update configuration just in case
                     self.bot_types[bot_id] = bot_type
+                    # Update content path if changed
+                    if manifest_path:
+                        from utils.content_loader import register_bot_path
+                        register_bot_path(bot_id, manifest_path)
                     continue
             
-            await self.start_bot(bot_id, token, bot_type, database_url)
+            await self.start_bot(bot_id, token, bot_type, database_url, manifest_path)
         
         # Stop removed bots
         for bot_id in current_ids - new_ids:
             logger.info(f"Bot {bot_id} is no longer active, stopping...")
             await self.stop_bot(bot_id)
 
-    async def start_bot(self, bot_id: int, token: str, bot_type: str = 'receipt', database_url: str = None):
+    async def start_bot(self, bot_id: int, token: str, bot_type: str = 'receipt', database_url: str = None, manifest_path: str = None):
         """Start a bot and connect to its database"""
         try:
+            # Register content path
+            if manifest_path:
+                from utils.content_loader import register_bot_path
+                register_bot_path(bot_id, manifest_path)
+
             # Create and connect to bot's database
             if database_url:
                 bot_db_manager.register(bot_id, database_url)
