@@ -4,6 +4,7 @@ Promo Module - Promo code activation
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 import re
 import logging
 
@@ -141,16 +142,10 @@ class PromoModule(BotModule):
                 logger.error(f"Error activating promo code via callback: {e}")
                 await callback.answer("⚠️ Временная ошибка. Попробуйте позже.", show_alert=True)
 
-        @self.router.message(F.text)
-        async def process_promo_code(message: Message, state: FSMContext = None, bot_id: int = None):
+        @self.router.message(F.text, StateFilter(None))
+        async def process_promo_code(message: Message, bot_id: int = None):
             if not bot_id: return
             if bot_manager.bot_types.get(bot_id) != 'promo': return
-            
-            # Skip if user is in any FSM state (e.g. Registration)
-            if state:
-                current_state = await state.get_state()
-                if current_state:
-                    return  # Let the state handler process this
             
             # Ignore commands and menu items
             if message.text.startswith(('/', '🔑', '👤', '📋', 'ℹ️', '🆘', '📊', '📢', '🎁', '🏆', '📥', '➕', '❌', '🏠')): 
