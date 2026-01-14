@@ -28,7 +28,7 @@ from database.panel_db import (
 from database.bot_db import bot_db_manager
 
 # Routers
-from admin_panel.routers import auth, bots, users, campaigns, system, texts, modules
+from admin_panel.routers import auth, bots, users, campaigns, system, modules
 
 # Setup logging
 logging.basicConfig(
