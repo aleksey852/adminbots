@@ -15,13 +15,14 @@ def get_cancel_keyboard():
 
 def get_main_keyboard(is_admin: bool = False, bot_type: str = 'receipt'):
     buttons = []
+    # CTA — главное действие всегда первым
     if bot_type == 'receipt':
         buttons.append("🧾 Загрузить чек")
     else:
-        buttons.append("🔑 Ввести промокод")
+        buttons.append("🎁 Ввести промокод")
 
-    history_btn = "📋 Мои чеки" if bot_type == 'receipt' else "📋 Мои активации"
-    buttons.extend(["👤 Мой профиль", "🎫 Мои билеты", history_btn, "ℹ️ FAQ", "🆘 Поддержка"])
+    # Основные функции — 4 кнопки
+    buttons.extend(["🎫 Мои билеты", "👤 Профиль", "ℹ️ Помощь"])
     
     if is_admin:
         buttons.extend([
