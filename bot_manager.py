@@ -37,7 +37,13 @@ class BotManager:
             token = row['token']
             bot_type = row.get('type', 'receipt')
             database_url = row['database_url']
+            manifest_path = row.get('manifest_path')
             new_ids.add(bot_id)
+            
+            # Register content path for this bot
+            if manifest_path:
+                from utils.content_loader import register_bot_path
+                register_bot_path(bot_id, manifest_path)
             
             if bot_id in self.bots:
                 # Check if token changed
