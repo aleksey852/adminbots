@@ -194,6 +194,63 @@ def list_content_keys(bot_id: int) -> Dict[str, str]:
     return result
 
 
+async def preload_bot_content(bot_id: int, manifest_path: str = None) -> bool:
+    """
+    Preload content.py for a bot into cache at startup.
+    
+    This is the async-safe way to ensure content is loaded before
+    handlers start processing messages.
+    
+    Args:
+        bot_id: Bot database ID
+        manifest_path: Path to bot folder (optional, will fetch from DB if not provided)
+    
+    Returns:
+        True if content loaded successfully, False otherwise
+    """
+    global _path_cache, _content_cache
+    
+    # Get manifest_path if not provided
+    if not manifest_path:
+        try:
+            from database.panel_db import get_bot_by_id
+            bot = await get_bot_by_id(bot_id)
+            if bot and bot.get('manifest_path'):
+                manifest_path = bot['manifest_path']
+        except Exception as e:
+            logger.error(f"Failed to get manifest path for bot {bot_id}: {e}")
+            return False
+    
+    if not manifest_path:
+        logger.warning(f"No manifest path for bot {bot_id}, cannot preload content")
+        return False
+    
+    # Register path in cache
+    _path_cache[bot_id] = manifest_path
+    
+    # Load content.py
+    content_path = os.path.join(manifest_path, 'content.py')
+    
+    if not os.path.exists(content_path):
+        logger.warning(f"content.py not found at {content_path}")
+        return False
+    
+    try:
+        spec = importlib.util.spec_from_file_location(
+            f"content_{bot_id}", content_path
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        _content_cache[bot_id] = module
+        logger.info(f"Preloaded content for bot {bot_id} from {content_path}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to preload content.py for bot {bot_id}: {e}")
+        return False
+
+
 def clear_cache():
     """Clear all content caches"""
     global _content_cache, _default_content

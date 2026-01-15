@@ -40,10 +40,10 @@ class BotManager:
             manifest_path = row.get('manifest_path')
             new_ids.add(bot_id)
             
-            # Register content path for this bot
+            # Preload content from bot's content.py
             if manifest_path:
-                from utils.content_loader import register_bot_path
-                register_bot_path(bot_id, manifest_path)
+                from utils.content_loader import preload_bot_content
+                await preload_bot_content(bot_id, manifest_path)
             
             if bot_id in self.bots:
                 # Check if token changed
