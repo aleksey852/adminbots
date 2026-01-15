@@ -125,7 +125,7 @@ class ReceiptsModule(BotModule):
             
             await state.update_data(user_db_id=user['id'], bot_id=bot_id)
             
-            tickets_count = user.get('total_tickets', user['valid_receipts'])
+            tickets_count = user.get('total_tickets') or user.get('valid_receipts') or 0
             instruction = config_manager.get_message(
                 'upload_instruction', 
                 self.default_messages['upload_instruction'], 
@@ -221,7 +221,7 @@ class ReceiptsModule(BotModule):
             if message.text in ("❌ Отмена", "🏠 В меню"):
                 await state.clear()
                 user = await get_user_with_stats(message.from_user.id)
-                count = user.get('total_tickets', user['valid_receipts']) if user else 0
+                count = (user.get('total_tickets') or user.get('valid_receipts') or 0) if user else 0
                 
                 cancel_msg = config_manager.get_message(
                     'cancel_msg', 

@@ -102,7 +102,7 @@ class CoreModule(BotModule):
             if bot_id:
                 user = await get_user_with_stats(message.from_user.id)
                 if user:
-                    count = user.get('total_tickets', user['valid_receipts'])
+                    count = user.get('total_tickets') or user.get('valid_receipts') or 0
             
             cancel_msg = config_manager.get_message(
                 'cancel_msg',
@@ -142,7 +142,7 @@ class CoreModule(BotModule):
                 
                 days = config.days_until_end()
                 days_text = f"\nДо конца акции: {days} дн." if days > 0 else ""
-                tickets_count = user.get('total_tickets', user['valid_receipts'])
+                tickets_count = user.get('total_tickets') or user.get('valid_receipts') or 0
                 
                 welcome_msg = config_manager.get_message(
                     'welcome_back',
@@ -185,7 +185,7 @@ class CoreModule(BotModule):
                 bot_type = bot_manager.bot_types.get(bot_id, 'receipt')
                 
                 if user:
-                    tickets_count = user.get('total_tickets', user['valid_receipts'])
+                    tickets_count = user.get('total_tickets') or user.get('valid_receipts') or 0
                     welcome_msg = config_manager.get_message(
                         'welcome_back',
                         self.default_messages['welcome_back'],
@@ -281,7 +281,7 @@ class CoreModule(BotModule):
             if not user:
                 await message.answer(config_manager.get_message('not_registered', self.default_messages['not_registered'], bot_id=bot_id))
                 return
-            tickets_count = user.get('total_tickets', user['valid_receipts'])
+            tickets_count = user.get('total_tickets') or user.get('valid_receipts') or 0
             status_msg = config_manager.get_message(
                 'status', self.default_messages['status'], bot_id=bot_id
             ).format(name=user['full_name'], tickets=tickets_count, days=config.days_until_end())
