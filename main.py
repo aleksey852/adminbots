@@ -48,6 +48,10 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Rate limiter init failed: {e}")
     
+    # Initialize config manager
+    from utils.config_manager import config_manager
+    await config_manager.load()
+    
     # Load bots from panel registry (this also connects to their individual DBs)
     await bot_manager.load_bots_from_registry()
     bots = bot_manager.get_bots()
